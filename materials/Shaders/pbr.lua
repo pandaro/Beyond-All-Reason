@@ -2,8 +2,8 @@ return {
 	-- Rework based on:
 	--    https://github.com/lhog/spring-map-pbr
 	--    https://github.com/lhog/spring-models-pbr
-	vertex = VFS.LoadFile("ModelMaterials/Shaders/pbr.vert"),
-	fragment = VFS.LoadFile("ModelMaterials/Shaders/pbr.frag"),
+	vertex = VFS.LoadFile("Materials/Shaders/pbr.vert"),
+	fragment = VFS.LoadFile("Materials/Shaders/pbr.frag"),
 
 	uniformInt = {
 		tex0 = 0,

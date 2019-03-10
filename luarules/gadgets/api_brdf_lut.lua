@@ -22,7 +22,6 @@ if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
 	function gadget:DrawGenesis()
 		if genLut then
 			genLut:Execute(false)
-			GG.GetBrdfTexture = GetBrdfTexture
 		end
 		gadgetHandler:RemoveCallIn("DrawGenesis")
 	end
@@ -33,6 +32,7 @@ if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
 			genLut = genLutClass(BRDFLUT_TEXDIM)
 			if genLut then
 				genLut:Initialize()
+				GG.GetBrdfTexture = GetBrdfTexture
 			end
 		end
 	end
@@ -40,6 +40,7 @@ if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
 	function gadget:Shutdown()
 		if genLut then
 			genLut:Finalize()
+			GG.GetBrdfTexture = nil
 		end
 	end
 end

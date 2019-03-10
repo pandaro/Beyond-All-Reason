@@ -18,7 +18,7 @@
 /***********************************************************************/
 // Struct definitions
 
-struct PBRInfo {
+struct MaterialInfo {
 	vec3 baseColor;
 
 	float occlusion;
@@ -67,8 +67,10 @@ uniform sampler2D normalTex;
 
 uniform sampler2D brdfLutTex;
 
-uniform sampler2DShadow shadowTex;
-uniform float shadowDensity;
+#ifdef use_shadows
+	uniform sampler2DShadow shadowTex;
+	uniform float shadowDensity;
+#endif
 
 uniform samplerCube reflectionTex;
 
@@ -78,7 +80,7 @@ uniform samplerCube reflectionTex;
 
 //The api_custom_unit_shaders supplies these definitions:
 uniform vec3 sunPos; //sent by engine or api_cus with worst possible name
-#define lightDir sunPos; // rename to not get confused
+#define lightDir sunPos // rename to not get confused
 
 uniform int simFrame; //set by api_cus
 uniform vec4 teamColor; //set by engine
@@ -93,8 +95,9 @@ in Data {
 	vec3 worldPos;
 	vec3 cameraDir;
 	vec2 texCoord;
-
-	vec4 shadowTexCoord;
+	#ifdef use_shadows
+		vec4 shadowTexCoord;
+	#endif
 
 	#ifdef GET_NORMALMAP
 		#ifdef HAS_TANGENTS
@@ -115,11 +118,12 @@ in Data {
 	mat3 worldTBN;
 #endif
 
-PBRInfo pbrInfo;
+MaterialInfo matInfo;
 VectorDotsInfo vdi;
 
 vec3 baseDiffuseColor;
 vec3 specularEnvironmentR0; // specularEnvironmentR0 = baseSpecularColor
+#define baseSpecularColor specularEnvironmentR0;
 vec3 specularEnvironmentR90;
 
 
@@ -510,20 +514,68 @@ float D_GGX(float NdotH, float roughness4) {
 #define PBR_R90_METHOD_STD 1
 #define PBR_R90_METHOD_GOOGLE 2
 
-void GetBaseColors(PBRInfo mat) {
-	// sanitize inputs
-	float roughness = clamp(mat.roughness, MIN_ROUGHNESS, 1.0);
-	float metalness = clamp(mat.metalness, 0.0, 1.0);
+void FillInMaterialInfo() {
+	vec4 tex0Texel = texture(tex0, texCoord); //RGB - base color, A - teamColor mix for now
+	vec4 tex1Texel = texture(tex1, texCoord); //R - emission ,incl. flashlights, G - specular exp mult
+	//vec4 tex2Texel = texture(tex2, texCoord);
+	//vec4 tex3Texel = texture(tex3, texCoord);
 
-	vec3 F0 = vec3(mat.specularF0);
+	const float occlusion = 1.0;
+	const float specularF0 = DEFAULT_SPECULAR_FO;
+
+	vec3 baseColor = tex0Texel.rgb;
+
+	float roughness = tex1Texel.b;
+	float metalness = tex1Texel.g * 3.0;
+
+	roughness = clamp(roughness, MIN_ROUGHNESS, 1.0);
+	metalness = clamp(metalness, 0.0, 1.0);
+
+	// additional vars
+	float roughness2 = roughness * roughness;
+	float roughness4 = roughness2 * roughness2; // roughness^4
+
+	matInfo = MaterialInfo(
+		baseColor, 			//matInfo.baseColor
+
+		occlusion, 			//matInfo.occlusion
+		specularF0, 		//matInfo.occlusion
+		roughness, 			//matInfo.roughness
+		roughness4, 		//matInfo.roughness4
+		metalness 			//matInfo.metalness
+	);
+}
+
+void FillInVectorDotsInfo(vec3 thisLightDir) {
+	vec3 N = GetWorldFragNormal(); 	// Get world-space geometry or normal-mapped fragment normal
+
+	//all vectors are defined in world space
+	vec3 V = normalize(cameraDir); 			// Vector from surface point to camera
+	vec3 L = normalize(thisLightDir); 		// Vector from surface point to light
+	vec3 H = normalize(L + V); 				// Half vector between both L and V
+
+	float NdotLu = dot(N, L);
+
+	vdi = VectorDotsInfo(
+		clamp(NdotLu, 0.001, 1.0), 			//vdi.NdotL
+		clamp(abs(dot(N, V)), 1e-3, 1.0), 	//vdi.NdotV
+		clamp(dot(N, H), 0.0, 1.0), 		//vdi.NdotH
+		clamp(dot(L, V), 0.0, 1.0), 		//vdi.LdotV
+		clamp(dot(L, H), 0.0, 1.0),			//vdi.LdotH
+		clamp(dot(V, H), 0.0, 1.0) 			//vdi.VdotH
+	);
+}
+
+void GetBaseColors() {
+	vec3 F0 = vec3(matInfo.specularF0);
 
 	// break down the base color
-	baseDiffuseColor = mat.baseColor * (vec3(1.0) - F0) * (1.0 - metalness);
-	vec3 specularEnvironmentR0 = mix(F0, mat.baseColor, vec3(metalness)); // specularEnvironmentR0 = baseSpecularColor
+	baseDiffuseColor = matInfo.baseColor * (vec3(1.0) - F0) * (1.0 - matInfo.metalness);
+	vec3 specularEnvironmentR0 = mix(F0, matInfo.baseColor, vec3(matInfo.metalness)); // specularEnvironmentR0 = baseSpecularColor
 
 	#if (PBR_R90_METHOD == PBR_R90_METHOD_STD)
 		float maxReflectance = max(max(specularEnvironmentR0.r, specularEnvironmentR0.g), specularEnvironmentR0.b);
-		float reflectance90 = clamp(maxReflectance / mat.specularF0, 0.0, 1.0); // bugged for low F0 values
+		float reflectance90 = clamp(maxReflectance / matInfo.specularF0, 0.0, 1.0); // bugged for low F0 values
 		//float reflectance90 = clamp(maxReflectance * 25.0, 0.0, 1.0);
 	#elif (PBR_R90_METHOD == PBR_R90_METHOD_GOOGLE)
 		float reflectance90 = clamp(dot(F0, vec3(50.0 * 0.33)), 0.0, 1.0);
@@ -534,12 +586,11 @@ void GetBaseColors(PBRInfo mat) {
 
 
 // Calculates diffuse and specular contributions for a particular light
-void GetDirectLightContribution(VectorDotsInfo vd, vec3 myLightColor,
-								float roughness, float roughness4,
-								out vec3 lightDiffColor, out vec3 lightSpecColor) {
+void GetDirectLightContribution(VectorDotsInfo vd, vec3 thisLightColor,
+								out vec3 litDiffColor, out vec3 litSpecColor) {
 
 	// D = Normal distribution (Distribution of the microfacets)
-	float D = D_GGX(vd.NdotH, roughness4);
+	float D = D_GGX(vd.NdotH, matInfo.roughness4);
 
 	// F = Fresnel factor (Reflectance depending on angle of incidence)
 	#if (PBR_F_SCHLICK == PBR_F_SCHLICK_KHRONOS) // Khronos & learnopengl
@@ -555,15 +606,15 @@ void GetDirectLightContribution(VectorDotsInfo vd, vec3 myLightColor,
 	#endif
 
 	// G = Geometric shadowing term (Microfacets shadowing)
-	float G = G_SchlickSmithGGX(vd.NdotL, vd.NdotV, roughness, roughness4);
+	float G = G_SchlickSmithGGX(vd.NdotL, vd.NdotV, matInfo.roughness, matInfo.roughness4);
 
 	// Calculation of analytical lighting contribution
-	vec3 lightDiffuseContrib = (1.0 - F) * Diffuse(baseDiffuseColor, roughness, vd);
+	vec3 lightDiffuseContrib = (1.0 - F) * Diffuse(baseDiffuseColor, matInfo.roughness, vd);
 	vec3 lightSpecContrib = F * G * D / (4.0 * vd.NdotL * vd.NdotV);
 
 	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-	vec3 lightDiffColor = vd.NdotL * myLightColor * lightDiffuseContrib;
-	vec3 lightSpecColor = vd.NdotL * myLightColor * lightSpecContrib;
+	litDiffColor = vd.NdotL * thisLightColor * lightDiffuseContrib;
+	litSpecColor = vd.NdotL * thisLightColor * lightSpecContrib;
 }
 
 // Alternative calculation of LOD from Urho3D
@@ -573,6 +624,7 @@ float GetMipFromRoughness(float roughness, float lodMax) {
 	return (roughness * (lodMax + 1.0) - pow(roughness, 6.0) * 1.5);
 }
 
+/*
 // Image based Lighting Color Contribution
 void GetIndirectLightContribution
 	// Image Based Lighting
@@ -634,53 +686,25 @@ void GetIndirectLightContribution
 	#endif
 
 }
+*/
 
 void main(void) {
 	%%FRAGMENT_PRE_SHADING%%
 
+	FillInMaterialInfo();
+	GetBaseColors();
+	FillInVectorDotsInfo(lightDir);
 
-	vec4 tex1Texel = texture(tex1, texCoord); //RGB - base color, A - teamColor mix for now
-	vec4 tex2Texel = texture(tex2, texCoord); //R - emission ,incl. flashlights, G - specular exp mult
-	//vec4 tex3Texel = texture(tex3, texCoord);
-	//vec4 tex4Texel = texture(tex4, texCoord);
+	vec3 directLitDiffColor;
+	vec3 directLitSpecColor;
+	GetDirectLightContribution(vdi, lightColor, directLitDiffColor, directLitSpecColor);
 
-	const float occlusion = 1.0;
-	const float specularF0 = DEFAULT_SPECULAR_FO;
-
-	vec3 baseColor = tex1Texel.rgb;
-
-	float roughness = tex2Texel.b;
-	float metalness = tex2Texel.g;
-
-	// additional vars
-	float roughness2 = roughness * roughness;
-	float roughness4 = roughness2 * roughness2; // roughness^4
-
-	pbrInfo = PBRInfo(
-		baseColor, 			//pbrInfo.baseColor
-
-		occlusion, 			//pbrInfo.occlusion
-		specularF0, 		//pbrInfo.occlusion
-		roughness, 			//pbrInfo.roughness
-		roughness4, 		//pbrInfo.roughness4
-		metalness,			//pbrInfo.metalness
-	);
-
-	//all vectors are defined in world space
-	vec3 V = normalize(cameraDir); 	// Vector from surface point to camera
-	vec3 L = normalize(lightDir); 	// Vector from surface point to light
-	vec3 H = normalize(L + V); 		// Half vector between both L and V
-
-	float NdotLu = dot(N, L);
-
-	vdi = VectorDotsInfo(
-		clamp(NdotLu, 0.001, 1.0), 			//vdi.NdotL
-		clamp(abs(dot(N, V)), 1e-3, 1.0), 	//vdi.NdotV
-		clamp(dot(N, H), 0.0, 1.0), 		//vdi.NdotH
-		clamp(dot(L, V), 0.0, 1.0), 		//vdi.LdotV
-		clamp(dot(L, H), 0.0, 1.0),			//vdi.LdotH
-		clamp(dot(V, H), 0.0, 1.0) 			//vdi.VdotH
-	);
+	gl_FragColor = vec4(directLitDiffColor + directLitSpecColor, 1.0);
+	//gl_FragColor.rgb = baseDiffuseColor;
+	gl_FragColor.rgb = baseSpecularColor;
+	gl_FragColor.rgb = vec3(matInfo.metalness);
+	//gl_FragColor.rgb = texture(tex0, texCoord).rgb;
+	//gl_FragColor.rg = texCoord;
 
 	%%FRAGMENT_POST_SHADING%%
 }

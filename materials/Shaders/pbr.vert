@@ -8,8 +8,10 @@
 uniform mat4 camera;		//ViewMatrix (gl_ModelViewMatrix is ModelMatrix!)
 uniform vec3 cameraPos;
 
-//The api_custom_unit_shaders supplies this definition:
-uniform mat4 shadowMatrix;
+#ifdef use_shadows //supplied by api_custom_unit_shaders
+	//The api_custom_unit_shaders supplies this definition:
+	uniform mat4 shadowMatrix;
+#endif
 
 /***********************************************************************/
 // Varyings
@@ -18,8 +20,9 @@ out Data {
 	vec3 worldPos;
 	vec3 cameraDir;
 	vec2 texCoord;
-
-	vec4 shadowTexCoord;
+	#ifdef use_shadows
+		vec4 shadowTexCoord;
+	#endif
 
 	#ifdef GET_NORMALMAP
 		#ifdef HAS_TANGENTS
@@ -77,15 +80,17 @@ void main(void)	{
 
 	vec4 worldPos = modelMatrix * modelPos;
 
-	shadowTexCoord = shadowMatrix * worldPos;
-	#if 1
-		shadowTexCoord.xy = shadowTexCoord.xy + 0.5;
-	#else
-		shadowTexCoord.xy *= (inversesqrt(abs(shadowTexCoord.xy) + shadowParams.zz) + shadowParams.ww);
-		shadowTexCoord.xy += shadowParams.xy;
+	#ifdef use_shadows
+		shadowTexCoord = shadowMatrix * worldPos;
+		#if 1
+			shadowTexCoord.xy = shadowTexCoord.xy + 0.5;
+		#else
+			shadowTexCoord.xy *= (inversesqrt(abs(shadowTexCoord.xy) + shadowParams.zz) + shadowParams.ww);
+			shadowTexCoord.xy += shadowParams.xy;
+		#endif
 	#endif
 
-	cameraDir = cameraPos - worldPos;
+	cameraDir = cameraPos - worldPos.xyz;
 
 	texCoord = gl_MultiTexCoord0.xy;
 

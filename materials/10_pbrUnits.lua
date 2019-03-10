@@ -11,6 +11,7 @@ local commonDefinitions = {
 
 	--"#define FAST_GAMMA",
 
+	"#define PBR_SCHLICK_SMITH_GGX PBR_SCHLICK_SMITH_GGX_THIN",
 	"#define PBR_F_SCHLICK PBR_F_SCHLICK_KHRONOS",
 	"#define PBR_R90_METHOD PBR_R90_METHOD_GOOGLE",
 	"#define PBR_BRDF_DIFFUSE PBR_BRDF_DIFFUSE_LAMBERT",
@@ -24,8 +25,8 @@ local materials = {
 		shaderDefinitions = forwardShaderDefs,
 		deferredDefinitions = deferredShaderDefs,
 
-		shader    = include("materials/Shaders/pbr.lua"),
-		deferred  = include("materials/Shaders/pbr.lua"),
+		shader    = VFS.Include("materials/Shaders/pbr.lua"),
+		deferred  = VFS.Include("materials/Shaders/pbr.lua"),
 		usecamera = false,
 		culling   = GL.BACK,
 		predl  = nil,
@@ -33,8 +34,8 @@ local materials = {
 		texunits  = {
 			[0] = '%%UNITDEFID:0',
 			[1] = '%%UNITDEFID:1',
-			[2] = '%TEX2',
-			[3] = '%TEX3',
+			--[2] = '%TEX2',
+			--[3] = '%TEX3',
 
 			[4] = '%NORMALTEX',
 
@@ -70,7 +71,7 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
+--return {}, {}
 return materials, unitMaterials
 
 --------------------------------------------------------------------------------
