@@ -11,23 +11,20 @@ function gadget:GetInfo()
 end
 
 if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
-	local oneTime = true
 	local genLut
 
 	local BRDFLUT_TEXDIM = 512 --512 is BRDF LUT texture resolution
-	
+
 	local function GetBrdfTexture()
 		return genLut:GetTexture()
 	end
 
 	function gadget:DrawGenesis()
-		if oneTime then
-			if genLut then
-				genLut:Execute(false)
-				GG.GetBrdfTexture = GetBrdfTexture
-			end
-			oneTime = false
+		if genLut then
+			genLut:Execute(false)
+			GG.GetBrdfTexture = GetBrdfTexture
 		end
+		gadgetHandler:RemoveCallIn("DrawGenesis")
 	end
 
 	function gadget:Initialize()
