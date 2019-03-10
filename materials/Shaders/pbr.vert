@@ -4,6 +4,7 @@
 /***********************************************************************/
 // Uniforms
 
+//The api_custom_unit_shaders supplies these definitions:
 uniform mat4 camera;		//ViewMatrix (gl_ModelViewMatrix is ModelMatrix!)
 uniform vec3 cameraPos;
 

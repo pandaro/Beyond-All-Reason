@@ -11,6 +11,7 @@ local commonDefinitions = {
 
 	"#define PBR_F_SCHLICK PBR_F_SCHLICK_KHRONOS",
 	"#define PBR_R90_METHOD PBR_R90_METHOD_GOOGLE",
+	"#define PBR_BRDF_DIFFUSE PBR_BRDF_DIFFUSE_LAMBERT",
 }
 
 local forwardShaderDefs = Spring.Utilities.MergeTable(commonDefinitions, {}, true)

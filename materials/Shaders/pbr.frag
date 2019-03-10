@@ -76,12 +76,14 @@ uniform samplerCube reflectionTex;
 /***********************************************************************/
 // Uniforms
 
-uniform vec3 sunPos;
-#define lightDir sunPos; //sic(!)
-uniform vec3 lightColor;
+//The api_custom_unit_shaders supplies these definitions:
+uniform vec3 sunPos; //sent by engine or api_cus with worst possible name
+#define lightDir sunPos; // rename to not get confused
 
 uniform int simFrame; //set by api_cus
 uniform vec4 teamColor; //set by engine
+
+uniform vec3 lightColor; //sent by shader material file (pbr.lua)
 
 
 /***********************************************************************/
@@ -367,8 +369,7 @@ vec3 GetWorldFragNormal() {
 
 
 /***********************************************************************/
-// Scary PBR stuff, I collected from dozens of places
-
+// Scary PBR supplemental stuff, I collected from dozens of places
 
 
 // Normal (Microfacet) Distribution function --------------------------------------
@@ -461,30 +462,30 @@ float D_GGX(float NdotH, float roughness4) {
 
 
 // Directional light Diffuse terms
-#define PBR_DIFFUSE_LAMBERT 1
-#define PBR_DIFFUSE_BURLEY_GOOGLE 2
-#define PBR_DIFFUSE_BURLEY_GODOT 3
-#define PBR_DIFFUSE_OREN_NAYAR_GODOT 4
+#define PBR_BRDF_DIFFUSE_LAMBERT 1
+#define PBR_BRDF_DIFFUSE_BURLEY_GOOGLE 2
+#define PBR_BRDF_DIFFUSE_BURLEY_GODOT 3
+#define PBR_BRDF_DIFFUSE_OREN_NAYAR_GODOT 4
 
-#if (PBR_BRDF_DIFFUSE == PBR_DIFFUSE_LAMBERT)
+#if (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_LAMBERT)
 	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
 		return diffColor / PI;
 	}
-#elif (PBR_BRDF_DIFFUSE == PBR_DIFFUSE_BURLEY_GOOGLE)
+#elif (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_BURLEY_GOOGLE)
 	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
 		float f90 = 0.5 + 2.0 * roughness * vd.LdotH * vd.LdotH;
 		float lightScatter = F_Schlick(vd.NdotL, 1.0, f90);
 		float viewScatter  = F_Schlick(vd.NdotV, 1.0, f90);
 		return diffColor * lightScatter * viewScatter / PI;
 	}
-#elif (PBR_BRDF_DIFFUSE == PBR_DIFFUSE_BURLEY_GODOT)
+#elif (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_BURLEY_GODOT)
 	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
 			float FD90_minus_1 = 2.0 * vd.LdotH * vd.LdotH * roughness - 0.5;
 			float FdV = 1.0 + FD90_minus_1 * pow(vd.NdotV, 5.0);
 			float FdL = 1.0 + FD90_minus_1 * pow(vd.NdotL, 5.0);
 			return (diffColor / PI) * FdV * FdL;
 	}
-#elif (PBR_BRDF_DIFFUSE == PBR_DIFFUSE_OREN_NAYAR_GODOT)
+#elif (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_OREN_NAYAR_GODOT)
 	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
 			float s = vd.LdotV - vd.NdotL * vd.NdotV;
 			float t = mix(1.0, max(vd.NdotL, vd.NdotV), step(0.0, s));
@@ -498,7 +499,10 @@ float D_GGX(float NdotH, float roughness4) {
 #endif
 
 
-// Main PBR methods!
+/***********************************************************************/
+// Main PBR Methods
+
+// Sets baseDiffuseColor, specularEnvironmentR0 = baseSpecularColor, specularEnvironmentR90
 #define PBR_R90_METHOD_STD 1
 #define PBR_R90_METHOD_GOOGLE 2
 
@@ -524,6 +528,8 @@ void GetBaseColors(PBRInfo mat) {
 	specularEnvironmentR90 = vec3(reflectance90);
 }
 
+
+// Calculates diffuse and specular contributions for a particular light
 void GetDirectLightContribution(VectorDotsInfo vd, vec3 myLightColor,
 								float roughness, float roughness4,
 								out vec3 lightDiffColor, out vec3 lightSpecColor) {
@@ -563,6 +569,7 @@ float GetMipFromRoughness(float roughness, float lodMax) {
 	return (roughness * (lodMax + 1.0) - pow(roughness, 6.0) * 1.5);
 }
 
+// Image based Lighting Color Contribution
 void GetIndirectLightContribution
 	// Image Based Lighting
 	ivec2 reflectionTexSize = textureSize(reflectionTex, 0);
