@@ -350,12 +350,16 @@ vec3 ExpExpand(in vec3 x, in float cutoff, in float mul) {
 
 vec3 GetWorldFragNormal() {
 	#ifdef GET_NORMALMAP
-		vec3 normalMapVal = texture(normalTex, texCoord).xyz;
+		vec2 nTexCoord = texCoord;
+		#ifdef NORMAL_VFLIP
+			nTexCoord.y = 1.0 - nTexCoord.y;
+		#endif
+		vec3 normalMapVal = texture(normalTex, nTexCoord).xyz;
 		normalMapVal = NORM2SNORM(normalMapVal);
-		#ifndef NORMALS_OPENGL
+		#ifndef NORMAL_OPENGL
 			normalMapVal.y *= -1.0;
 		#endif
-		#ifdef NORMALS_RG
+		#ifdef NORMAL_RG
 			normalMapVal.z = sqrt( clamp(1.0f - dot(normalMapVal.xy, normalMapVal.xy), 0.0, 1.0) );
 		#endif
 		vec3 worldFragNormal = worldTBN * normalMapVal;

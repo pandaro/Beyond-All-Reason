@@ -4,9 +4,11 @@ local commonDefinitions = {
 	"#define GET_NORMALMAP",
 	"#define GET_FLASHLIGHTS",
 	"#define HAS_TANGENTS", -- undefine to visually verify TBN correctness, but don't use in production
-	"#define NORMALS_OPENGL", -- https://polycount.com/discussion/147156/is-it-y-or-y-for-normal-maps
 
-	--"define NORMALS_RG",
+	"#define NORMAL_OPENGL", -- https://polycount.com/discussion/147156/is-it-y-or-y-for-normal-maps
+	--"define NORMAL_RG",
+	--"define NORMAL_VFLIP",
+
 	--"#define FAST_GAMMA",
 
 	"#define PBR_F_SCHLICK PBR_F_SCHLICK_KHRONOS",
