@@ -14,6 +14,7 @@ if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
 	local genLut
 
 	local BRDFLUT_TEXDIM = 512 --512 is BRDF LUT texture resolution
+	local BRDFLUT_GOPTION = 3
 
 	local function GetBrdfTexture()
 		return genLut:GetTexture()
@@ -31,7 +32,7 @@ if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
 		Spring.SetConfigInt("CubeTexSizeReflection", 2048)
 		local genLutClass = VFS.Include("Luarules/Gadgets/Include/GenBrdfLut.lua")
 		if genLutClass then
-			genLut = genLutClass(BRDFLUT_TEXDIM)
+			genLut = genLutClass(BRDFLUT_TEXDIM, BRDFLUT_GOPTION)
 			if genLut then
 				genLut:Initialize()
 				GG.GetBrdfTexture = GetBrdfTexture

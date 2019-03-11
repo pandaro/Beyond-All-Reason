@@ -1,9 +1,10 @@
 local GL_RG16F = 0x822F
 local GL_COLOR_ATTACHMENT0_EXT = 0x8CE0
 
-local function new(class, textureSize)
+local function new(class, textureSize, gOption)
 	return setmetatable(
 	{
+		gOption = math.min(math.max(gOption or 3, 1), 4), --clamp between 1 and 3
 		textureSize = textureSize or 512,
 		brdfShader = nil,
 		brdfTexture = nil,
@@ -39,9 +40,12 @@ function GenBrdfLut:Initialize()
 		Spring.Echo("GenBrdfLut: [%s] FBO creation error:\n%s")
 	end
 
+	local fragCode = VFS.LoadFile("Luarules/Gadgets/Shaders/GenBrdfLut.frag")
+	fragCode = fragCode:gsub("###G_OPTION###", tostring(self.gOption))
+
 	self.brdfShader = gl.CreateShader({
 		vertex = VFS.LoadFile("Luarules/Gadgets/Shaders/GenBrdfLut.vert"),
-		fragment = VFS.LoadFile("Luarules/Gadgets/Shaders/GenBrdfLut.frag"),
+		fragment = fragCode,
 		uniformInt = {
 			texSize = {self.textureSize, self.textureSize},
 		},

@@ -559,7 +559,8 @@ void FillInMaterialInfo() {
 	float roughness = tex1Texel.b;
 	roughness = 0.3;
 	float metalness = tex1Texel.g * 1.0;
-	//metalness = 1.0;
+	//metalness = fract(simFrame * 0.025);
+	metalness = 0.5;
 
 	roughness = clamp(roughness, MIN_ROUGHNESS, 1.0);
 	metalness = clamp(metalness, 0.0, 1.0);
@@ -749,12 +750,6 @@ void main(void) {
 		gl_FragColor.rgb = (directLitDiffColor + directLitSpecColor) + (iblLitDiffColor + iblLitSpecColor) * occlusionFactor;
 	#endif
 
-	#ifdef GAMMA_CORRECTION
-		gl_FragColor.rgb = mix(gl_FragColor.rgb, FromSRGB(teamColor.rgb), matInfo.baseColor.a); //hack
-	#else
-		gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a); //hack
-	#endif
-
 	//gl_FragColor.rgb = vec3(vdi.NdotL);
 	//gl_FragColor.rgb = vec3(vdi.NdotV);
 	//gl_FragColor.rgb = vec3(vdi.NdotH);
@@ -783,6 +778,7 @@ void main(void) {
 		gl_FragColor.rgb = ToSRGB(gl_FragColor.rgb);
 	#endif
 
+	gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a); //hack
 	gl_FragColor.a = 1.0;
 
 	%%FRAGMENT_POST_SHADING%%
