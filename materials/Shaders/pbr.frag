@@ -110,11 +110,12 @@ in Data {
 	#endif
 };
 
-
 /***********************************************************************/
 // Global variables
 
-#ifndef HAS_TANGENTS
+#ifdef HAS_TANGENTS
+	#define worldNormal worldTBN[2]
+#else
 	mat3 worldTBN;
 #endif
 
@@ -318,6 +319,7 @@ vec3 ExpExpand(in vec3 x, in float cutoff, in float mul) {
 // TBN calculation in fragment shader
 
 #ifndef HAS_TANGENTS
+	#if 1
 	void CalcTBN() {
 		vec3 posDx = dFdx(worldPos);
 		vec3 posDy = dFdy(worldPos);
@@ -337,16 +339,40 @@ vec3 ExpExpand(in vec3 x, in float cutoff, in float mul) {
 		// Do Gramm-Schmidt re-ortogonalization
 		#if 1
 			worldTangent = normalize(worldTangent - worldNormalN * dot(worldNormalN, worldTangent));
+		#else
+			worldTangent = normalize(worldTangent);
 		#endif
 
 		//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
 		vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
 
-		float handednessSign = sign( dot(cross(worldNormalN, worldTangent), worldBitangent) );
-		worldTangent = worldTangent * handednessSign;
+		#if 0
+			float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
+			worldTangent = worldTangent * handednessSign;
+		#endif
 
 		worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
 	}
+	#else
+	void CalcTBN() {
+		vec3 N = normalize(worldNormal);
+		// get edge vectors of the pixel triangle
+		vec3 dp1 = dFdx( worldPos );
+		vec3 dp2 = dFdy( worldPos );
+		vec2 duv1 = dFdx( texCoord );
+		vec2 duv2 = dFdy( texCoord );
+
+		// solve the linear system
+		vec3 dp2perp = cross( dp2, N );
+		vec3 dp1perp = cross( N, dp1 );
+		vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+		vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+		// construct a scale-invariant frame
+		float invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );
+		worldTBN = mat3( T * invmax, B * invmax, N );
+	}
+	#endif
 #endif
 
 /***********************************************************************/
@@ -571,7 +597,7 @@ void GetBaseColors() {
 
 	// break down the base color
 	baseDiffuseColor = matInfo.baseColor * (vec3(1.0) - F0) * (1.0 - matInfo.metalness);
-	vec3 specularEnvironmentR0 = mix(F0, matInfo.baseColor, vec3(matInfo.metalness)); // specularEnvironmentR0 = baseSpecularColor
+	specularEnvironmentR0 = mix(F0, matInfo.baseColor, vec3(matInfo.metalness)); // specularEnvironmentR0 = baseSpecularColor
 
 	#if (PBR_R90_METHOD == PBR_R90_METHOD_STD)
 		float maxReflectance = max(max(specularEnvironmentR0.r, specularEnvironmentR0.g), specularEnvironmentR0.b);
@@ -691,6 +717,10 @@ void GetIndirectLightContribution
 void main(void) {
 	%%FRAGMENT_PRE_SHADING%%
 
+	#ifndef HAS_TANGENTS
+		CalcTBN();
+	#endif
+
 	FillInMaterialInfo();
 	GetBaseColors();
 	FillInVectorDotsInfo(lightDir);
@@ -699,12 +729,17 @@ void main(void) {
 	vec3 directLitSpecColor;
 	GetDirectLightContribution(vdi, lightColor, directLitDiffColor, directLitSpecColor);
 
-	gl_FragColor = vec4(directLitDiffColor + directLitSpecColor, 1.0);
+	//gl_FragColor = vec4(directLitDiffColor + directLitSpecColor, 1.0);
 	//gl_FragColor.rgb = baseDiffuseColor;
-	gl_FragColor.rgb = baseSpecularColor;
-	gl_FragColor.rgb = vec3(matInfo.metalness);
+	//gl_FragColor.rgb = baseSpecularColor;
+	gl_FragColor.rgb = worldTBN[0];
+	//gl_FragColor.rgb = normalize(worldNormal);
+	//gl_FragColor.rgb = GetWorldFragNormal();
+	//gl_FragColor.rgb = texture(normalTex, texCoord).rgb;
+	//gl_FragColor.rgb = vec3(matInfo.metalness);
 	//gl_FragColor.rgb = texture(tex0, texCoord).rgb;
 	//gl_FragColor.rg = texCoord;
+	gl_FragColor.a = 1.0;
 
 	%%FRAGMENT_POST_SHADING%%
 }

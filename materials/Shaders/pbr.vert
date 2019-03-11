@@ -36,7 +36,7 @@ out Data {
 };
 
 //For a moment pretend we have passed OpenGL 2.0 era
-#define modelMatrix gl_ModelViewMatrix			// don't trust the ModelView name, it's modelMatrix in fact
+#define worldMatrix gl_ModelViewMatrix			// don't trust the ModelView name, it's worldMatrix in fact
 #define viewMatrix camera						// viewMatrix is mat4 uniform supplied by CUS gadget
 #define normalMatrix gl_NormalMatrix			// world space matrix for normals transformation
 #define projectionMatrix gl_ProjectionMatrix	// just because I don't like gl_BlaBla
@@ -53,7 +53,7 @@ void main(void)	{
 			// The use of gl_MultiTexCoord[5,6] is a hack due to lack of support of proper attributes
 			// TexCoord5 and TexCoord6 are defined and filled in engine. See: rts/Rendering/Models/AssParser.cpp
 			vec3 modelTangent = gl_MultiTexCoord5.xyz;
-			vec3 worldTangent = normalize(vec3(modelMatrix * vec4(modelTangent, 0.0)));
+			vec3 worldTangent = normalize(vec3(worldMatrix * vec4(modelTangent, 0.0)));
 
 			// Do Gramm-Schmidt re-ortogonalization
 			#if 1
@@ -61,15 +61,19 @@ void main(void)	{
 			#endif
 
 			#if 1 //take modelBitangent from attributes
-				vec3 modelBitangent = -gl_MultiTexCoord6.xyz;
-				vec3 worldBitangent = normalize(vec3(modelMatrix * vec4(modelBitangent, 0.0)));
+				vec3 modelBitangent = gl_MultiTexCoord6.xyz;
+				vec3 worldBitangent = normalize(vec3(worldMatrix * vec4(modelBitangent, 0.0)));
+
+				// TBN must form a right-handed coordinate system, i.e. cross(n,t) must have the same orientation than b.
+				#if 1
+					float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
+					worldTangent = worldTangent * handednessSign;
+				#endif
 			#else //calculate worldBitangent
 				//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
 				vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
 			#endif
 
-			float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
-			worldTangent = worldTangent * handednessSign;
 			worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
 		#else
 			worldNormal = normalMatrix * modelNormal;
@@ -78,10 +82,11 @@ void main(void)	{
 		worldNormal = normalMatrix * modelNormal;
 	#endif
 
-	vec4 worldPos = modelMatrix * modelPos;
+	vec4 worldPos4 = worldMatrix * modelPos;
+	worldPos = worldPos4.xyz;
 
 	#ifdef use_shadows
-		shadowTexCoord = shadowMatrix * worldPos;
+		shadowTexCoord = shadowMatrix * worldPos4;
 		#if 1
 			shadowTexCoord.xy = shadowTexCoord.xy + 0.5;
 		#else
@@ -90,7 +95,7 @@ void main(void)	{
 		#endif
 	#endif
 
-	cameraDir = cameraPos - worldPos.xyz;
+	cameraDir = cameraPos - worldPos4.xyz;
 
 	texCoord = gl_MultiTexCoord0.xy;
 
@@ -98,7 +103,7 @@ void main(void)	{
 	// 2) flashlights ?
 	// 3) treadoffset ?
 
-	gl_Position = projectionMatrix * (viewMatrix * worldPos);
+	gl_Position = projectionMatrix * (viewMatrix * worldPos4);
 
 	%%VERTEX_POST_TRANSFORM%%
 }
