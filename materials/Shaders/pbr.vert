@@ -46,26 +46,26 @@ void main(void)	{
 	vec3 modelNormal = gl_Normal;
 
 	%%VERTEX_PRE_TRANSFORM%%
-
+/*
 	#ifdef GET_NORMALMAP
 		#ifdef HAS_TANGENTS
 			vec3 worldNormalN = normalize(normalMatrix * modelNormal);
 			// The use of gl_MultiTexCoord[5,6] is a hack due to lack of support of proper attributes
 			// TexCoord5 and TexCoord6 are defined and filled in engine. See: rts/Rendering/Models/AssParser.cpp
-			vec3 modelTangent = gl_MultiTexCoord5.xyz;
+			vec3 modelTangent = gl_MultiTexCoord5.xyz * vec3(1.0, -1.0, 1.0);
 			vec3 worldTangent = normalize(vec3(worldMatrix * vec4(modelTangent, 0.0)));
 
 			// Do Gramm-Schmidt re-ortogonalization
-			#if 1
+			#if 0
 				worldTangent = normalize(worldTangent - worldNormalN * dot(worldNormalN, worldTangent));
 			#endif
 
-			#if 1 //take modelBitangent from attributes
-				vec3 modelBitangent = gl_MultiTexCoord6.xyz;
+			#if 0 //take modelBitangent from attributes
+				vec3 modelBitangent = -gl_MultiTexCoord6.xyz;
 				vec3 worldBitangent = normalize(vec3(worldMatrix * vec4(modelBitangent, 0.0)));
 
 				// TBN must form a right-handed coordinate system, i.e. cross(n,t) must have the same orientation than b.
-				#if 1
+				#if 0
 					float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
 					worldTangent = worldTangent * handednessSign;
 				#endif
@@ -81,6 +81,38 @@ void main(void)	{
 	#else
 		worldNormal = normalMatrix * modelNormal;
 	#endif
+*/	
+	#ifdef GET_NORMALMAP
+		#ifdef HAS_TANGENTS
+			vec3 worldNormalN = normalize(normalMatrix * modelNormal);
+			// The use of gl_MultiTexCoord[5,6] is a hack due to lack of support of proper attributes
+			// TexCoord5 and TexCoord6 are defined and filled in engine. See: rts/Rendering/Models/AssParser.cpp
+			vec3 modelTangent = gl_MultiTexCoord5.xyz;
+			vec3 worldTangent = normalize(vec3(worldMatrix * vec4(modelTangent, 0.0)));
+
+			#if 1 //take modelBitangent from attributes
+				vec3 modelBitangent = gl_MultiTexCoord6.xyz;
+				vec3 worldBitangent = normalize(vec3(worldMatrix * vec4(modelBitangent, 0.0)));
+			#else //calculate worldBitangent
+				#ifdef 1
+					worldTangent = normalize(worldTangent - worldNormalN * dot(worldNormalN, worldTangent));
+				#endif
+
+				//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
+				vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
+			#endif
+			
+			#if 0
+				float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
+				worldTangent = worldTangent * handednessSign;
+			#endif
+			worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
+		#else
+			worldNormal = normalMatrix * modelNormal;
+		#endif
+	#else
+		worldNormal = normalMatrix * modelNormal;
+	#endif	
 
 	vec4 worldPos4 = worldMatrix * modelPos;
 	worldPos = worldPos4.xyz;

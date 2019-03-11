@@ -3,17 +3,21 @@ local commonDefinitions = {
 
 	"#define GET_FLASHLIGHTS",
 	"#define GET_NORMALMAP", --disable TBN normal mapping from normal texture
-	--"#define HAS_TANGENTS", -- undefine to visually verify TBN correctness, but don't use in production
+	"#define HAS_TANGENTS", -- undefine to visually verify TBN correctness, but don't use in production
 
 	"#define NORMAL_OPENGL", -- https://polycount.com/discussion/147156/is-it-y-or-y-for-normal-maps
 	--"define NORMAL_RG",
 	--"define NORMAL_VFLIP",
 
+	--"#define GAMMA_CORRECTION",
 	--"#define FAST_GAMMA",
 
-	"#define PBR_SCHLICK_SMITH_GGX PBR_SCHLICK_SMITH_GGX_THIN",
+	--"#define IBL_DIFFUSECOLOR_STATIC", -- take IBL diffuse color from sun light color
+	--"#define IBL_SPECULARCOLOR_STATIC", -- take IBL specular color from sun light color
+
+	"#define PBR_SCHLICK_SMITH_GGX PBR_SCHLICK_SMITH_GGX_THICK",
 	"#define PBR_F_SCHLICK PBR_F_SCHLICK_KHRONOS",
-	"#define PBR_R90_METHOD PBR_R90_METHOD_GOOGLE",
+	"#define PBR_R90_METHOD PBR_R90_METHOD_STD",
 	"#define PBR_BRDF_DIFFUSE PBR_BRDF_DIFFUSE_LAMBERT",
 }
 
@@ -21,7 +25,7 @@ local forwardShaderDefs = Spring.Utilities.MergeTable(commonDefinitions, {}, tru
 local deferredShaderDefs = Spring.Utilities.MergeTable(commonDefinitions, {"#define DEFERRED_MODE"}, true)
 
 local materials = {
-	s3oPBR = {
+	pbrS3O = {
 		shaderDefinitions = forwardShaderDefs,
 		deferredDefinitions = deferredShaderDefs,
 
@@ -61,7 +65,7 @@ for i=1,#UnitDefs do
 
 	if udef.customParams.normaltex and VFS.FileExists(udef.customParams.normaltex) then
 		unitMaterials[udef.name] = {
-			"s3oPBR",
+			"pbrS3O",
 			NORMALTEX = udef.customParams.normaltex,
 			BRDFLUT = brdfLutTex,
 		}

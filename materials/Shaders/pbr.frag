@@ -19,7 +19,7 @@
 // Struct definitions
 
 struct MaterialInfo {
-	vec3 baseColor;
+	vec4 baseColor;
 
 	float occlusion;
 	float specularF0;
@@ -51,7 +51,6 @@ const float PI2 = PI * 2.0;
 
 const float MIN_ROUGHNESS = 0.04;
 const float DEFAULT_SPECULAR_FO = 0.04;
-const float MIN_SPECULAR_F0 = 0.0001;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -142,7 +141,7 @@ const vec3 SRGB_ALPHA = vec3(0.055);
 const vec3 SRGB_MAGIC_NUMBER = vec3(12.92);
 const vec3 SRGB_MAGIC_NUMBER_INV = vec3(1.0) / SRGB_MAGIC_NUMBER;
 
-float fromSRGB(float srgbIn) {
+float FromSRGB(float srgbIn) {
 	#ifdef FAST_GAMMA
 		float rgbOut = pow(srgbIn, SRGB_INVERSE_GAMMA.x);
 	#else
@@ -154,7 +153,7 @@ float fromSRGB(float srgbIn) {
 	return rgbOut;
 }
 
-vec3 fromSRGB(vec3 srgbIn) {
+vec3 FromSRGB(vec3 srgbIn) {
 	#ifdef FAST_GAMMA
 		vec3 rgbOut = pow(srgbIn.rgb, SRGB_INVERSE_GAMMA);
 	#else
@@ -166,7 +165,7 @@ vec3 fromSRGB(vec3 srgbIn) {
 	return rgbOut;
 }
 
-vec4 fromSRGB(vec4 srgbIn) {
+vec4 FromSRGB(vec4 srgbIn) {
 	#ifdef FAST_GAMMA
 		vec3 rgbOut = pow(srgbIn.rgb, SRGB_INVERSE_GAMMA);
 	#else
@@ -178,7 +177,7 @@ vec4 fromSRGB(vec4 srgbIn) {
 	return vec4(rgbOut, srgbIn.a);
 }
 
-float toSRGB(float rgbIn) {
+float ToSRGB(float rgbIn) {
 	#ifdef FAST_GAMMA
 		float srgbOut = pow(rgbIn, SRGB_GAMMA.x);
 	#else
@@ -190,7 +189,7 @@ float toSRGB(float rgbIn) {
 	return srgbOut;
 }
 
-vec3 toSRGB(vec3 rgbIn) {
+vec3 ToSRGB(vec3 rgbIn) {
 	#ifdef FAST_GAMMA
 		vec3 srgbOut = pow(rgbIn.rgb, SRGB_GAMMA);
 	#else
@@ -202,7 +201,7 @@ vec3 toSRGB(vec3 rgbIn) {
 	return srgbOut;
 }
 
-vec4 toSRGB(vec4 rgbIn) {
+vec4 ToSRGB(vec4 rgbIn) {
 	#ifdef FAST_GAMMA
 		vec3 srgbOut = pow(rgbIn.rgb, SRGB_GAMMA);
 	#else
@@ -255,7 +254,7 @@ vec3 Uncharted2TM(in vec3 x) {
 vec3 FilmicTM(in vec3 x) {
 	vec3 outColor = max(vec3(0.0), x - vec3(0.004));
 	outColor = (outColor * (6.2 * outColor + 0.5)) / (outColor * (6.2 * outColor + 1.7) + 0.06);
-	return fromSRGB(outColor); //sadly FilmicTM outputs gamma corrected colors, so need to reverse that effect
+	return FromSRGB(outColor); //sadly FilmicTM outputs gamma corrected colors, so need to reverse that effect
 }
 
 //https://mynameismjp.wordpress.com/2010/04/30/a-closer-look-at-tone-mapping/ (comments by STEVEM)
@@ -346,10 +345,12 @@ vec3 ExpExpand(in vec3 x, in float cutoff, in float mul) {
 		//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
 		vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
 
+		/* //doesn't make sense
 		#if 0
 			float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
 			worldTangent = worldTangent * handednessSign;
 		#endif
+		*/
 
 		worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
 	}
@@ -453,7 +454,7 @@ float D_GGX(float NdotH, float roughness4) {
 		vec3 k = vec3(exp2((-5.55473 * VdotX - 6.98316) * VdotX));
 		return R0 + (R90 - R0) * k;
 	}
-#elseif (PBR_F_SCHLICK == PBR_F_COOK_TORRANCE)
+#elif (PBR_F_SCHLICK == PBR_F_COOK_TORRANCE)
 	// https://github.com/AndreaMelle/unitypbr/blob/master/Assets/pbr.cginc
 	vec3 F_CookTorrance(float VdotX, vec3 R0) {
 		vec3 sqrtR0 = sqrt(R0);
@@ -502,27 +503,27 @@ float D_GGX(float NdotH, float roughness4) {
 #define PBR_BRDF_DIFFUSE_OREN_NAYAR_GODOT 4
 
 #if (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_LAMBERT)
-	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
+	vec3 Diffuse(vec3 diffColor, float roughness) {
 		return diffColor / PI;
 	}
 #elif (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_BURLEY_GOOGLE)
-	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
-		float f90 = 0.5 + 2.0 * roughness * vd.LdotH * vd.LdotH;
-		float lightScatter = F_Schlick(vd.NdotL, 1.0, f90);
-		float viewScatter  = F_Schlick(vd.NdotV, 1.0, f90);
+	vec3 Diffuse(vec3 diffColor, float roughness) {
+		float f90 = 0.5 + 2.0 * roughness * vdi.LdotH * vdi.LdotH;
+		float lightScatter = F_Schlick(vdi.NdotL, 1.0, f90);
+		float viewScatter  = F_Schlick(vdi.NdotV, 1.0, f90);
 		return diffColor * lightScatter * viewScatter / PI;
 	}
 #elif (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_BURLEY_GODOT)
-	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
-			float FD90_minus_1 = 2.0 * vd.LdotH * vd.LdotH * roughness - 0.5;
-			float FdV = 1.0 + FD90_minus_1 * pow(vd.NdotV, 5.0);
-			float FdL = 1.0 + FD90_minus_1 * pow(vd.NdotL, 5.0);
+	vec3 Diffuse(vec3 diffColor, float roughness) {
+			float FD90_minus_1 = 2.0 * vdi.LdotH * vdi.LdotH * roughness - 0.5;
+			float FdV = 1.0 + FD90_minus_1 * pow(vdi.NdotV, 5.0);
+			float FdL = 1.0 + FD90_minus_1 * pow(vdi.NdotL, 5.0);
 			return (diffColor / PI) * FdV * FdL;
 	}
 #elif (PBR_BRDF_DIFFUSE == PBR_BRDF_DIFFUSE_OREN_NAYAR_GODOT)
-	vec3 Diffuse(vec3 diffColor, float roughness, VectorDotsInfo vd) {
-			float s = vd.LdotV - vd.NdotL * vd.NdotV;
-			float t = mix(1.0, max(vd.NdotL, vd.NdotV), step(0.0, s));
+	vec3 Diffuse(vec3 diffColor, float roughness) {
+			float s = vdi.LdotV - vdi.NdotL * vdi.NdotV;
+			float t = mix(1.0, max(vdi.NdotL, vdi.NdotV), step(0.0, s));
 
 			float sigma2 = roughness * roughness; // TODO: this needs checking
 			vec3 A = 1.0 + sigma2 * (-0.5 / (sigma2 + 0.33) + 0.17 * diffColor / (sigma2 + 0.13));
@@ -549,10 +550,16 @@ void FillInMaterialInfo() {
 	const float occlusion = 1.0;
 	const float specularF0 = DEFAULT_SPECULAR_FO;
 
-	vec3 baseColor = tex0Texel.rgb;
+	#ifdef GAMMA_CORRECTION
+		vec4 baseColor = FromSRGB( tex0Texel );
+	#else
+		vec4 baseColor = tex0Texel;
+	#endif
 
 	float roughness = tex1Texel.b;
-	float metalness = tex1Texel.g * 3.0;
+	roughness = 0.3;
+	float metalness = tex1Texel.g * 1.0;
+	//metalness = 1.0;
 
 	roughness = clamp(roughness, MIN_ROUGHNESS, 1.0);
 	metalness = clamp(metalness, 0.0, 1.0);
@@ -572,13 +579,15 @@ void FillInMaterialInfo() {
 	);
 }
 
-void FillInVectorDotsInfo(vec3 thisLightDir) {
-	vec3 N = GetWorldFragNormal(); 	// Get world-space geometry or normal-mapped fragment normal
-
+void FillInVectorDotsInfo(vec3 thisLightDir, out vec3 N, out vec3 R) {
 	//all vectors are defined in world space
+	N = GetWorldFragNormal(); 	// Get world-space geometry or normal-mapped fragment normal
+
 	vec3 V = normalize(cameraDir); 			// Vector from surface point to camera
 	vec3 L = normalize(thisLightDir); 		// Vector from surface point to light
 	vec3 H = normalize(L + V); 				// Half vector between both L and V
+
+	R = -normalize(reflect(V, N));
 
 	float NdotLu = dot(N, L);
 
@@ -596,8 +605,8 @@ void GetBaseColors() {
 	vec3 F0 = vec3(matInfo.specularF0);
 
 	// break down the base color
-	baseDiffuseColor = matInfo.baseColor * (vec3(1.0) - F0) * (1.0 - matInfo.metalness);
-	specularEnvironmentR0 = mix(F0, matInfo.baseColor, vec3(matInfo.metalness)); // specularEnvironmentR0 = baseSpecularColor
+	baseDiffuseColor = matInfo.baseColor.rgb * (vec3(1.0) - F0) * (1.0 - matInfo.metalness);
+	specularEnvironmentR0 = mix(F0, matInfo.baseColor.rgb, vec3(matInfo.metalness)); // specularEnvironmentR0 = baseSpecularColor
 
 	#if (PBR_R90_METHOD == PBR_R90_METHOD_STD)
 		float maxReflectance = max(max(specularEnvironmentR0.r, specularEnvironmentR0.g), specularEnvironmentR0.b);
@@ -612,35 +621,35 @@ void GetBaseColors() {
 
 
 // Calculates diffuse and specular contributions for a particular light
-void GetDirectLightContribution(VectorDotsInfo vd, vec3 thisLightColor,
+void GetDirectLightContribution(vec3 thisLightColor,
 								out vec3 litDiffColor, out vec3 litSpecColor) {
 
 	// D = Normal distribution (Distribution of the microfacets)
-	float D = D_GGX(vd.NdotH, matInfo.roughness4);
+	float D = D_GGX(vdi.NdotH, matInfo.roughness4);
 
 	// F = Fresnel factor (Reflectance depending on angle of incidence)
 	#if (PBR_F_SCHLICK == PBR_F_SCHLICK_KHRONOS) // Khronos & learnopengl
-		vec3 F = F_Schlick(vd.VdotH, specularEnvironmentR0, specularEnvironmentR90);
+		vec3 F = F_Schlick(vdi.VdotH, specularEnvironmentR0, specularEnvironmentR90);
 	#elif (PBR_F_SCHLICK == PBR_F_SCHLICK_SASCHA) // SaschaWillems. Likely mistake
-		vec3 F = F_Schlick(vd.NdotV, specularEnvironmentR0, specularEnvironmentR90);
+		vec3 F = F_Schlick(vdi.NdotV, specularEnvironmentR0, specularEnvironmentR90);
 	#elif (PBR_F_SCHLICK == PBR_F_SCHLICK_GOOGLE) // Google, same as Khronos?
-		vec3 F = F_Schlick(vd.LdotH, specularEnvironmentR0, specularEnvironmentR90);
+		vec3 F = F_Schlick(vdi.LdotH, specularEnvironmentR0, specularEnvironmentR90);
 	#elif (PBR_F_SCHLICK == PBR_F_SCHLICK_GAUSSIAN)
-		vec3 F = F_Schlick_Gaussian(vd.LdotH, specularEnvironmentR0, specularEnvironmentR90);
+		vec3 F = F_Schlick_Gaussian(vdi.LdotH, specularEnvironmentR0, specularEnvironmentR90);
 	#elif (PBR_F_SCHLICK == PBR_F_COOK_TORRANCE)
-		vec3 F = F_CookTorrance(vd.LdotH, specularEnvironmentR0);
+		vec3 F = F_CookTorrance(vdi.LdotH, specularEnvironmentR0);
 	#endif
 
 	// G = Geometric shadowing term (Microfacets shadowing)
-	float G = G_SchlickSmithGGX(vd.NdotL, vd.NdotV, matInfo.roughness, matInfo.roughness4);
+	float G = G_SchlickSmithGGX(vdi.NdotL, vdi.NdotV, matInfo.roughness, matInfo.roughness4);
 
 	// Calculation of analytical lighting contribution
-	vec3 lightDiffuseContrib = (1.0 - F) * Diffuse(baseDiffuseColor, matInfo.roughness, vd);
-	vec3 lightSpecContrib = F * G * D / (4.0 * vd.NdotL * vd.NdotV);
+	vec3 lightDiffuseContrib = (1.0 - F) * Diffuse(baseDiffuseColor, matInfo.roughness);
+	vec3 lightSpecContrib = F * G * D / (4.0 * vdi.NdotL * vdi.NdotV);
 
 	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-	litDiffColor = vd.NdotL * thisLightColor * lightDiffuseContrib;
-	litSpecColor = vd.NdotL * thisLightColor * lightSpecContrib;
+	litDiffColor = vdi.NdotL * thisLightColor * lightDiffuseContrib;
+	litSpecColor = vdi.NdotL * thisLightColor * lightSpecContrib;
 }
 
 // Alternative calculation of LOD from Urho3D
@@ -650,69 +659,64 @@ float GetMipFromRoughness(float roughness, float lodMax) {
 	return (roughness * (lodMax + 1.0) - pow(roughness, 6.0) * 1.5);
 }
 
-/*
+
 // Image based Lighting Color Contribution
-void GetIndirectLightContribution
+void GetIndirectLightContribution(vec3 N, vec3 R,
+								out vec3 iblLitDiffColor, out vec3 iblLitSpecColor) {
+
 	// Image Based Lighting
 	ivec2 reflectionTexSize = textureSize(reflectionTex, 0);
 	float reflectionTexMaxLOD = log2(float(max(reflectionTexSize.x, reflectionTexSize.y)));
 	#if 0
 		float specularLOD = reflectionTexMaxLOD * roughness;
 	#else
-		float specularLOD = GetMipFromRoughness(roughness, reflectionTexMaxLOD);
+		float specularLOD = GetMipFromRoughness(matInfo.roughness, reflectionTexMaxLOD);
 	#endif
-	specularLOD += IBL_SPECULAR_LOD_BIAS;
 
-	#if (IBL_DIFFUSECOLOR_STATIC == 1)
-		vec3 iblDiffuseLight = IBL_DIFFUSECOLOR;
+	#ifdef IBL_DIFFUSECOLOR_STATIC
+		vec3 iblDiffuseLight = lightColor;
 	#else
 		// It's wrong to sample diffuse irradiance from reflection texture.
 		// But alternative (convolution to irradiance) is too performance hungry (???)
 		// Sample from "blurry" 16x16 texels mip level, so it looks more or less like irradiance
 		vec3 iblDiffuseLight = texture(reflectionTex, N, reflectionTexMaxLOD - 4.0).rgb;
+		/*
 		iblDiffuseLight = IBL_GAMMACORRECTION(iblDiffuseLight);
 		#if (IBL_INVERSE_TONEMAP == 1)
 			float avgDLum = dot(LUMA, textureLod(reflectionTex, N, reflectionTexMaxLOD).rgb);
-			iblDiffuseLight = expExpand(iblDiffuseLight, avgDLum, IBL_INVERSE_TONEMAP_MUL);
+			iblDiffuseLight = ExpExpand(iblDiffuseLight, avgDLum, IBL_INVERSE_TONEMAP_MUL);
 		#endif
+		*/
 	#endif
 
-	#if (IBL_SPECULARCOLOR_STATIC == 1)
-		vec3 iblSpecularLight = IBL_SPECULARCOLOR;
+	#ifdef IBL_SPECULARCOLOR_STATIC
+		vec3 iblSpecularLight = lightColor;
 	#else
 		// Get reflection with respect to surface roughness
 		vec3 iblSpecularLight = texture(reflectionTex, R, specularLOD).rgb;
+		/*
 		iblSpecularLight = IBL_GAMMACORRECTION(iblSpecularLight);
 		#if (IBL_INVERSE_TONEMAP == 1)
 			float avgSLum = dot(LUMA, textureLod(reflectionTex, R, reflectionTexMaxLOD).rgb);
-			iblSpecularLight = expExpand(iblSpecularLight, avgSLum, IBL_INVERSE_TONEMAP_MUL);
+			iblSpecularLight = ExpExpand(iblSpecularLight, avgSLum, IBL_INVERSE_TONEMAP_MUL);
 		#endif
+		*/
 	#endif
 
+/*
 	iblDiffuseLight = IBL_SCALE_DIFFUSE(iblDiffuseLight);
 	iblSpecularLight = IBL_SCALE_SPECULAR(iblSpecularLight);
-
+*/
 	//sanitize Lights
 	iblDiffuseLight = max(vec3(0.0), iblDiffuseLight);
 	iblSpecularLight = max(vec3(0.0), iblSpecularLight);
 
-	vec2 brdf = textureLod(brdfTex, vec2(vd.NdotV, 1.0 - roughness), 0.0).xy;
+	vec2 brdfLUT = textureLod(brdfLutTex, vec2(vdi.NdotV, 1.0 - matInfo.roughness), 0.0).xy;
 
-	vec3 iblLitDiffColor = iblDiffuseLight * baseDiffuseColor;
-	vec3 iblLitSpecColor = iblSpecularLight * (specularEnvironmentR0 * brdf.x + brdf.y);
-
-	//return iblSpecularLight;
-
-	//TODO: figure out which one looks better
-	float occlusion = mix(1.0, groundShadowDensity, 1.0 - mat.occlusion);
-	#if 0
-		return (sunLitDiffColor + iblLitDiffColor) * occlusion + (sunLitSpecColor + iblLitSpecColor);
-	#else
-		return (sunLitDiffColor + sunLitSpecColor) + (iblLitDiffColor + iblLitSpecColor) * occlusion;
-	#endif
-
+	iblLitDiffColor = iblDiffuseLight * baseDiffuseColor;
+	iblLitSpecColor = iblSpecularLight * (specularEnvironmentR0 * brdfLUT.x + brdfLUT.y);
 }
-*/
+
 
 void main(void) {
 	%%FRAGMENT_PRE_SHADING%%
@@ -723,22 +727,62 @@ void main(void) {
 
 	FillInMaterialInfo();
 	GetBaseColors();
-	FillInVectorDotsInfo(lightDir);
+
+	vec3 N;
+	vec3 R;
+	FillInVectorDotsInfo(lightDir, N, R);
 
 	vec3 directLitDiffColor;
 	vec3 directLitSpecColor;
-	GetDirectLightContribution(vdi, lightColor, directLitDiffColor, directLitSpecColor);
+	GetDirectLightContribution(lightColor, directLitDiffColor, directLitSpecColor);
 
-	//gl_FragColor = vec4(directLitDiffColor + directLitSpecColor, 1.0);
+	vec3 iblLitDiffColor;
+	vec3 iblLitSpecColor;
+	GetIndirectLightContribution(N, R, iblLitDiffColor, iblLitSpecColor);
+
+
+	//TODO: figure out which one looks better
+	float occlusionFactor = mix(1.0, shadowDensity, 1.0 - matInfo.occlusion);
+	#if 0
+		gl_FragColor.rgb = (directLitDiffColor + iblLitDiffColor) * occlusionFactor + (directLitSpecColor + iblLitSpecColor);
+	#else
+		gl_FragColor.rgb = (directLitDiffColor + directLitSpecColor) + (iblLitDiffColor + iblLitSpecColor) * occlusionFactor;
+	#endif
+
+	#ifdef GAMMA_CORRECTION
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, FromSRGB(teamColor.rgb), matInfo.baseColor.a); //hack
+	#else
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a); //hack
+	#endif
+
+	//gl_FragColor.rgb = vec3(vdi.NdotL);
+	//gl_FragColor.rgb = vec3(vdi.NdotV);
+	//gl_FragColor.rgb = vec3(vdi.NdotH);
+	//gl_FragColor.rgb = vec3(vdi.LdotV);
+	//gl_FragColor.rgb = vec3(vdi.LdotH);
+	//gl_FragColor.rgb = vec3(vdi.VdotH);
+	//gl_FragColor.rgb = normalize(cameraDir);
+	//gl_FragColor.rgb = normalize(lightDir);
+	//gl_FragColor.rgb = lightColor;
+	//gl_FragColor.rgb = baseDiffuseColor;
+	//gl_FragColor.rgb = (directLitDiffColor + directLitSpecColor);
+	//gl_FragColor.rgb = (iblLitDiffColor + iblLitSpecColor);
+	//gl_FragColor.rgb = directLitSpecColor;
+	//gl_FragColor.rgb = vec3(matInfo.roughness);
 	//gl_FragColor.rgb = baseDiffuseColor;
 	//gl_FragColor.rgb = baseSpecularColor;
-	gl_FragColor.rgb = worldTBN[0];
+	//gl_FragColor.rgb = worldTBN[0];
 	//gl_FragColor.rgb = normalize(worldNormal);
 	//gl_FragColor.rgb = GetWorldFragNormal();
 	//gl_FragColor.rgb = texture(normalTex, texCoord).rgb;
 	//gl_FragColor.rgb = vec3(matInfo.metalness);
 	//gl_FragColor.rgb = texture(tex0, texCoord).rgb;
 	//gl_FragColor.rg = texCoord;
+
+	#ifdef GAMMA_CORRECTION
+		gl_FragColor.rgb = ToSRGB(gl_FragColor.rgb);
+	#endif
+
 	gl_FragColor.a = 1.0;
 
 	%%FRAGMENT_POST_SHADING%%

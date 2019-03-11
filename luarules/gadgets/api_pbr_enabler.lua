@@ -1,7 +1,7 @@
 function gadget:GetInfo()
 	return {
-		name      = "BRDF LUT Generator",
-		desc      = "Generates BRDF Lookup table for PBR shaders",
+		name      = "PBR enabler",
+		desc      = "Generates BRDF Lookup table for PBR shaders and sets necessary spring configuration parameters",
 		author    = "ivand",
 		date      = "2019",
 		license   = "PD",
@@ -27,6 +27,8 @@ if (not gadgetHandler:IsSyncedCode()) then --unsynced gadget
 	end
 
 	function gadget:Initialize()
+		Spring.SetConfigInt("CubeTexGenerateMipMaps", 1)
+		Spring.SetConfigInt("CubeTexSizeReflection", 2048)
 		local genLutClass = VFS.Include("Luarules/Gadgets/Include/GenBrdfLut.lua")
 		if genLutClass then
 			genLut = genLutClass(BRDFLUT_TEXDIM)
