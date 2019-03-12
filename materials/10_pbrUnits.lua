@@ -13,7 +13,7 @@ local commonDefinitions = {
 
 	"#define DO_GAMMACORRECTION",
 	"#define DO_FASTGAMMACORRECTION",
-	"#define DO_TONEMAPPING(val) FilmicTM(2.5 * val)",
+	"#define DO_TONEMAPPING(val) ACESFilmicTM(1.5 * val)",
 
 	--"#define IBL_DIFFUSECOLOR_STATIC", -- take IBL diffuse color from sun light color
 	--"#define IBL_SPECULARCOLOR_STATIC", -- take IBL specular color from sun light color

@@ -567,9 +567,10 @@ void FillInMaterialInfo() {
 
 	float emission = tex1Texel.r;
 	float roughness = tex1Texel.b;
-	roughness = 0.0;
-	roughness = fract(simFrame * 0.0125);
-	float metalness = tex1Texel.g * 1.0;
+
+	roughness = clamp(0.5 * tex1Texel.g, 0.3, 1.0);
+	//roughness = fract(simFrame * 0.0125);
+	float metalness = tex1Texel.g * 0.7;
 	//metalness = 0.5;
 	//metalness = fract(simFrame * 0.025);
 
@@ -843,7 +844,7 @@ void main(void) {
 		gl_FragColor.rgb = ToSRGB(gl_FragColor.rgb);
 	#endif
 
-	gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a); //hack
+	gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a * shadow); //hack
 	gl_FragColor.a = 1.0;
 	//gl_FragColor.rgb = vec3(min(gShadow, nShadow));
 
