@@ -1,16 +1,17 @@
 local commonDefinitions = {
 	"#version 150 compatibility",
 
-	"#define GET_FLASHLIGHTS",
-	"#define GET_NORMALMAP", --disable TBN normal mapping from normal texture
+	"#define DO_FLASHLIGHTS",
+	"#define DO_NORMALMAPPING", --disable TBN normal mapping from normal texture
 	"#define HAS_TANGENTS", -- undefine to visually verify TBN correctness, but don't use in production
 
 	"#define NORMAL_OPENGL", -- https://polycount.com/discussion/147156/is-it-y-or-y-for-normal-maps
 	--"define NORMAL_RG",
 	--"define NORMAL_VFLIP",
 
-	"#define GAMMA_CORRECTION",
-	--"#define FAST_GAMMA",
+	"#define DO_GAMMACORRECTION",
+	"#define DO_FASTGAMMACORRECTION",
+	"#define DO_TONEMAPPING(val) ACESFilmicTM(val)",
 
 	--"#define IBL_DIFFUSECOLOR_STATIC", -- take IBL diffuse color from sun light color
 	--"#define IBL_SPECULARCOLOR_STATIC", -- take IBL specular color from sun light color
@@ -63,7 +64,10 @@ local unitMaterials = {}
 for i=1,#UnitDefs do
 	local udef = UnitDefs[i]
 
-	if udef.customParams.normaltex and VFS.FileExists(udef.customParams.normaltex) then
+	if udef.customParams.normaltex
+		and udef.customParams.pbr
+		and VFS.FileExists(udef.customParams.normaltex) then
+
 		unitMaterials[udef.name] = {
 			"pbrS3O",
 			NORMALTEX = udef.customParams.normaltex,

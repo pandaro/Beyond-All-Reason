@@ -21,6 +21,7 @@
 struct MaterialInfo {
 	vec4 baseColor;
 
+	float emission;
 	float occlusion;
 	float specularF0;
 	float roughness;
@@ -98,7 +99,11 @@ in Data {
 		vec4 shadowTexCoord;
 	#endif
 
-	#ifdef GET_NORMALMAP
+	#ifdef DO_FLASHLIGHTS
+		float flashLightIntensity;
+	#endif
+
+	#ifdef DO_NORMALMAPPING
 		#ifdef HAS_TANGENTS
 			mat3 worldTBN;
 		#else
@@ -142,7 +147,7 @@ const vec3 SRGB_MAGIC_NUMBER = vec3(12.92);
 const vec3 SRGB_MAGIC_NUMBER_INV = vec3(1.0) / SRGB_MAGIC_NUMBER;
 
 float FromSRGB(float srgbIn) {
-	#ifdef FAST_GAMMA
+	#ifdef DO_FASTGAMMACORRECTION
 		float rgbOut = pow(srgbIn, SRGB_INVERSE_GAMMA.x);
 	#else
 		float bLess = step(0.04045, srgbIn);
@@ -154,7 +159,7 @@ float FromSRGB(float srgbIn) {
 }
 
 vec3 FromSRGB(vec3 srgbIn) {
-	#ifdef FAST_GAMMA
+	#ifdef DO_FASTGAMMACORRECTION
 		vec3 rgbOut = pow(srgbIn.rgb, SRGB_INVERSE_GAMMA);
 	#else
 		vec3 bLess = step(vec3(0.04045), srgbIn.rgb);
@@ -166,7 +171,7 @@ vec3 FromSRGB(vec3 srgbIn) {
 }
 
 vec4 FromSRGB(vec4 srgbIn) {
-	#ifdef FAST_GAMMA
+	#ifdef DO_FASTGAMMACORRECTION
 		vec3 rgbOut = pow(srgbIn.rgb, SRGB_INVERSE_GAMMA);
 	#else
 		vec3 bLess = step(vec3(0.04045), srgbIn.rgb);
@@ -178,7 +183,7 @@ vec4 FromSRGB(vec4 srgbIn) {
 }
 
 float ToSRGB(float rgbIn) {
-	#ifdef FAST_GAMMA
+	#ifdef DO_FASTGAMMACORRECTION
 		float srgbOut = pow(rgbIn, SRGB_GAMMA.x);
 	#else
 		float bLess = step(0.0031308, rgbIn);
@@ -190,7 +195,7 @@ float ToSRGB(float rgbIn) {
 }
 
 vec3 ToSRGB(vec3 rgbIn) {
-	#ifdef FAST_GAMMA
+	#ifdef DO_FASTGAMMACORRECTION
 		vec3 srgbOut = pow(rgbIn.rgb, SRGB_GAMMA);
 	#else
 		vec3 bLess = step(vec3(0.0031308), rgbIn.rgb);
@@ -202,7 +207,7 @@ vec3 ToSRGB(vec3 rgbIn) {
 }
 
 vec4 ToSRGB(vec4 rgbIn) {
-	#ifdef FAST_GAMMA
+	#ifdef DO_FASTGAMMACORRECTION
 		vec3 srgbOut = pow(rgbIn.rgb, SRGB_GAMMA);
 	#else
 		vec3 bLess = step(vec3(0.0031308), rgbIn.rgb);
@@ -345,12 +350,10 @@ vec3 ExpExpand(in vec3 x, in float cutoff, in float mul) {
 		//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
 		vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
 
-		/* //doesn't make sense
 		#if 0
 			float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
-			worldTangent = worldTangent * handednessSign;
+			worldBitangent = worldBitangent * handednessSign;
 		#endif
-		*/
 
 		worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
 	}
@@ -380,21 +383,26 @@ vec3 ExpExpand(in vec3 x, in float cutoff, in float mul) {
 // Normal mapping function
 
 vec3 GetWorldFragNormal() {
-	#ifdef GET_NORMALMAP
+	#ifdef DO_NORMALMAPPING
 		vec2 nTexCoord = texCoord;
+
 		#ifdef NORMAL_VFLIP
 			nTexCoord.y = 1.0 - nTexCoord.y;
 		#endif
+
 		vec3 normalMapVal = texture(normalTex, nTexCoord).xyz;
 		normalMapVal = NORM2SNORM(normalMapVal);
-		#ifndef NORMAL_OPENGL
-			normalMapVal.y *= -1.0;
-		#endif
+
 		#ifdef NORMAL_RG
 			normalMapVal.z = sqrt( clamp(1.0f - dot(normalMapVal.xy, normalMapVal.xy), 0.0, 1.0) );
 		#endif
+
+		#ifndef NORMAL_OPENGL
+			normalMapVal.y *= -1.0;
+		#endif
+
 		vec3 worldFragNormal = worldTBN * normalMapVal;
-	#else // undefined GET_NORMALMAP
+	#else // undefined DO_NORMALMAPPING
 		// don't do normal mapping, just pass worldNormal
 		vec3 worldFragNormal = worldNormal;
 	#endif
@@ -550,17 +558,20 @@ void FillInMaterialInfo() {
 	const float occlusion = 1.0;
 	const float specularF0 = DEFAULT_SPECULAR_FO;
 
-	#ifdef GAMMA_CORRECTION
+	#ifdef DO_GAMMACORRECTION
 		vec4 baseColor = FromSRGB( tex0Texel );
 	#else
 		vec4 baseColor = tex0Texel;
 	#endif
 
+	float emission = tex1Texel.r;
 	float roughness = tex1Texel.b;
-	roughness = 0.3;
+	roughness = 0.0;
+	roughness = fract(simFrame * 0.0125);
 	float metalness = tex1Texel.g * 1.0;
+	//metalness = 0.5;
 	//metalness = fract(simFrame * 0.025);
-	metalness = 0.5;
+
 
 	roughness = clamp(roughness, MIN_ROUGHNESS, 1.0);
 	metalness = clamp(metalness, 0.0, 1.0);
@@ -572,6 +583,7 @@ void FillInMaterialInfo() {
 	matInfo = MaterialInfo(
 		baseColor, 			//matInfo.baseColor
 
+		emission, 			//matInfo.emission
 		occlusion, 			//matInfo.occlusion
 		specularF0, 		//matInfo.occlusion
 		roughness, 			//matInfo.roughness
@@ -580,7 +592,7 @@ void FillInMaterialInfo() {
 	);
 }
 
-void FillInVectorDotsInfo(vec3 thisLightDir, out vec3 N, out vec3 R) {
+void FillInVectorsInfo(vec3 thisLightDir, out vec3 N, out vec3 R) {
 	//all vectors are defined in world space
 	N = GetWorldFragNormal(); 	// Get world-space geometry or normal-mapped fragment normal
 
@@ -675,7 +687,7 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	#endif
 
 	#ifdef IBL_DIFFUSECOLOR_STATIC
-		vec3 iblDiffuseLight = lightColor;
+		vec3 iblDiffuseLight = 0.2 * lightColor;
 	#else
 		// It's wrong to sample diffuse irradiance from reflection texture.
 		// But alternative (convolution to irradiance) is too performance hungry (???)
@@ -691,7 +703,7 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	#endif
 
 	#ifdef IBL_SPECULARCOLOR_STATIC
-		vec3 iblSpecularLight = lightColor;
+		vec3 iblSpecularLight = 0.5 * lightColor;
 	#else
 		// Get reflection with respect to surface roughness
 		vec3 iblSpecularLight = texture(reflectionTex, R, specularLOD).rgb;
@@ -731,7 +743,7 @@ void main(void) {
 
 	vec3 N;
 	vec3 R;
-	FillInVectorDotsInfo(lightDir, N, R);
+	FillInVectorsInfo(lightDir, N, R);
 
 	vec3 directLitDiffColor;
 	vec3 directLitSpecColor;
@@ -748,6 +760,12 @@ void main(void) {
 		gl_FragColor.rgb = (directLitDiffColor + iblLitDiffColor) * occlusionFactor + (directLitSpecColor + iblLitSpecColor);
 	#else
 		gl_FragColor.rgb = (directLitDiffColor + directLitSpecColor) + (iblLitDiffColor + iblLitSpecColor) * occlusionFactor;
+	#endif
+
+	#ifdef DO_FLASHLIGHTS
+		gl_FragColor.rgb += matInfo.baseColor.rgb * matInfo.emission * flashLightIntensity;
+	#else
+		gl_FragColor.rgb += matInfo.baseColor.rgb * matInfo.emission;
 	#endif
 
 	//gl_FragColor.rgb = vec3(vdi.NdotL);
@@ -774,12 +792,18 @@ void main(void) {
 	//gl_FragColor.rgb = texture(tex0, texCoord).rgb;
 	//gl_FragColor.rg = texCoord;
 
-	#ifdef GAMMA_CORRECTION
+	#ifdef DO_TONEMAPPING
+		gl_FragColor.rgb = DO_TONEMAPPING(gl_FragColor.rgb);
+	#endif
+
+	#ifdef DO_GAMMACORRECTION
 		gl_FragColor.rgb = ToSRGB(gl_FragColor.rgb);
 	#endif
 
 	gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a); //hack
 	gl_FragColor.a = 1.0;
+
+	//gl_FragColor.rgb = GetWorldFragNormal();
 
 	%%FRAGMENT_POST_SHADING%%
 }

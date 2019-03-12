@@ -8,6 +8,8 @@
 uniform mat4 camera;		//ViewMatrix (gl_ModelViewMatrix is ModelMatrix!)
 uniform vec3 cameraPos;
 
+uniform int simFrame; //set by api_cus
+
 #ifdef use_shadows //supplied by api_custom_unit_shaders
 	//The api_custom_unit_shaders supplies this definition:
 	uniform mat4 shadowMatrix;
@@ -24,7 +26,11 @@ out Data {
 		vec4 shadowTexCoord;
 	#endif
 
-	#ifdef GET_NORMALMAP
+	#ifdef DO_FLASHLIGHTS
+		float flashLightIntensity;
+	#endif
+
+	#ifdef DO_NORMALMAPPING
 		#ifdef HAS_TANGENTS
 			mat3 worldTBN;
 		#else
@@ -46,43 +52,8 @@ void main(void)	{
 	vec3 modelNormal = gl_Normal;
 
 	%%VERTEX_PRE_TRANSFORM%%
-/*
-	#ifdef GET_NORMALMAP
-		#ifdef HAS_TANGENTS
-			vec3 worldNormalN = normalize(normalMatrix * modelNormal);
-			// The use of gl_MultiTexCoord[5,6] is a hack due to lack of support of proper attributes
-			// TexCoord5 and TexCoord6 are defined and filled in engine. See: rts/Rendering/Models/AssParser.cpp
-			vec3 modelTangent = gl_MultiTexCoord5.xyz * vec3(1.0, -1.0, 1.0);
-			vec3 worldTangent = normalize(vec3(worldMatrix * vec4(modelTangent, 0.0)));
 
-			// Do Gramm-Schmidt re-ortogonalization
-			#if 0
-				worldTangent = normalize(worldTangent - worldNormalN * dot(worldNormalN, worldTangent));
-			#endif
-
-			#if 0 //take modelBitangent from attributes
-				vec3 modelBitangent = -gl_MultiTexCoord6.xyz;
-				vec3 worldBitangent = normalize(vec3(worldMatrix * vec4(modelBitangent, 0.0)));
-
-				// TBN must form a right-handed coordinate system, i.e. cross(n,t) must have the same orientation than b.
-				#if 0
-					float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
-					worldTangent = worldTangent * handednessSign;
-				#endif
-			#else //calculate worldBitangent
-				//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
-				vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
-			#endif
-
-			worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
-		#else
-			worldNormal = normalMatrix * modelNormal;
-		#endif
-	#else
-		worldNormal = normalMatrix * modelNormal;
-	#endif
-*/	
-	#ifdef GET_NORMALMAP
+	#ifdef DO_NORMALMAPPING
 		#ifdef HAS_TANGENTS
 			vec3 worldNormalN = normalize(normalMatrix * modelNormal);
 			// The use of gl_MultiTexCoord[5,6] is a hack due to lack of support of proper attributes
@@ -90,21 +61,21 @@ void main(void)	{
 			vec3 modelTangent = gl_MultiTexCoord5.xyz;
 			vec3 worldTangent = normalize(vec3(worldMatrix * vec4(modelTangent, 0.0)));
 
+			#if 1
+				worldTangent = normalize(worldTangent - worldNormalN * dot(worldNormalN, worldTangent));
+			#endif
+
 			#if 1 //take modelBitangent from attributes
 				vec3 modelBitangent = gl_MultiTexCoord6.xyz;
 				vec3 worldBitangent = normalize(vec3(worldMatrix * vec4(modelBitangent, 0.0)));
 			#else //calculate worldBitangent
-				#ifdef 1
-					worldTangent = normalize(worldTangent - worldNormalN * dot(worldNormalN, worldTangent));
-				#endif
-
 				//vec3 worldBitangent = normalize( cross(worldTangent, worldNormalN) );
 				vec3 worldBitangent = normalize( cross(worldNormalN, worldTangent) );
 			#endif
-			
+
 			#if 0
 				float handednessSign = sign(dot(cross(worldNormalN, worldTangent), worldBitangent));
-				worldTangent = worldTangent * handednessSign;
+				worldBitangent = worldBitangent * handednessSign;
 			#endif
 			worldTBN = mat3(worldTangent, worldBitangent, worldNormalN);
 		#else
@@ -112,7 +83,7 @@ void main(void)	{
 		#endif
 	#else
 		worldNormal = normalMatrix * modelNormal;
-	#endif	
+	#endif
 
 	vec4 worldPos4 = worldMatrix * modelPos;
 	worldPos = worldPos4.xyz;
@@ -130,6 +101,11 @@ void main(void)	{
 	cameraDir = cameraPos - worldPos4.xyz;
 
 	texCoord = gl_MultiTexCoord0.xy;
+
+	#ifdef DO_FLASHLIGHTS
+		// worldMatrix[3].x and worldMatrix[3].z are translation elements[x,z] of world matrix.
+		flashLightIntensity = max(-0.2, sin(simFrame * 0.063 + (worldMatrix[3].x + worldMatrix[3].z) * 0.1)) + 0.2;
+	#endif
 
 	//TODO:
 	// 2) flashlights ?
