@@ -9,16 +9,16 @@ local commonDefinitions = {
 	--"define NORMAL_RG",
 	--"define NORMAL_VFLIP",
 	
-	"#define SHADOW_SAMPLES 4",
+	"#define SHADOW_SAMPLES 2",
 
 	"#define DO_GAMMACORRECTION",
 	"#define DO_FASTGAMMACORRECTION",
-	"#define DO_TONEMAPPING(val) ACESFilmicTM(1.2 * val)",
+	"#define DO_TONEMAPPING(val) FilmicTM(2.5 * val)",
 
 	--"#define IBL_DIFFUSECOLOR_STATIC", -- take IBL diffuse color from sun light color
 	--"#define IBL_SPECULARCOLOR_STATIC", -- take IBL specular color from sun light color
 
-	"#define PBR_SCHLICK_SMITH_GGX PBR_SCHLICK_SMITH_GGX_THIN",
+	"#define PBR_SCHLICK_SMITH_GGX PBR_SCHLICK_SMITH_GGX_THICK",
 	"#define PBR_F_SCHLICK PBR_F_SCHLICK_KHRONOS",
 	"#define PBR_R90_METHOD PBR_R90_METHOD_GOOGLE",
 	"#define PBR_BRDF_DIFFUSE PBR_BRDF_DIFFUSE_LAMBERT",

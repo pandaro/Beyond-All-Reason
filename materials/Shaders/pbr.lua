@@ -21,7 +21,7 @@ return {
 	uniformFloat = {
 		--lightColor = {1.0, 1.0, 1.0},
 		lightColor = {gl.GetSun("diffuse" ,"unit")},
-		shadowDensity = {gl.GetSun("shadowDensity" ,"unit")},
+		shadowDensity = gl.GetSun("shadowDensity" ,"unit"),
 	},
 	uniformMatrix = {
 	},

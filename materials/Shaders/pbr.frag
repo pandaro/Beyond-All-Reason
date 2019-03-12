@@ -736,9 +736,14 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 float GetShadowPCFGrid() {
 	float shadow = 0.0;
 
-	#if (SHADOW_SAMPLES == 1)
-		shadow = textureProj( shadowTex, shadowTexCoord );
-	#else
+	const float cb = 0.00005;
+	float bias = cb * tan(acos(vdi.NdotL));
+	bias = clamp(bias, 0.0, 5.0 * cb);
+
+	vec4 shTexCoord = shadowTexCoord;
+	shTexCoord.z -= bias;
+
+	#if defined(SHADOW_SAMPLES) && (SHADOW_SAMPLES > 1)
 		const int ssHalf = int(floor(float(SHADOW_SAMPLES)/2.0));
 		const float ssSum = float((ssHalf + 1) * (ssHalf + 1));
 
@@ -746,9 +751,11 @@ float GetShadowPCFGrid() {
 			float wx = float(ssHalf - abs(x) + 1) / ssSum;
 			for( int y = -ssHalf; y <= ssHalf; y++ ) {
 				float wy = float(ssHalf - abs(y) + 1) / ssSum;
-				shadow += wx * wy * textureProjOffset ( shadowTex, shadowTexCoord, ivec2(x, y) );
+				shadow += wx * wy * textureProjOffset ( shadowTex, shTexCoord, ivec2(x, y) );
 			}
 		}
+	#else
+		shadow = textureProj( shadowTex, shTexCoord );
 	#endif
 
 	return mix(1.0, shadow, shadowDensity);
@@ -778,7 +785,7 @@ void main(void) {
 	vec3 iblLitSpecColor;
 	GetIndirectLightContribution(N, R, iblLitDiffColor, iblLitSpecColor);
 
-	float nShadowMix = smoothstep(0.0, 0.5, vdi.NdotLu);
+	float nShadowMix = smoothstep(0.0, 0.35, vdi.NdotLu);
 	float nShadow = mix(1.0, nShadowMix, shadowDensity);
 
 	#ifdef use_shadows
@@ -838,6 +845,7 @@ void main(void) {
 
 	gl_FragColor.rgb = mix(gl_FragColor.rgb, teamColor.rgb, matInfo.baseColor.a); //hack
 	gl_FragColor.a = 1.0;
+	//gl_FragColor.rgb = vec3(min(gShadow, nShadow));
 
 	//gl_FragColor.rgb = GetWorldFragNormal();
 
