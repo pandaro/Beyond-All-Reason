@@ -20,6 +20,21 @@ function deepcopy(orig)
     return copy
 end
 
+
+-- create PBR unit alternatives
+local addedUnits = {}
+for name,uDef in pairs(UnitDefs) do
+    if string.sub(name, 1, 3) == 'arm' or string.sub(name, 1, 3) == 'cor' then
+        addedUnits[name..'_pbr'] = deepcopy(uDef)
+        if not addedUnits[name..'_pbr'].customparams then
+            addedUnits[name..'_pbr'].customparams = {}
+        end
+        addedUnits[name..'_pbr'].customparams.pbr = true
+    end
+end
+for name,ud in pairs(addedUnits) do UnitDefs[name] = ud end
+
+
 -- handle unba modoption
 if (Spring.GetModOptions) and Spring.GetModOptions().unba and Spring.GetModOptions().unba == "enabled" then
 	VFS.Include("gamedata/unbaconfigs/unbacom_post.lua")
