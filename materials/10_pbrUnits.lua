@@ -8,10 +8,12 @@ local commonDefinitions = {
 	"#define NORMAL_OPENGL", -- https://polycount.com/discussion/147156/is-it-y-or-y-for-normal-maps
 	--"define NORMAL_RG",
 	--"define NORMAL_VFLIP",
+	
+	"#define SHADOW_SAMPLES 4",
 
 	"#define DO_GAMMACORRECTION",
 	"#define DO_FASTGAMMACORRECTION",
-	"#define DO_TONEMAPPING(val) ACESFilmicTM(val)",
+	"#define DO_TONEMAPPING(val) ACESFilmicTM(1.2 * val)",
 
 	--"#define IBL_DIFFUSECOLOR_STATIC", -- take IBL diffuse color from sun light color
 	--"#define IBL_SPECULARCOLOR_STATIC", -- take IBL specular color from sun light color
