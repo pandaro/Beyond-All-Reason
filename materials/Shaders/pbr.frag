@@ -51,10 +51,35 @@ struct VectorDotsInfo {
 #endif
 const float PI2 = PI * 2.0;
 
+const float LOG10 = log(10.0);
+
 const float MIN_ROUGHNESS = 0.04;
 const float DEFAULT_SPECULAR_FO = 0.04;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+
+/*
+const mat3 RGB2YCBCR = mat3(
+	0.2126, 0.7152, 0.0722,
+	-0.114572, -0.385428, 0.5,
+	0.5, -0.454153, -0.0458471);
+
+const mat3 YCBCR2RGB = mat3(
+	1.0, 0.0, 1.5748,
+	1.0, -0.187324, -0.468124,
+	1.0, 1.8556, -5.55112e-17);
+*/
+
+const mat3 RGB2YCBCR = mat3(
+	0.2126, -0.114572, 0.5,
+	0.7152, -0.385428, -0.454153,
+	0.0722, 0.5, -0.0458471);
+
+const mat3 YCBCR2RGB = mat3(
+	1.0, 1.0, 1.0,
+	0.0, -0.187324, 1.8556,
+	1.5748, -0.468124, -5.55112e-17);
+
 
 /***********************************************************************/
 // Samplers
@@ -675,6 +700,22 @@ float GetMipFromRoughness(float roughness, float lodMax) {
 	return (roughness * (lodMax + 1.0) - pow(roughness, 6.0) * 1.5);
 }
 
+vec3 ExposureCorrectedReflection(vec3 samplingVec, vec3 sampledColor, float samplingLOD) {
+	vec3 envColor = textureLod(reflectionTex, samplingVec, samplingLOD).rgb;
+
+	vec3 YCbCr = RGB2YCBCR * envColor;
+
+	//float expKV = 1.03 - 2.0 / ( (log(YCbCr.x + 1.0)/LOG10) + 2.0);
+	//float expKV = 0.3;
+	//float expVal = expKV / clamp(YCbCr.x, 0.5, 1.0);
+
+	float expVal = mix(4.0, 0.3, smoothstep(0.3, 0.6, YCbCr.x));
+
+	YCbCr.x *= expVal;
+
+	return YCBCR2RGB * YCbCr;
+}
+
 
 // Image based Lighting Color Contribution
 void GetIndirectLightContribution(vec3 N, vec3 R,
@@ -683,6 +724,8 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	// Image Based Lighting
 	ivec2 reflectionTexSize = textureSize(reflectionTex, 0);
 	float reflectionTexMaxLOD = log2(float(max(reflectionTexSize.x, reflectionTexSize.y)));
+	float envSamplingLOD = reflectionTexMaxLOD - 0.5;
+
 	#if 0
 		float specularLOD = reflectionTexMaxLOD * roughness;
 	#else
@@ -696,6 +739,10 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 		// But alternative (convolution to irradiance) is too performance hungry (???)
 		// Sample from "blurry" 16x16 texels mip level, so it looks more or less like irradiance
 		vec3 iblDiffuseLight = texture(reflectionTex, N, reflectionTexMaxLOD - 4.0).rgb;
+
+		#if 1
+			iblDiffuseLight = ExposureCorrectedReflection(N, iblDiffuseLight, envSamplingLOD);
+		#endif
 		/*
 		iblDiffuseLight = IBL_GAMMACORRECTION(iblDiffuseLight);
 		#if (IBL_INVERSE_TONEMAP == 1)
@@ -710,6 +757,9 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	#else
 		// Get reflection with respect to surface roughness
 		vec3 iblSpecularLight = texture(reflectionTex, R, specularLOD).rgb;
+		#if 1
+			iblSpecularLight = ExposureCorrectedReflection(R, iblSpecularLight, envSamplingLOD);
+		#endif
 		/*
 		iblSpecularLight = IBL_GAMMACORRECTION(iblSpecularLight);
 		#if (IBL_INVERSE_TONEMAP == 1)
@@ -848,7 +898,9 @@ void main(void) {
 	gl_FragColor.a = 1.0;
 	//gl_FragColor.rgb = vec3(min(gShadow, nShadow));
 
-	//gl_FragColor.rgb = GetWorldFragNormal();
+	//
+	//gl_FragColor.rgb = SNORM2NORM(GetWorldFragNormal());
+	//gl_FragColor.rgb = (GetWorldFragNormal());
 
 	%%FRAGMENT_POST_SHADING%%
 }
