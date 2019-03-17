@@ -710,7 +710,7 @@ vec3 ExposureCorrectedEnvSample(vec3 samplingVec, vec3 sampledColor, float sampl
 	vec3 envColor = textureLod(reflectionTex, samplingVec, samplingLOD).rgb;
 	const float targetLuma = 0.65;
 	float lumaEnv = dot(LUMA, envColor);
-	//return sampledColor;
+	return sampledColor;
 
 
 	/*
@@ -763,7 +763,7 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	#endif
 
 	#ifdef IBL_DIFFUSECOLOR_STATIC
-		vec3 iblDiffuseLight = 0.2 * lightColor;
+		vec3 iblDiffuseLight = 0.3 * lightColor;
 	#else
 		// It's wrong to sample diffuse irradiance from reflection texture.
 		// But alternative (convolution to irradiance) is too performance hungry (???)
@@ -783,7 +783,7 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	#endif
 
 	#ifdef IBL_SPECULARCOLOR_STATIC
-		vec3 iblSpecularLight = 0.8 * lightColor;
+		vec3 iblSpecularLight = 0.7 * lightColor;
 	#else
 		// Get reflection with respect to surface roughness
 		vec3 iblSpecularLight = texture(reflectionTex, R, specularLOD).rgb;
