@@ -15,6 +15,13 @@
 #define NORM2SNORM(value) (value * 2.0 - 1.0)
 #define SNORM2NORM(value) (value * 0.5 + 0.5)
 
+
+#if SHADOW_SAMPLES > 1
+	#define SHADOW_RANDOMNESS 0.2 // 0.0 - blocky look, 1.0 - random points look
+	#define SHADOW_SAMPLING_DISTANCE 5.0 // how far shadow samples go (in shadowmap texels) as if it was applied to 8192x8192 sized shadow map
+	#define SAMPLING_METHOD 2 // 1 - Hammersley Box, 2 - Spiral
+#endif
+
 /***********************************************************************/
 // Struct definitions
 
@@ -58,7 +65,7 @@ const float DEFAULT_SPECULAR_FO = 0.04;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
-/*
+#if 0
 const mat3 RGB2YCBCR = mat3(
 	0.2126, 0.7152, 0.0722,
 	-0.114572, -0.385428, 0.5,
@@ -68,8 +75,7 @@ const mat3 YCBCR2RGB = mat3(
 	1.0, 0.0, 1.5748,
 	1.0, -0.187324, -0.468124,
 	1.0, 1.8556, -5.55112e-17);
-*/
-
+#else
 const mat3 RGB2YCBCR = mat3(
 	0.2126, -0.114572, 0.5,
 	0.7152, -0.385428, -0.454153,
@@ -79,7 +85,7 @@ const mat3 YCBCR2RGB = mat3(
 	1.0, 1.0, 1.0,
 	0.0, -0.187324, 1.8556,
 	1.5748, -0.468124, -5.55112e-17);
-
+#endif
 
 /***********************************************************************/
 // Samplers
@@ -126,7 +132,7 @@ in Data {
 	#endif
 
 	#ifdef DO_FLASHLIGHTS
-		float flashLightIntensity;
+		flat float flashLightIntensity;
 	#endif
 
 	#ifdef DO_NORMALMAPPING
@@ -594,7 +600,7 @@ void FillInMaterialInfo() {
 	float roughness = tex1Texel.b;
 
 	roughness = clamp(0.5 * tex1Texel.g, 0.3, 1.0);
-	//roughness = fract(simFrame * 0.0125);
+	roughness = fract(simFrame * 0.0125);
 	float metalness = tex1Texel.g * 0.7;
 	//metalness = 0.5;
 	//metalness = fract(simFrame * 0.025);
@@ -700,20 +706,43 @@ float GetMipFromRoughness(float roughness, float lodMax) {
 	return (roughness * (lodMax + 1.0) - pow(roughness, 6.0) * 1.5);
 }
 
-vec3 ExposureCorrectedReflection(vec3 samplingVec, vec3 sampledColor, float samplingLOD) {
+vec3 ExposureCorrectedEnvSample(vec3 samplingVec, vec3 sampledColor, float samplingLOD) {
 	vec3 envColor = textureLod(reflectionTex, samplingVec, samplingLOD).rgb;
+	const float targetLuma = 0.65;
+	float lumaEnv = dot(LUMA, envColor);
+	//return sampledColor;
 
-	vec3 YCbCr = RGB2YCBCR * envColor;
 
-	//float expKV = 1.03 - 2.0 / ( (log(YCbCr.x + 1.0)/LOG10) + 2.0);
-	//float expKV = 0.3;
-	//float expVal = expKV / clamp(YCbCr.x, 0.5, 1.0);
+	/*
+	float lumaSample = dot(LUMA, sampledColor);
+	return sampledColor + vec3(lumaEnv - lumaSample);
+	*/
 
-	float expVal = mix(4.0, 0.3, smoothstep(0.3, 0.6, YCbCr.x));
-
-	YCbCr.x *= expVal;
-
+/*
+	vec3 YCbCr = RGB2YCBCR * sampledColor;
+	YCbCr.x = targetLuma;
 	return YCBCR2RGB * YCbCr;
+*/
+
+/*
+	const float correctionStrength = 0.5;
+	vec3 YCbCr = RGB2YCBCR * sampledColor;
+	YCbCr.x = pow(YCbCr.x, correctionStrength * lumaEnv / targetLuma); //some LOL correction technique
+	return YCBCR2RGB * YCbCr;
+*/
+
+	float lumaSample = dot(LUMA, sampledColor);
+	float exposure = targetLuma / lumaSample * 0.4 + 0.2;
+	//return vec3(1.0) - exp(-sampledColor * exposure);
+	vec3 YCbCr = RGB2YCBCR * sampledColor;
+	YCbCr.x = 1.0 - exp(-YCbCr.x * exposure);
+	return YCBCR2RGB * YCbCr;
+
+	/*
+	float lumaSample = dot(LUMA, sampledColor);
+	float exp = 0.18 / (clamp(lumaSample, targetLuma * 0.8, targetLuma * 1.2) - (targetLuma - lumaEnv));
+	return exp * sampledColor;
+	*/
 }
 
 
@@ -724,6 +753,7 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	// Image Based Lighting
 	ivec2 reflectionTexSize = textureSize(reflectionTex, 0);
 	float reflectionTexMaxLOD = log2(float(max(reflectionTexSize.x, reflectionTexSize.y)));
+
 	float envSamplingLOD = reflectionTexMaxLOD - 0.5;
 
 	#if 0
@@ -741,7 +771,7 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 		vec3 iblDiffuseLight = texture(reflectionTex, N, reflectionTexMaxLOD - 4.0).rgb;
 
 		#if 1
-			iblDiffuseLight = ExposureCorrectedReflection(N, iblDiffuseLight, envSamplingLOD);
+			iblDiffuseLight = ExposureCorrectedEnvSample(N, iblDiffuseLight, envSamplingLOD);
 		#endif
 		/*
 		iblDiffuseLight = IBL_GAMMACORRECTION(iblDiffuseLight);
@@ -753,12 +783,12 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 	#endif
 
 	#ifdef IBL_SPECULARCOLOR_STATIC
-		vec3 iblSpecularLight = 0.5 * lightColor;
+		vec3 iblSpecularLight = 0.8 * lightColor;
 	#else
 		// Get reflection with respect to surface roughness
 		vec3 iblSpecularLight = texture(reflectionTex, R, specularLOD).rgb;
 		#if 1
-			iblSpecularLight = ExposureCorrectedReflection(R, iblSpecularLight, envSamplingLOD);
+			iblSpecularLight = ExposureCorrectedEnvSample(R, iblSpecularLight, envSamplingLOD);
 		#endif
 		/*
 		iblSpecularLight = IBL_GAMMACORRECTION(iblSpecularLight);
@@ -784,33 +814,80 @@ void GetIndirectLightContribution(vec3 N, vec3 R,
 }
 
 #ifdef use_shadows
-float GetShadowPCFGrid() {
+
+vec2 HammersleyNorm(int i, int N) {
+	// principle: reverse bit sequence of i
+
+	uint b =  ( uint(i) << 16u) | (uint(i) >> 16u );
+	b = (b & 0x55555555u) << 1u | (b & 0xAAAAAAAAu) >> 1u;
+	b = (b & 0x33333333u) << 2u | (b & 0xCCCCCCCCu) >> 2u;
+	b = (b & 0x0F0F0F0Fu) << 4u | (b & 0xF0F0F0F0u) >> 4u;
+	b = (b & 0x00FF00FFu) << 8u | (b & 0xFF00FF00u) >> 8u;
+
+	return vec2( i, b ) / vec2( N, 0xffffffffU );
+}
+
+// http://blog.marmakoide.org/?p=1
+const float goldenAngle = PI * (3.0 - sqrt(5.0));
+vec2 SpiralSNorm(int i, int N) {
+	float theta = float(i) * goldenAngle;
+	float r = sqrt(float(i)) / sqrt(float(N));
+	return vec2 (r * cos(theta), r * sin(theta));
+}
+
+float hash12(vec2 p) {
+	const float HASHSCALE1 = 0.1031;
+	vec3 p3  = fract(vec3(p.xyx) * HASHSCALE1);
+	p3 += dot(p3, p3.yzx + 19.19);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
+float GetShadowPCFRandom() {
 	float shadow = 0.0;
 
 	const float cb = 0.00005;
 	float bias = cb * tan(acos(vdi.NdotL));
 	bias = clamp(bias, 0.0, 5.0 * cb);
 
-	vec4 shTexCoord = shadowTexCoord;
-	shTexCoord.z -= bias;
-
 	#if defined(SHADOW_SAMPLES) && (SHADOW_SAMPLES > 1)
-		const int ssHalf = int(floor(float(SHADOW_SAMPLES)/2.0));
-		const float ssSum = float((ssHalf + 1) * (ssHalf + 1));
+		float rndRotAngle = NORM2SNORM(hash12(gl_FragCoord.xy)) * PI / 2.0 * SHADOW_RANDOMNESS;
 
-		for( int x = -ssHalf; x <= ssHalf; x++ ) {
-			float wx = float(ssHalf - abs(x) + 1) / ssSum;
-			for( int y = -ssHalf; y <= ssHalf; y++ ) {
-				float wy = float(ssHalf - abs(y) + 1) / ssSum;
-				shadow += wx * wy * textureProjOffset ( shadowTex, shTexCoord, ivec2(x, y) );
+		vec2 vSinCos = vec2(sin(rndRotAngle), cos(rndRotAngle));
+		mat2 rotMat = mat2(vSinCos.y, -vSinCos.x, vSinCos.x, vSinCos.y);
+
+		vec2 shadowTexSize = textureSize(shadowTex, 0);
+		vec2 filterSize = SHADOW_SAMPLING_DISTANCE / shadowTexSize * (shadowTexSize / 8192.0);
+
+		#if (SAMPLING_METHOD == 1)
+			shadow = textureProj( shadowTex, shadowTexCoord + vec4(0.0, 0.0, -bias, 0.0)); //make sure central point is sampled
+			for (int i = 0; i < SHADOW_SAMPLES - 1; ++i) {
+				// HammersleyNorm return low discrepancy sampling vec2
+				vec2 offset = (rotMat * NORM2SNORM(HammersleyNorm( i, SHADOW_SAMPLES ))) * filterSize;
+
+
+				vec4 shTexCoord = shadowTexCoord + vec4(offset, -bias, 0.0);
+				shadow += textureProj( shadowTex, shTexCoord );
 			}
-		}
+		#elif (SAMPLING_METHOD == 2)
+			for (int i = 0; i < SHADOW_SAMPLES; ++i) {
+				// SpiralSNorm return low discrepancy sampling vec2
+				vec2 offset = (rotMat * SpiralSNorm( i, SHADOW_SAMPLES )) * filterSize;
+
+				vec4 shTexCoord = shadowTexCoord + vec4(offset, -bias, 0.0);
+				shadow += textureProj( shadowTex, shTexCoord );
+			}
+		#endif
+
+		shadow /= float(SHADOW_SAMPLES);
 	#else
+		vec4 shTexCoord = shadowTexCoord;
+		shTexCoord.z -= bias;
 		shadow = textureProj( shadowTex, shTexCoord );
 	#endif
 
 	return mix(1.0, shadow, shadowDensity);
 }
+
 #endif
 
 
@@ -840,7 +917,7 @@ void main(void) {
 	float nShadow = mix(1.0, nShadowMix, shadowDensity);
 
 	#ifdef use_shadows
-		float gShadow = GetShadowPCFGrid();
+		float gShadow = GetShadowPCFRandom();
 	#else
 		float gShadow = 1.0;
 	#endif
@@ -850,7 +927,7 @@ void main(void) {
 	float shadow = min(min(nShadow, gShadow), oShadow);
 
 	//TODO: figure out which one looks better
-	#if 0
+	#if 1
 		gl_FragColor.rgb = (directLitDiffColor + iblLitDiffColor) * shadow + (directLitSpecColor + iblLitSpecColor);
 	#else
 		gl_FragColor.rgb = (directLitDiffColor + directLitSpecColor) + (iblLitDiffColor + iblLitSpecColor) * shadow;

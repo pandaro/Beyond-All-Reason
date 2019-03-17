@@ -27,7 +27,7 @@ out Data {
 	#endif
 
 	#ifdef DO_FLASHLIGHTS
-		float flashLightIntensity;
+		flat float flashLightIntensity;
 	#endif
 
 	#ifdef DO_NORMALMAPPING

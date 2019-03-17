@@ -9,11 +9,11 @@ local commonDefinitions = {
 	--"define NORMAL_RG",
 	--"define NORMAL_VFLIP",
 	
-	"#define SHADOW_SAMPLES 2",
+	"#define SHADOW_SAMPLES 6",
 
 	"#define DO_GAMMACORRECTION",
-	"#define DO_FASTGAMMACORRECTION",
-	"#define DO_TONEMAPPING(val) FilmicTM(1.2 * val)",
+	--"#define DO_FASTGAMMACORRECTION",
+	"#define DO_TONEMAPPING(val) FilmicTM(val)",
 
 	--"#define IBL_DIFFUSECOLOR_STATIC", -- take IBL diffuse color from sun light color
 	--"#define IBL_SPECULARCOLOR_STATIC", -- take IBL specular color from sun light color
@@ -23,6 +23,12 @@ local commonDefinitions = {
 	"#define PBR_R90_METHOD PBR_R90_METHOD_GOOGLE",
 	"#define PBR_BRDF_DIFFUSE PBR_BRDF_DIFFUSE_LAMBERT",
 }
+
+local function SunChanged(curShader)
+	gl.Uniform(gl.GetUniformLocation(curShader, "shadowDensity"), gl.GetSun("shadowDensity" ,"unit"))
+
+	gl.Uniform(gl.GetUniformLocation(curShader, "sunDiffuse"), gl.GetSun("diffuse" ,"unit"))
+end
 
 local forwardShaderDefs = Spring.Utilities.MergeTable(commonDefinitions, {}, true)
 local deferredShaderDefs = Spring.Utilities.MergeTable(commonDefinitions, {"#define DEFERRED_MODE"}, true)
@@ -54,6 +60,7 @@ local materials = {
 		-- uniforms = {
 		-- }
 		--DrawUnit = DrawUnit,
+		SunChanged = SunChanged,
 	},
 }
 
