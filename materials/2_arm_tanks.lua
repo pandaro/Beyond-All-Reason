@@ -85,8 +85,8 @@ local matTemplate = {
 local materials = {}
 local unitMaterials = {}
 
-for i = 1, #UnitDefs do
-	local udef = UnitDefs[i]
+for id = 1, #UnitDefs do
+	local udef = UnitDefs[id]
 	local udefCM = udef.customParams
 
 	if (udefCM.arm_tank and udefCM.normaltex and VFS.FileExists(udefCM.normaltex)) then
@@ -101,7 +101,7 @@ for i = 1, #UnitDefs do
 			end
 		end
 
-		unitMaterials[udef.name] = {matName, NORMALTEX = udefCM.normaltex}
+		unitMaterials[id] = {matName, NORMALTEX = udefCM.normaltex}
 	end
 end
 
