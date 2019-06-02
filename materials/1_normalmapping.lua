@@ -28,6 +28,7 @@ local matTemplate = {
 		"#define flashlights",
 		"#define use_vertex_ao",
 		"#define SPECULARMULT 8.0",
+		"#define SHADOW_SOFTNESS SHADOW_HARD",
 		"#define MAT_IDX 1",
 	},
 

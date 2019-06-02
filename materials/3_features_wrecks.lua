@@ -22,6 +22,7 @@ local materials = {
 			"#define use_normalmapping",
 			"#define deferred_mode 0",
 			--"#define use_vertex_ao",
+			"#define SHADOW_SOFTNESS SHADOW_SOFT",
 			"#define SPECULARMULT 6.0",
 		},
 		deferredDefinitions = {
@@ -29,6 +30,7 @@ local materials = {
 			"#define deferred_mode 1",
 			--"#define use_vertex_ao",
 			"#define SPECULARMULT 6.0",
+			"#define SHADOW_SOFTNESS SHADOW_HARD",
 			"#define MAT_IDX 128",
 		},
 		usecamera = false,

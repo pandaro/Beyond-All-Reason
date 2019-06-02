@@ -40,6 +40,7 @@ local materials = {
 		deferredDefinitions = {
 			--"#define use_normalmapping", --very expensive for trees (too much overdraw)
 			"#define deferred_mode 1",
+			"#define SHADOW_SOFTNESS SHADOW_HARD", -- cuz shadow for swaying trees is bugged anyway
 			"#define MAT_IDX 129",
 		},
 		shaderPlugins = {
