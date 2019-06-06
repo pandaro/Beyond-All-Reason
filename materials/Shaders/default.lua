@@ -169,9 +169,9 @@ fragment = [[
 	#endif
 
 	#if (SHADOW_SOFTNESS == SHADOW_SOFT)
-		#define SHADOW_SAMPLES 2 // number of shadowmap samples per fragment
-		#define SHADOW_RANDOMNESS 0.4 // 0.0 - blocky look, 1.0 - random points look
-		#define SHADOW_SAMPLING_DISTANCE 2.0 // how far shadow samples go (in shadowmap texels) as if it was applied to 8192x8192 sized shadow map
+		#define SHADOW_SAMPLES 3 // number of shadowmap samples per fragment
+		#define SHADOW_RANDOMNESS 1.0 // 0.0 - blocky look, 1.0 - random points look
+		#define SHADOW_SAMPLING_DISTANCE 1.0 // how far shadow samples go (in shadowmap texels) as if it was applied to 8192x8192 sized shadow map
 	#endif
 
 	#if (SHADOW_SOFTNESS == SHADOW_SOFTER)
