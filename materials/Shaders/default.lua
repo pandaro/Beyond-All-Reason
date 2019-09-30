@@ -225,7 +225,7 @@ fragment = [[
 
 	const float PI = 3.1415926535897932384626433832795;
 	const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
-	const float angleEPS = 1e-3;
+	const float EPS = 1e-4;
 
 	const float MIN_ROUGHNESS = 0.04;
 	const float DEFAULT_F0 = 0.04;
@@ -630,7 +630,7 @@ fragment = [[
 		float NdotLu = dot(N, L);
 		float NdotL = clamp(NdotLu, 0.0, 1.0);
 		float NdotH = clamp(dot(H, N), 0.0, 1.0);
-		float NdotV = clamp(dot(N, V), 0.0, 1.0);
+		float NdotV = clamp(dot(N, V), EPS, 1.0);
 		float VdotH = clamp(dot(V, H), 0.0, 1.0);
 
 		#ifdef LUMAMULT
@@ -673,10 +673,24 @@ fragment = [[
 		// Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
 		vec3 F90 = vec3(clamp(reflectance * 50.0, 0.0, 1.0));
 
+		#if 1
+			vec2 envBRDF = textureLod(brdfLUT, vec2(NdotV, roughness), 0.0).rg;
+		#else
+			vec2 envBRDF = EnvBRDFApprox(NdotV, roughness);
+		#endif
+
+		//vec3 energyCompensation = 1.0 + F0 * (1.0 / envBRDF.y - 1.0);
+
+		//manual fit
+		const vec3 energyCompensationK = vec3(0.008980345973388601, -0.2213503990248456, 0.45669533015311775);
+		vec3 energyCompensationV = vec3(1.0, roughness2, roughness2 * roughness);
+
+		vec3 energyCompensation = mix(vec3(0.0), vec3(dot(energyCompensationK, energyCompensationV)), float(roughness > 0.35));
+
         vec3 dirContrib = vec3(0.0);
 		vec3 outSpecularColor = vec3(0.0);
 
-		if (any( greaterThan(vec2(NdotL, NdotV), vec2(angleEPS)) )) {
+		if (any( greaterThan(vec2(NdotL, NdotV), vec2(EPS)) )) {
 			// Cook-Torrance BRDF
 
 			vec3 F = FresnelSchlick(F0, F90, VdotH);
@@ -685,8 +699,11 @@ fragment = [[
 			outSpecularColor = F * Vis * D;
 
 			outSpecularColor *= sunSpecular * SPECULARMULT;
-			//outSpecularColor *= SPECULARMULT;
 			outSpecularColor *= NdotL * shadowMult;
+
+            // Scale the specular lobe to account for multiscattering
+            // https://google.github.io/filament/Filament.md.html#toc4.7.2
+			outSpecularColor *= energyCompensation;
 
 			 // kS is equal to Fresnel
 			vec3 kS = F;
@@ -750,12 +767,6 @@ fragment = [[
 				reflectionColor = mix(reflectionColor, iblSpecular, roughness);
 			#endif
 
-			#if 0
-				vec2 envBRDF = EnvBRDFApprox(NdotV, roughness);
-			#else
-				vec2 envBRDF = textureLod(brdfLUT, vec2(NdotV, roughness), 0.0).rg;
-			#endif
-
             //vec3 specular = reflectionColor * (F * envBRDF.x + (1.0 - F) * envBRDF.y);
 			vec3 specular = reflectionColor * mix(vec3(envBRDF.y), vec3(envBRDF.x), F);
 
@@ -788,7 +799,7 @@ fragment = [[
 		// debug hook
 		#if 0
 			//outColor = LINEARtoSRGB(albedoColor*(texture(reflectTex,Rv).rgb));
-			outColor = LINEARtoSRGB(iblSpecular);
+			outColor = vec3(roughness);
 		#endif
 
 		#if (deferred_mode == 0)
