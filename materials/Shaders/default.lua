@@ -679,13 +679,14 @@ fragment = [[
 			vec2 envBRDF = EnvBRDFApprox(NdotV, roughness);
 		#endif
 
-		//vec3 energyCompensation = 1.0 + F0 * (1.0 / envBRDF.y - 1.0);
-
-		//manual fit
-		const vec3 energyCompensationK = vec3(0.008980345973388601, -0.2213503990248456, 0.45669533015311775);
-		vec3 energyCompensationV = vec3(1.0, roughness2, roughness2 * roughness);
-
-		vec3 energyCompensation = mix(vec3(0.0), vec3(dot(energyCompensationK, energyCompensationV)), float(roughness > 0.35));
+		#if 1
+			vec3 energyCompensation = 1.0 + F0 * (1.0 / envBRDF.x - 1.0);
+		#else
+			//manual fit
+			const vec3 energyCompensationK = vec3(0.008980345973388601, -0.2213503990248456, 0.45669533015311775);
+			vec3 energyCompensationV = vec3(1.0, roughness2, roughness2 * roughness);
+			vec3 energyCompensation = mix(vec3(0.0), vec3(dot(energyCompensationK, energyCompensationV)), float(roughness > 0.35));
+		#endif
 
         vec3 dirContrib = vec3(0.0);
 		vec3 outSpecularColor = vec3(0.0);
