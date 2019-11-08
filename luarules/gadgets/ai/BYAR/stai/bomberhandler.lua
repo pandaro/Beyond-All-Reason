@@ -20,8 +20,8 @@ function BomberHandler:Init()
 	self.recruits = {}
 	self.needsTargetting = {}
 	self.counter = baseBomberCounter
-	self.ai.hasBombed = 0
-	self.ai.couldBomb = 0
+	self.hasBombed = 0
+	self.couldBomb = 0
 	self.pathValidFuncs = {}
 	
 end
@@ -68,17 +68,17 @@ function BomberHandler:Bomb(plan, path)
 		local bomber = bombers[i]
 		bomber:BombTarget(target, path)
 	end
-	self.ai.hasBombed = self.ai.hasBombed + 1
+	self.hasBombed = self.hasBombed + 1
 end
 
 function BomberHandler:DoTargetting()
 	for weapon, _ in pairs(self.needsTargetting) do
 		local recruits = self.recruits[weapon]
-		self.ai.couldBomb = self.ai.couldBomb + 1
+		self.couldBomb = self.couldBomb + 1
 		-- find somewhere to attack
 		self:EchoDebug("getting target for " .. weapon)
 		local torpedo = weapon == 'torpedo'
-		local targetUnit = self.ai.targethandler:GetBestBomberTarget(torpedo)
+		local targetUnit = self.targethandler:GetBestBomberTarget(torpedo)
 		if targetUnit ~= nil then
 			local tupos = targetUnit:GetPosition()
 			if tupos and tupos.x then
@@ -97,7 +97,7 @@ function BomberHandler:DoTargetting()
 				midPos.x = sumX / #recruits
 				midPos.z = sumZ / #recruits
 				midPos.y = 0
-				self.graph = self.graph or self.ai.maphandler:GetPathGraph('air', 512)
+				self.graph = self.graph or self.maphandler:GetPathGraph('air', 512)
 				local pathfinder = self.graph:PathfinderPosPos(midPos, targetUnit:GetPosition(), nil, validFunc)
 				local bombers = {}
 				for i = 1, #recruits do
@@ -168,7 +168,7 @@ function BomberHandler:GetPathValidFunc(unitName)
 		return self.pathValidFuncs[unitName]
 	end
 	local valid_node_func = function ( node )
-		return self.ai.targethandler:IsSafePosition(node.position, unitName, nil, true)
+		return self.targethandler:IsSafePosition(node.position, unitName, nil, true)
 	end
 	self.pathValidFuncs[unitName] = valid_node_func
 	return valid_node_func

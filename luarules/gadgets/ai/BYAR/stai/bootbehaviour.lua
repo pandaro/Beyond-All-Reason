@@ -16,7 +16,7 @@ function BootBehaviour:Init()
 	self.mobile = not unitTable[self.name].isBuilding
 	self.mtype = unitTable[self.name].mtype
 	self.lastInFactoryCheck = game:Frame()
-	self.repairedBy = self.ai.buildsitehandler:ResurrectionRepairedBy(self.id)
+	self.repairedBy = self.buildsitehandler:ResurrectionRepairedBy(self.id)
 	-- air units don't need to leave the factory
 	self.ignoreFactories = self.mtype == "air" or not self.mobile
 	self.finished = false
@@ -32,7 +32,7 @@ end
 function BootBehaviour:OwnerDead()
 	self.factory = nil
 	if self.repairedBy then self.repairedBy:ResurrectionComplete() end
-	self.ai.buildsitehandler:RemoveResurrectionRepairedBy(self.id)
+	self.buildsitehandler:RemoveResurrectionRepairedBy(self.id)
 	self.repairedBy = nil
 end
 
@@ -144,7 +144,7 @@ end
 
 function BootBehaviour:FindMyFactory()
 	local pos = self.unit:Internal():GetPosition()
-	for level, factories in pairs(self.ai.factoriesAtLevel) do
+	for level, factories in pairs(self.factoriesAtLevel) do
 		for i, factory in pairs(factories) do
 			if PositionWithinRect(pos, factory.exitRect) then
 				self.factory = factory
@@ -177,13 +177,13 @@ function BootBehaviour:ExitFactory(side)
 		out.x = pos.x + 0
 		out.y = pos.y + outX
 		out.z = pos.z + outZ
-		if out.x > self.ai.maxElmosX - 1 then
-			out.x = self.ai.maxElmosX - 1
+		if out.x > self.maxElmosX - 1 then
+			out.x = self.maxElmosX - 1
 		elseif out.x < 1 then
 			out.x = 1
 		end
-		if out.z > self.ai.maxElmosZ - 1 then
-			out.z = self.ai.maxElmosZ - 1
+		if out.z > self.maxElmosZ - 1 then
+			out.z = self.maxElmosZ - 1
 		elseif out.z < 1 then
 			out.z = 1
 		end

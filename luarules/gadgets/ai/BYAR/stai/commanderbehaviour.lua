@@ -24,7 +24,7 @@ function CommanderBehaviour:Update()
 	if self.active and f >= self.nextFactoryCheck then
 		self:FindSafeHouse()
 	end
-	if f % 30 == 0 and not self.active and self.ai.overviewhandler.paranoidCommander then
+	if f % 30 == 0 and not self.active and self.overviewhandler.paranoidCommander then
 		self:FindSafeHouse()
 		self.unit:ElectBehaviour()
 	end
@@ -60,7 +60,7 @@ function CommanderBehaviour:Deactivate()
 end
 
 function CommanderBehaviour:Priority()
-	if (self.lowHealth or self.ai.overviewhandler.paranoidCommander) and self.safeHouse then
+	if (self.lowHealth or self.overviewhandler.paranoidCommander) and self.safeHouse then
 		return 200
 	else
 		return 0
@@ -89,12 +89,12 @@ end
 
 function CommanderBehaviour:FindSafeHouse()
 	local factoryPos, factoryUnit
-	local safePos = self.ai.turtlehandler:MostTurtled(self.unit:Internal(), nil, false, true, true)
+	local safePos = self.turtlehandler:MostTurtled(self.unit:Internal(), nil, false, true, true)
 	if safePos then
-		factoryPos, factoryUnit = self.ai.buildsitehandler:ClosestHighestLevelFactory(safePos, 500)
+		factoryPos, factoryUnit = self.buildsitehandler:ClosestHighestLevelFactory(safePos, 500)
 	end
 	if not factoryUnit then
-		factoryPos, factoryUnit = self.ai.buildsitehandler:ClosestHighestLevelFactory(self.unit:Internal():GetPosition(), 9999)
+		factoryPos, factoryUnit = self.buildsitehandler:ClosestHighestLevelFactory(self.unit:Internal():GetPosition(), 9999)
 	end
 	self.safeHouse = safePos or factoryPos
 	local helpNew

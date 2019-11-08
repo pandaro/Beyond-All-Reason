@@ -20,7 +20,7 @@ function RaiderBehaviour:Init()
 	self.DebugEnabled = false
 
 	self:EchoDebug("init")
-	local mtype, network = self.ai.maphandler:MobilityOfUnit(self.unit:Internal())
+	local mtype, network = self.maphandler:MobilityOfUnit(self.unit:Internal())
 	self.mtype = mtype
 	self.name = self.unit:Internal():Name()
 	local utable = unitTable[self.name]
@@ -39,9 +39,9 @@ function RaiderBehaviour:Init()
 	self.sightRange = utable.losRadius
 
 	-- for pathfinding
-	self.graph = self.ai.maphandler:GetPathGraph(self.mtype)
-	self.validFunc = self.ai.raidhandler:GetPathValidFunc(self.name)
-	self.modifierFunc = self.ai.targethandler:GetPathModifierFunc(self.name)
+	self.graph = self.maphandler:GetPathGraph(self.mtype)
+	self.validFunc = self.raidhandler:GetPathValidFunc(self.name)
+	self.modifierFunc = self.targethandler:GetPathModifierFunc(self.name)
 	local nodeSize = self.graph.positionUnitsPerNodeUnits
 	self.nearDistance = nodeSize * 0.1 -- move this far away from path nodes
 	self.nearAttackDistance = nodeSize * 0.3 -- move this far away from targets before arriving
@@ -50,7 +50,7 @@ function RaiderBehaviour:Init()
 	self.minPathfinderDistance = nodeSize * 3 -- closer than this and i don't pathfind
 	self.id = self.unit:Internal():ID()
 	self.disarmer = raiderDisarms[self.name]
-	self.ai.raiderCount[mtype] = (self.ai.raiderCount[mtype] or 0) + 1
+	self.raiderCount[mtype] = (self.raiderCount[mtype] or 0) + 1
 	self.lastGetTargetFrame = 0
 	self.lastMovementFrame = 0
 	self.lastPathCheckFrame = 0
@@ -62,10 +62,10 @@ function RaiderBehaviour:OwnerDead()
 		self.map:EraseLine(nil, nil, nil, self.unit:Internal():ID(), nil, 8)
 	end
 	if self.target then
-		self.ai.targethandler:AddBadPosition(self.target, self.mtype)
+		self.targethandler:AddBadPosition(self.target, self.mtype)
 	end
-	self.ai.raidhandler:NeedLess(self.mtype)
-	self.ai.raiderCount[self.mtype] = self.ai.raiderCount[self.mtype] - 1
+	self.raidhandler:NeedLess(self.mtype)
+	self.raiderCount[self.mtype] = self.raiderCount[self.mtype] - 1
 end
 
 function RaiderBehaviour:OwnerIdle()
@@ -108,7 +108,7 @@ function RaiderBehaviour:Update()
 			self.unit:Internal():Move(self.moveNextUpdate)
 			self.moveNextUpdate = nil
 		elseif f > self.lastMovementFrame + 30 then
-			self.ai.targethandler:RaiderHere(self)
+			self.targethandler:RaiderHere(self)
 			self.lastMovementFrame = f
 			-- attack nearby targets immediately
 			local attackThisUnit = self:GetImmediateTargetUnit()
@@ -148,7 +148,7 @@ function RaiderBehaviour:GetImmediateTargetUnit()
 	local unit = self.unit:Internal()
 	local position
 	if self.arrived then position = self.target end
-	local safeCell = self.ai.targethandler:RaidableCell(unit, position)
+	local safeCell = self.targethandler:RaidableCell(unit, position)
 	if safeCell then
 		if self.disarmer then
 			if safeCell.disarmTarget then
@@ -164,7 +164,7 @@ function RaiderBehaviour:GetImmediateTargetUnit()
 				end
 			end
 		end
-		local vulnerable = self.ai.targethandler:NearbyVulnerable(unit)
+		local vulnerable = self.targethandler:NearbyVulnerable(unit)
 		if vulnerable then
 			return vulnerable.unit
 		end
@@ -175,15 +175,15 @@ function RaiderBehaviour:RaidCell(cell)
 	self:EchoDebug(self.name .. " raiding cell...")
 	if self.unit == nil then
 		self:EchoDebug("no raider unit to raid cell with!")
-		-- self.ai.raidhandler:RemoveRecruit(self)
+		-- self.raidhandler:RemoveRecruit(self)
 	elseif self.unit:Internal() == nil then 
 		self:EchoDebug("no raider unit internal to raid cell with!")
-		-- self.ai.raidhandler:RemoveRecruit(self)
+		-- self.raidhandler:RemoveRecruit(self)
 	else
 		if self.buildingIDs ~= nil then
-			self.ai.raidhandler:IDsWeAreNotRaiding(self.buildingIDs)
+			self.raidhandler:IDsWeAreNotRaiding(self.buildingIDs)
 		end
-		self.ai.raidhandler:IDsWeAreRaiding(cell.buildingIDs, self.mtype)
+		self.raidhandler:IDsWeAreRaiding(cell.buildingIDs, self.mtype)
 		self.buildingIDs = cell.buildingIDs
 		self.target = cell.pos
 		self:BeginPath(self.target)
@@ -220,8 +220,8 @@ function RaiderBehaviour:GetTarget()
 		self.map:EraseLine(nil, nil, nil, self.unit:Internal():ID(), nil, 8)
 	end
 	local unit = self.unit:Internal()
-	local bestCell = self.ai.targethandler:GetBestRaidCell(unit)
-	self.ai.targethandler:RaiderHere(self)
+	local bestCell = self.targethandler:GetBestRaidCell(unit)
+	self.targethandler:RaiderHere(self)
 	if bestCell then
 		self:EchoDebug("got target")
 		self:RaidCell(bestCell)
@@ -263,7 +263,7 @@ function RaiderBehaviour:BeginPath(position)
 	end
 	self:EchoDebug("getting new path")
 	local upos = self.unit:Internal():GetPosition()
-	self.graph = self.graph or self.ai.maphandler:GetPathGraph(self.mtype)
+	self.graph = self.graph or self.maphandler:GetPathGraph(self.mtype)
 	self.pathfinder = self.graph:PathfinderPosPos(upos, position, nil, self.validFunc, nil, self.modifierFunc)
 	self:FindPath() -- try once
 end
@@ -400,7 +400,7 @@ function RaiderBehaviour:CheckPath()
 	if type(self.path) == 'boolean' then return end
 	for i = self.pathStep, #self.path do
 		local node = self.path[i]
-		if not self.ai.targethandler:IsSafePosition(node.position, self.name, 1) then
+		if not self.targethandler:IsSafePosition(node.position, self.name, 1) then
 			self:EchoDebug("unsafe path, get a new one")
 			self:GetTarget()
 			self:MoveToSafety()
@@ -411,7 +411,7 @@ end
 
 function RaiderBehaviour:MoveToSafety()
 	local upos = self.unit:Internal():GetPosition()
-	self.graph = self.graph or self.ai.maphandler:GetPathGraph(self.mtype)
+	self.graph = self.graph or self.maphandler:GetPathGraph(self.mtype)
 	local node = self.graph:NearestNodePosition(upos, self.validFunc)
 	if node then
 		self:MoveNear(node.position)

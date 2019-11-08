@@ -20,7 +20,7 @@ function FactoryRegisterBehaviour:Init()
 	self.sides = factoryExitSides[self.name]
     self.level = unitTable[self.name].techLevel
 
-    self.ai.factoryUnderConstruction = self.id
+    self.factoryUnderConstruction = self.id
 	self:EchoDebug('starting building of ' ..self.name)
 end
 
@@ -28,8 +28,8 @@ function FactoryRegisterBehaviour:OwnerBuilt()
 	-- don't add factories to factory location table until they're done
 	self.finished = true
 	self:Register()
-	self.ai.overviewhandler:EvaluateSituation()
-	self.ai.factorybuildershandler:UpdateFactories()
+	self.overviewhandler:EvaluateSituation()
+	self.factorybuildershandler:UpdateFactories()
 end
 
 function FactoryRegisterBehaviour:Priority()
@@ -37,74 +37,74 @@ function FactoryRegisterBehaviour:Priority()
 end
 
 function FactoryRegisterBehaviour:OwnerDead()
-	if self.ai.factoryUnderConstruction == self.id then self.ai.factoryUnderConstruction = false end
+	if self.factoryUnderConstruction == self.id then self.factoryUnderConstruction = false end
 	-- game:SendToConsole("factory " .. self.name .. " died")
 	if self.finished then
 		self:Unregister()
-		self.ai.overviewhandler:EvaluateSituation()
+		self.overviewhandler:EvaluateSituation()
 		ai.factorybuildershandler:UpdateFactories()
 	end
 end
 
 function FactoryRegisterBehaviour:Unregister()
-	self.ai.factories = self.ai.factories - 1
+	self.factories = self.factories - 1
 	local un = self.name
     local level = self.level
    	self:EchoDebug("factory " .. un .. " level " .. level .. " unregistering")
-   	for i, factory in pairs(self.ai.factoriesAtLevel[level]) do
+   	for i, factory in pairs(self.factoriesAtLevel[level]) do
    		if factory == self then
-   			table.remove(self.ai.factoriesAtLevel[level], i)
+   			table.remove(self.factoriesAtLevel[level], i)
    			break
    		end
    	end
     local maxLevel = 0
     -- reassess maxFactoryLevel
-    for level, factories in pairs(self.ai.factoriesAtLevel) do
+    for level, factories in pairs(self.factoriesAtLevel) do
     	if #factories > 0 and level > maxLevel then
     		maxLevel = level
     	end
     end
-    self.ai.maxFactoryLevel = maxLevel
-	-- game:SendToConsole(self.ai.factories .. " factories")
+    self.maxFactoryLevel = maxLevel
+	-- game:SendToConsole(self.factories .. " factories")
 	
-	if self.ai.factoryUnderConstruction == self.id then self.ai.factoryUnderConstruction = false end
+	if self.factoryUnderConstruction == self.id then self.factoryUnderConstruction = false end
 	local mtype = factoryMobilities[self.name][1]
-	local network = self.ai.maphandler:MobilityNetworkHere(mtype,self.position)
-	-- self:EchoDebug(mtype, network, self.ai.factoryBuilded[mtype], self.ai.factoryBuilded[mtype][network], self.name, unitTable[self.name], unitTable[self.name].techLevel)
-	if self.ai.factoryBuilded[mtype] and self.ai.factoryBuilded[mtype][network] then
-		self.ai.factoryBuilded[mtype][network] = self.ai.factoryBuilded[mtype][network] - self.level
+	local network = self.maphandler:MobilityNetworkHere(mtype,self.position)
+	-- self:EchoDebug(mtype, network, self.factoryBuilded[mtype], self.factoryBuilded[mtype][network], self.name, unitTable[self.name], unitTable[self.name].techLevel)
+	if self.factoryBuilded[mtype] and self.factoryBuilded[mtype][network] then
+		self.factoryBuilded[mtype][network] = self.factoryBuilded[mtype][network] - self.level
 	end
-	self:EchoDebug('factory '  ..self.name.. ' network '  .. mtype .. '-' .. network .. ' level ' .. self.ai.factoryBuilded[mtype][network] .. ' subtract tech '.. self.level)
+	self:EchoDebug('factory '  ..self.name.. ' network '  .. mtype .. '-' .. network .. ' level ' .. self.factoryBuilded[mtype][network] .. ' subtract tech '.. self.level)
 end
 
 function FactoryRegisterBehaviour:Register()
-	if self.ai.factories ~= nil then
-		self.ai.factories = self.ai.factories + 1
+	if self.factories ~= nil then
+		self.factories = self.factories + 1
 	else
-		self.ai.factories = 1
+		self.factories = 1
 	end
 	-- register maximum factory level
     local un = self.name
     local level = self.level
     self:EchoDebug("factory " .. un .. " level " .. level .. " registering")
-	if self.ai.factoriesAtLevel[level] == nil then
-		self.ai.factoriesAtLevel[level] = {}
+	if self.factoriesAtLevel[level] == nil then
+		self.factoriesAtLevel[level] = {}
 	end
-	table.insert(self.ai.factoriesAtLevel[level], self)
-	if level > self.ai.maxFactoryLevel then
+	table.insert(self.factoriesAtLevel[level], self)
+	if level > self.maxFactoryLevel then
 		-- so that it will start producing combat units
-		self.ai.attackhandler:NeedLess(nil, 2)
-		self.ai.bomberhandler:NeedLess()
-		self.ai.bomberhandler:NeedLess()
-		self.ai.raidhandler:NeedMore(nil, 2)
+		self.attackhandler:NeedLess(nil, 2)
+		self.bomberhandler:NeedLess()
+		self.bomberhandler:NeedLess()
+		self.raidhandler:NeedMore(nil, 2)
 		-- set the current maximum factory level
-		self.ai.maxFactoryLevel = level
+		self.maxFactoryLevel = level
 	end
-	-- game:SendToConsole(self.ai.factories .. " factories")
+	-- game:SendToConsole(self.factories .. " factories")
 	
-	if self.ai.factoryUnderConstruction == self.id then self.ai.factoryUnderConstruction = false end
+	if self.factoryUnderConstruction == self.id then self.factoryUnderConstruction = false end
 	local mtype = factoryMobilities[self.name][1]
-	local network = self.ai.maphandler:MobilityNetworkHere(mtype,self.position) or 0
-	self.ai.factoryBuilded[mtype][network] = (self.ai.factoryBuilded[mtype][network] or 0) + self.level
-	self:EchoDebug('factory '  ..self.name.. ' network '  .. mtype .. '-' .. network .. ' level ' .. self.ai.factoryBuilded[mtype][network] .. ' adding tech '.. self.level)
+	local network = self.maphandler:MobilityNetworkHere(mtype,self.position) or 0
+	self.factoryBuilded[mtype][network] = (self.factoryBuilded[mtype][network] or 0) + self.level
+	self:EchoDebug('factory '  ..self.name.. ' network '  .. mtype .. '-' .. network .. ' level ' .. self.factoryBuilded[mtype][network] .. ' adding tech '.. self.level)
 end

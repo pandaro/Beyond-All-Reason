@@ -47,7 +47,7 @@ function DefendBehaviour:Init()
 			self:EchoDebug(self.name .. " is scramble")
 			self.scramble = true
 			if self.mtype ~= "air" then
-				self.ai.defendhandler:AddScramble(self)
+				self.defendhandler:AddScramble(self)
 			end
 			break
 		end
@@ -59,12 +59,12 @@ end
 function DefendBehaviour:OwnerDead()
 	-- game:SendToConsole("defender " .. self.name .. " died")
 	if self.scramble then
-		self.ai.defendhandler:RemoveScramble(self)
+		self.defendhandler:RemoveScramble(self)
 		if self.scrambled then
-			self.ai.defendhandler:RemoveDefender(self)
+			self.defendhandler:RemoveDefender(self)
 		end
 	else
-		self.ai.defendhandler:RemoveDefender(self)
+		self.defendhandler:RemoveDefender(self)
 	end
 end
 
@@ -76,7 +76,7 @@ function DefendBehaviour:Update()
 	if self.unit == nil then return end
 	local unit = self.unit:Internal()
 	if ShardSpringLua and not unit:GetPosition() then
-		-- game:SendToConsole(self.ai.id, "undead defend behaviour", unit:ID(), unit:Name())
+		-- game:SendToConsole(self.id, "undead defend behaviour", unit:ID(), unit:Name())
 		self:UnitDead(self.unit)
 	end
 	if unit == nil then return end
@@ -90,7 +90,7 @@ function DefendBehaviour:Update()
 			local guardDistance = self.target.guardDistance
 			if not self.tough then guardDistance = guardDistance * 0.33 end
 			local guardPos = RandomAway(targetPos, guardDistance, false, self.guardAngle)
-			local safe = self.ai.defendhandler:WardSafe(self.target)
+			local safe = self.defendhandler:WardSafe(self.target)
 			-- if targetPos.y > 100 then game:SendToConsole(targetPos.y .. " " .. type(self.target.behaviour)) end
 			local unitPos = unit:GetPosition()
 			local dist = Distance(unitPos, guardPos)
@@ -117,7 +117,7 @@ function DefendBehaviour:Update()
 				self.moving = {}
 			else
 				self.guarding = nil
-				local boredNow = self.ai.targethandler:IsSafePosition(unitPos, unit)
+				local boredNow = self.targethandler:IsSafePosition(unitPos, unit)
 				if self.moving.x ~= targetPos.x or self.moving.z ~= targetPos.z or (self.unmoved > 5 and boredNow) or (not self.tough and dist > self.target.guardDistance) then
 					unit:Move(guardPos)
 					self.moving.x = targetPos.x
@@ -170,7 +170,7 @@ function DefendBehaviour:Activate()
 	self.target = nil
 	self.targetPos = nil
 	self.guarding = nil
-	self.ai.defendhandler:AddDefender(self)
+	self.defendhandler:AddDefender(self)
 	self:SetMoveState()
 end
 
@@ -180,7 +180,7 @@ function DefendBehaviour:Deactivate()
 	self.target = nil
 	self.targetPos = nil
 	self.guarding = nil
-	self.ai.defendhandler:RemoveDefender(self)
+	self.defendhandler:RemoveDefender(self)
 end
 
 function DefendBehaviour:Priority()

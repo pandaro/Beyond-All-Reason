@@ -23,7 +23,7 @@ end
 
 function DamageHandler:UnitDamaged(engineUnit, attacker, damage)
 	local teamID = engineUnit:Team()
-	if teamID ~= self.game:GetTeamID() and not self.ai.friendlyTeamID[teamID] then
+	if teamID ~= self.game:GetTeamID() and not self.friendlyTeamID[teamID] then
 		return
 	end
 	local unitID = engineUnit:ID()

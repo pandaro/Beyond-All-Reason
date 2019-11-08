@@ -21,7 +21,7 @@ function CleanHandler:Init()
 end
 
 function CleanHandler:UnitBuilt(unit)
-	if unit:Team() == self.ai.id then
+	if unit:Team() == self.id then
 		if self:IsCleanable(unit) then
 			self:EchoDebug("cleanable " .. unit:Name())
 			self.cleanables[#self.cleanables+1] = unit
@@ -97,8 +97,8 @@ function CleanHandler:FilterCleanable(cleanable, clnrbhvr)
 	local who = self:IsBeingCleaned(cleanable)
 	if who and who ~= clnrbhvr then return end
 	local priority = self.priorities[cleanable:ID()] or 0
-	if priority < 2 and (self.bigEnergyCount < 2 or self.ai.Metal.full > 0.1) then return end
-	if unitTable[cleanable:Name()].totalEnergyOut > 0 and (self.bigEnergyCount < 2 - priority or self.ai.Energy.full < 0.3) then
+	if priority < 2 and (self.bigEnergyCount < 2 or self.Metal.full > 0.1) then return end
+	if unitTable[cleanable:Name()].totalEnergyOut > 0 and (self.bigEnergyCount < 2 - priority or self.Energy.full < 0.3) then
 		return
 	end
 	return cleanable

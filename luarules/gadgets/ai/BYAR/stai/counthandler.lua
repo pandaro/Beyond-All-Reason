@@ -11,38 +11,38 @@ end
 function CountHandler:Init()
 	self.DebugEnabled = false
 
-	self.ai.factories = 0
-	self.ai.maxFactoryLevel = 0
-	self.ai.factoriesAtLevel = {}
-	self.ai.outmodedFactoryID = {}
+	self.factories = 0
+	self.maxFactoryLevel = 0
+	self.factoriesAtLevel = {}
+	self.outmodedFactoryID = {}
 
-	self.ai.nameCount = {}
-	self.ai.nameCountFinished = {}
-	self.ai.lastNameCreated = {}
-	self.ai.lastNameFinished = {}
-	self.ai.lastNameDead = {}
-	self.ai.mexCount = 0
-	self.ai.conCount = 0
-	self.ai.conList = {}
-	self.ai.combatCount = 0
-	self.ai.battleCount = 0
-	self.ai.breakthroughCount = 0
-	self.ai.siegeCount = 0
-	self.ai.reclaimerCount = 0
-	self.ai.bigEnergyCount = 0
-	self.ai.cleanable = {}
-	self.ai.assistCount = 0
-	self.ai.nanoList = {}
+	self.nameCount = {}
+	self.nameCountFinished = {}
+	self.lastNameCreated = {}
+	self.lastNameFinished = {}
+	self.lastNameDead = {}
+	self.mexCount = 0
+	self.conCount = 0
+	self.conList = {}
+	self.combatCount = 0
+	self.battleCount = 0
+	self.breakthroughCount = 0
+	self.siegeCount = 0
+	self.reclaimerCount = 0
+	self.bigEnergyCount = 0
+	self.cleanable = {}
+	self.assistCount = 0
+	self.nanoList = {}
 	
-	self.ai.mtypeLvCount = {}
-	self.ai.mtypeCount = {veh = 0, bot = 0, air = 0, shp = 0, sub = 0, amp = 0, hov = 0 }
+	self.mtypeLvCount = {}
+	self.mtypeCount = {veh = 0, bot = 0, air = 0, shp = 0, sub = 0, amp = 0, hov = 0 }
 	
 	self:InitializeNameCounts()
 end
 
 function CountHandler:InitializeNameCounts()
 	for name, t in pairs(unitTable) do
-		self.ai.nameCount[name] = 0
+		self.nameCount[name] = 0
 	end
 end
 

@@ -56,7 +56,7 @@ end
 function BomberBehaviour:OwnerIdle()
 	self:EchoDebug("idle")
 	self.target = nil
-	self.ai.bomberhandler:AddRecruit(self)
+	self.bomberhandler:AddRecruit(self)
 end
 
 function BomberBehaviour:Priority()
@@ -165,7 +165,7 @@ function BomberBehaviour:BombTarget(targetUnit, path)
 	end
 	if not targetUnit then
 		self:EchoDebug("no target given to :BombTarget")
-		self.ai.bomberhandler:AddRecruit(self)
+		self.bomberhandler:AddRecruit(self)
 		return
 	end
 	self.target = targetUnit

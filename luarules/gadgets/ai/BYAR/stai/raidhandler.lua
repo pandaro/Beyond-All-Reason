@@ -16,8 +16,8 @@ function RaidHandler:Init()
 	self.DebugEnabled = false
 
 	self.counter = {}
-	self.ai.raiderCount = {}
-	self.ai.IDsWeAreRaiding = {}
+	self.raiderCount = {}
+	self.IDsWeAreRaiding = {}
 	self.pathValidFuncs = {}
 end
 
@@ -71,13 +71,13 @@ end
 
 function RaidHandler:IDsWeAreRaiding(unitIDs, mtype)
 	for i, unitID in pairs(unitIDs) do
-		self.ai.IDsWeAreRaiding[unitID] = mtype
+		self.IDsWeAreRaiding[unitID] = mtype
 	end
 end
 
 function RaidHandler:IDsWeAreNotRaiding(unitIDs)
 	for i, unitID in pairs(unitIDs) do
-		self.ai.IDsWeAreRaiding[unitID] = nil
+		self.IDsWeAreRaiding[unitID] = nil
 	end
 end
 

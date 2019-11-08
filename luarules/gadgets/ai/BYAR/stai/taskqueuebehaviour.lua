@@ -53,7 +53,7 @@ end
 function TaskQueueBehaviour:CategoryEconFilter(value)
 	if value == nil then return DummyUnitName end
 	if value == DummyUnitName then return DummyUnitName end
-	local overview =self.ai.overviewhandler
+	local overview =self.overviewhandler
 	self:EchoDebug(value .. " (before econ filter)")
 	-- self:EchoDebug("ai.Energy: " .. ai.Energy.reserves .. " " .. ai.Energy.capacity .. " " .. ai.Energy.income .. " " .. ai.Energy.usage)
 	-- self:EchoDebug("ai.Metal: " .. ai.Metal.reserves .. " " .. ai.Metal.capacity .. " " .. ai.Metal.income .. " " .. ai.Metal.usage)
@@ -332,7 +332,7 @@ function TaskQueueBehaviour:LocationFilter(utype, value)
 		end
 	elseif geothermalPlant[value] then
 		-- geothermal
-		p = self.ai.maphandler:ClosestFreeGeo(utype, builder)
+		p = self.maphandler:ClosestFreeGeo(utype, builder)
 		if p then
 			self:EchoDebug("geo spot", p.x, p.y, p.z)
 			if value == "corageo" or value == "armageo" then
@@ -625,7 +625,7 @@ function TaskQueueBehaviour:ProgressQueue()
 			local p
 			if value == FactoryUnitName then --searching for factory conditions
 				value = DummyUnitName
-				p, value = self.ai.factorybuildershandler:GetBuilderFactory(builder)
+				p, value = self.factorybuildershandler:GetBuilderFactory(builder)
 			end
 
 			local success = false
@@ -684,7 +684,7 @@ function TaskQueueBehaviour:ProgressQueue()
 			if success then
 				self:EchoDebug(self.name .. " " .. self.id .. " successful build command for " .. utype:Name())
 				if self.isFactory then
-					if not self.outmodedTechLevel and not self.ai.underReserves then
+					if not self.outmodedTechLevel and not self.underReserves then
 						-- factories take up idle assistants
 						ai.assisthandler:TakeUpSlack(builder)
 					end

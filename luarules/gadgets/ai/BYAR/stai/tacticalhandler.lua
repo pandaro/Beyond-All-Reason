@@ -38,7 +38,7 @@ function TacticalHandler:Init()
 	self.lastKnownVectors = {}
 	self.unitSamples = {}
 	self.threatLayerNames = { "ground", "air", "submerged" }
-	self.ai.incomingThreat = 0
+	self.incomingThreat = 0
 end
 
 function TacticalHandler:NewEnemyPositions(positions)
@@ -83,7 +83,7 @@ function TacticalHandler:AverageSamples()
 	local f = game:Frame()
 	local since = f - self.lastAverageFrame
 	if since < 300 then return end
-	-- self.ai.turtlehandler:ResetThreatForecast()
+	-- self.turtlehandler:ResetThreatForecast()
 	if DebugDrawEnabled then
 		self.map:EraseAll(9)
 	end
@@ -93,10 +93,10 @@ function TacticalHandler:AverageSamples()
 			local vx, vz = self:AverageUnitSamples(samples)
 			self.lastKnownVectors[unitID] = { vx = vx, vz = vz } -- so that anyone using this unit table as a target will be able to lead a little
 			self:PlotDebug(e.position.x, e.position.z, vx, vz)
-			-- self.ai.turtlehandler:AddThreatVector(e, vx, vz)
+			-- self.turtlehandler:AddThreatVector(e, vx, vz)
 		end
 	end
-	-- self.ai.turtlehandler:AlertDangers()
+	-- self.turtlehandler:AlertDangers()
 	self.unitSamples = {}
 	self.lastAverageFrame = f
 end

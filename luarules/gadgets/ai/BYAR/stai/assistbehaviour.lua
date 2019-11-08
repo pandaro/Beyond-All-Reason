@@ -15,7 +15,7 @@ end
 AssistBehaviour.DebugEnabled = false
 
 function AssistBehaviour:DoIAssist()
-	if self.ai.nonAssistant[self.id] ~= true or self.isNanoTurret then
+	if self.nonAssistant[self.id] ~= true or self.isNanoTurret then
 		return true
 	else
 		return false
@@ -32,8 +32,8 @@ function AssistBehaviour:Init()
 	if commanderList[uname] then self.isCommander = true end
 	self.id = self.unit:Internal():ID()
 	ai.assisthandler:AssignIDByName(self)
-	-- game:SendToConsole("assistbehaviour:init", ai, ai.id, self.ai, self.ai.id)
-	self:EchoDebug(uname .. " " .. self.ai.IDByName[self.id])
+	-- game:SendToConsole("assistbehaviour:init", ai, ai.id, self.ai, self.id)
+	self:EchoDebug(uname .. " " .. self.IDByName[self.id])
 	self:EchoDebug("added to unit "..uname)
 end
 
@@ -53,27 +53,27 @@ function AssistBehaviour:Update()
 		local uname = self.name
 		if self.isCommander then
 			-- turn commander into build assister if you control more than half the mexes or if it's damaged
-			if self.ai.nonAssistant[self.id] then
-				if ( self.ai.overviewhandler.keepCommanderSafe or self.ai.overviewhandler.needSiege or unit:GetHealth() < unit:GetMaxHealth() * 0.9) and self.ai.factories ~= 0 and self.ai.conCount > 2 then
+			if self.nonAssistant[self.id] then
+				if ( self.overviewhandler.keepCommanderSafe or self.overviewhandler.needSiege or unit:GetHealth() < unit:GetMaxHealth() * 0.9) and self.factories ~= 0 and self.conCount > 2 then
 					self:EchoDebug("turn commander into assistant")
-					self.ai.nonAssistant[self.id] = nil
+					self.nonAssistant[self.id] = nil
 					self.unit:ElectBehaviour()
 				end
 			else
 				-- switch commander back to building
-				if (not self.ai.overviewhandler.keepCommanderSafe and not self.ai.overviewhandler.needSiege and unit:GetHealth() >= unit:GetMaxHealth() * 0.9) or self.ai.factories == 0 or self.ai.conCount <= 2 then
+				if (not self.overviewhandler.keepCommanderSafe and not self.overviewhandler.needSiege and unit:GetHealth() >= unit:GetMaxHealth() * 0.9) or self.factories == 0 or self.conCount <= 2 then
 					self:EchoDebug("turn commander into builder")
-					self.ai.nonAssistant[self.id] = true
+					self.nonAssistant[self.id] = true
 					self.unit:ElectBehaviour()
 				end
 			end
 		else
 			-- fill empty spots after con units die
-			-- if not self.ai.IDByName[self.id] or not self.ai.nameCount[uname] then game:SendToConsole(self.id, uname, self.ai.IDByName[self.id], self.ai.nameCount[uname]) end
-			if self.ai.IDByName[self.id] > self.ai.nameCount[uname] then
-				self:EchoDebug("filling empty spots with " .. uname .. " " .. self.ai.IDByName[self.id])
-				self.ai.assisthandler:AssignIDByName(self)
-				self:EchoDebug("ID now: " .. self.ai.IDByName[self.id])
+			-- if not self.IDByName[self.id] or not self.nameCount[uname] then game:SendToConsole(self.id, uname, self.IDByName[self.id], self.nameCount[uname]) end
+			if self.IDByName[self.id] > self.nameCount[uname] then
+				self:EchoDebug("filling empty spots with " .. uname .. " " .. self.IDByName[self.id])
+				self.assisthandler:AssignIDByName(self)
+				self:EchoDebug("ID now: " .. self.IDByName[self.id])
 				self.unit:ElectBehaviour()
 			end
 		end

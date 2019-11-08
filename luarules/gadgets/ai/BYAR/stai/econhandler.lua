@@ -21,8 +21,8 @@ local resourceCount = #resourceNames
 function EconHandler:Init()
 	self.hasData = false -- so that it gets data immediately
 	self.samples = {}
-	self.ai.Energy = {}
-	self.ai.Metal = {}
+	self.Energy = {}
+	self.Metal = {}
 	self:Update()
 end
 

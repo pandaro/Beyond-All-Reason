@@ -73,11 +73,11 @@ LosHandler.DebugEnabled = false
 
 function LosHandler:Init()
 	self.losGrid = {}
-	self.ai.knownEnemies = {}
-	self.ai.knownWrecks = {}
-	self.ai.wreckCount = 0
-	self.ai.lastLOSUpdate = 0
-	self.ai.friendlyTeamID = {}
+	self.knownEnemies = {}
+	self.knownWrecks = {}
+	self.wreckCount = 0
+	self.lastLOSUpdate = 0
+	self.friendlyTeamID = {}
 	self:Update()
 end
 
@@ -85,10 +85,10 @@ function LosHandler:Update()
 	local f = Spring.GetGameFrame()
 
 	if f % 23 == 0 then
-        self.ai.friendlyTeamID = {}
-        self.ai.friendlyTeamID[self.game:GetTeamID()] = true
-        for teamID, _ in pairs(self.ai.alliedTeamIds) do
-            self.ai.friendlyTeamID[teamID] = true
+        self.friendlyTeamID = {}
+        self.friendlyTeamID[self.game:GetTeamID()] = true
+        for teamID, _ in pairs(self.alliedTeamIds) do
+            self.friendlyTeamID[teamID] = true
         end
 		-- update enemy jamming and populate list of enemies
 		local enemies = self.game:GetEnemies()
@@ -111,7 +111,7 @@ function LosHandler:Update()
 		end
 		-- update known wrecks
 		self:UpdateWrecks()
-		self.ai.lastLOSUpdate = f
+		self.lastLOSUpdate = f
 	end
 end
 
@@ -130,15 +130,15 @@ function LosHandler:UpdateEnemies(enemyList)
 			local lt
 			if ShardSpringLua then
 				local t = {}
-				t[2] = Spring.IsUnitInLos(id, self.ai.allyId)
-				if Spring.IsUnitInRadar(id, self.ai.allyId) then
+				t[2] = Spring.IsUnitInLos(id, self.allyId)
+				if Spring.IsUnitInRadar(id, self.allyId) then
 					if pos.y < 0 then -- underwater
 						t[3] = true
 					else
 						t[1] = true
 					end
 				end
-				if Spring.IsUnitInAirLos(id, self.ai.allyId) then
+				if Spring.IsUnitInAirLos(id, self.allyId) then
 					t[4] = true
 				end
 				lt = t
@@ -171,24 +171,24 @@ function LosHandler:UpdateEnemies(enemyList)
 				persist = true
 			elseif los == 2 then
 				known[id] = los
-				self.ai.knownEnemies[id] = e
+				self.knownEnemies[id] = e
 				e.los = los
 			end
 			if persist == true then
-				if self.ai.knownEnemies[id] ~= nil then
-					if self.ai.knownEnemies[id].los == 2 then
-						known[id] = self.ai.knownEnemies[id].los
+				if self.knownEnemies[id] ~= nil then
+					if self.knownEnemies[id].los == 2 then
+						known[id] = self.knownEnemies[id].los
 					end
 				end
 			end
-			if los == 1 and not known[id] and self.ai.knownEnemies[id] ~= 2 then
+			if los == 1 and not known[id] and self.knownEnemies[id] ~= 2 then
 				-- don't overwrite seen with radar-seen unless it was previously not known
-				self.ai.knownEnemies[id] = e
+				self.knownEnemies[id] = e
 				e.los = los
 				known[id] = los
 			end
-			if self.ai.knownEnemies[id] ~= nil and DebugDrawEnabled then
-				if known[id] == 2 and self.ai.knownEnemies[id].los == 2 then
+			if self.knownEnemies[id] ~= nil and DebugDrawEnabled then
+				if known[id] == 2 and self.knownEnemies[id].los == 2 then
 					e.unit:EraseHighlight({1,0,0}, 'known', 3)
 					e.unit:DrawHighlight({1,0,0}, 'known', 3)
 					-- self.map:DrawUnit(id, {1,0,0}, 'known', 3)
@@ -202,24 +202,24 @@ function LosHandler:UpdateEnemies(enemyList)
 	-- also populate moving blips (whether in radar or in sight) for analysis
 	local blips = {}
 	local f = Spring.GetGameFrame()
-	for id, e in pairs(self.ai.knownEnemies) do
+	for id, e in pairs(self.knownEnemies) do
 		if not exists[id] then
 			-- enemy died
-			if self.ai.IDsWeAreAttacking[id] then
-				self.ai.attackhandler:TargetDied(self.ai.IDsWeAreAttacking[id])
+			if self.IDsWeAreAttacking[id] then
+				self.attackhandler:TargetDied(self.IDsWeAreAttacking[id])
 			end
-			if self.ai.IDsWeAreRaiding[id] then
-				self.ai.raidhandler:TargetDied(self.ai.IDsWeAreRaiding[id])
+			if self.IDsWeAreRaiding[id] then
+				self.raidhandler:TargetDied(self.IDsWeAreRaiding[id])
 			end
 			self:EchoDebug("enemy " .. e.unitName .. " died!")	
 			local mtypes = UnitWeaponMtypeList(e.unitName)
 			for i, mtype in pairs(mtypes) do
-				self.ai.raidhandler:NeedMore(mtype)
-				self.ai.attackhandler:NeedLess(mtype)
-				if mtype == "air" then self.ai.bomberhandler:NeedLess() end
+				self.raidhandler:NeedMore(mtype)
+				self.attackhandler:NeedLess(mtype)
+				if mtype == "air" then self.bomberhandler:NeedLess() end
 			end
 			if DebugDrawEnabled then self.map:ErasePoint(nil, nil, id, 3) end
-			self.ai.knownEnemies[id] = nil
+			self.knownEnemies[id] = nil
 		elseif not known[id] then
 			if e.ghost then
 				local gpos = e.ghost.position
@@ -232,7 +232,7 @@ function LosHandler:UpdateEnemies(enemyList)
 				end
 				-- expire ghost
 				-- if f > e.ghost.frame + 600 then
-					-- self.ai.knownEnemies[id] = nil
+					-- self.knownEnemies[id] = nil
 				-- end
 			else
 				if DebugDrawEnabled then
@@ -259,17 +259,17 @@ function LosHandler:UpdateEnemies(enemyList)
 		end
 	end
 	-- send blips off for analysis
-	self.ai.tacticalhandler:NewEnemyPositions(blips)
+	self.tacticalhandler:NewEnemyPositions(blips)
 end
 
 function LosHandler:UpdateWrecks()
 	local wrecks = self.map:GetMapFeatures()
 	if wrecks == nil then
-		self.ai.knownWrecks = {}
+		self.knownWrecks = {}
 		return
 	end
 	if #wrecks == 0 then
-		self.ai.knownWrecks = {}
+		self.knownWrecks = {}
 		return
 	end
 	-- game:SendToConsole("updating known wrecks")
@@ -304,11 +304,11 @@ function LosHandler:UpdateWrecks()
 					persist = true
 				elseif los == 2 then
 					known[id] = true
-					self.ai.knownWrecks[id] = wreck
+					self.knownWrecks[id] = wreck
 				end
 				if persist == true then
-					if self.ai.knownWrecks[id] ~= nil then
-						if self.ai.knownWrecks[id].los == 2 then
+					if self.knownWrecks[id] ~= nil then
+						if self.knownWrecks[id].los == 2 then
 							known[id] = true
 						end
 					end
@@ -316,15 +316,15 @@ function LosHandler:UpdateWrecks()
 			end
 		end
 	end
-	self.ai.wreckCount = 0
+	self.wreckCount = 0
 	-- remove wreck ghosts that aren't there anymore
-	for id, los in pairs(self.ai.knownWrecks) do
+	for id, los in pairs(self.knownWrecks) do
 		-- game:SendToConsole("known enemy " .. id .. " " .. los)
 		if known[id] == nil then
 			-- game:SendToConsole("removed")
-			self.ai.knownWrecks[id] = nil
+			self.knownWrecks[id] = nil
 		else
-			self.ai.wreckCount = self.ai.wreckCount + 1
+			self.wreckCount = self.wreckCount + 1
 		end
 	end
 	-- cleanup
@@ -402,13 +402,13 @@ end
 
 function LosHandler:GroundLos(upos)
 	if ShardSpringLua then
-		local LosOrRadar, inLos, inRadar, jammed = Spring.GetPositionLosState(upos.x, upos.y, upos.z, self.ai.allyId)
+		local LosOrRadar, inLos, inRadar, jammed = Spring.GetPositionLosState(upos.x, upos.y, upos.z, self.allyId)
 		if inLos then return 2 end
 		if upos.y < 0 then -- underwater
 			if inRadar then return 3 end
 		end
 		if inRadar then return 1 end
-		if Spring.IsPosInAirLos(upos.x, upos.y, upos.z, self.ai.allyId) then
+		if Spring.IsPosInAirLos(upos.x, upos.y, upos.z, self.allyId) then
 			return 4
 		else
 			return 0
@@ -421,7 +421,7 @@ function LosHandler:GroundLos(upos)
 	elseif self.losGrid[gx][gz] == nil then
 		return 0
 	else
-		if self.ai.maphandler:IsUnderWater(upos) then
+		if self.maphandler:IsUnderWater(upos) then
 			if self.losGrid[gx][gz][3] then
 				return 3
 			else
@@ -440,7 +440,7 @@ end
 function LosHandler:AllLos(upos)
 	if ShardSpringLua then
 		local t = {}
-		local LosOrRadar, inLos, inRadar, jammed = Spring.GetPositionLosState(upos.x, upos.y, upos.z, self.ai.allyId)
+		local LosOrRadar, inLos, inRadar, jammed = Spring.GetPositionLosState(upos.x, upos.y, upos.z, self.allyId)
 		if inLos then t[2] = true end
 		if inRadar then
 			if upos.y < 0 then -- underwater
@@ -449,7 +449,7 @@ function LosHandler:AllLos(upos)
 				t[1] = true
 			end
 		end
-		if Spring.IsPosInAirLos(upos.x, upos.y, upos.z, self.ai.allyId) then
+		if Spring.IsPosInAirLos(upos.x, upos.y, upos.z, self.allyId) then
 			t[4] = true
 		end
 		return t
@@ -467,8 +467,8 @@ end
 
 function LosHandler:IsKnownEnemy(unit)
 	local id = unit:ID()
-	if self.ai.knownEnemies[id] then
-		return self.ai.knownEnemies[id].los
+	if self.knownEnemies[id] then
+		return self.knownEnemies[id].los
 	else
 		return 0
 	end
@@ -476,8 +476,8 @@ end
 
 function LosHandler:IsKnownWreck(feature)
 	local id = feature:ID()
-	if self.ai.knownWrecks[id] then
-		return self.ai.knownWrecks[id]
+	if self.knownWrecks[id] then
+		return self.knownWrecks[id]
 	else
 		return 0
 	end
@@ -485,9 +485,9 @@ end
 
 function LosHandler:GhostPosition(unit)
 	local id = unit:ID()
-	if self.ai.knownEnemies[id] then
-		if self.ai.knownEnemies[id].ghost then
-			return self.ai.knownEnemies[id].position
+	if self.knownEnemies[id] then
+		if self.knownEnemies[id].ghost then
+			return self.knownEnemies[id].position
 		end
 	end
 	return nil
@@ -495,7 +495,7 @@ end
 
 function LosHandler:KnowEnemy(unit, los)
 	los = los or 2
-	local knownEnemy = self.ai.knownEnemies[unit:ID()]
+	local knownEnemy = self.knownEnemies[unit:ID()]
 	if knownEnemy and knownEnemy.los >= los then
 		return
 	end
@@ -504,5 +504,5 @@ function LosHandler:KnowEnemy(unit, los)
 		return
 	end
 	local enemy = { unit = unit, unitName = unit:Name(), position = upos, unitID = unit:ID(), cloaked = unit:IsCloaked(), beingBuilt = unit:IsBeingBuilt(), health = unit:GetHealth(), los = los }
-	self.ai.knownEnemies[unit:ID()] = enemy
+	self.knownEnemies[unit:ID()] = enemy
 end

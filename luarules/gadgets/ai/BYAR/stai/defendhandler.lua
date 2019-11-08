@@ -45,7 +45,7 @@ function DefendHandler:Init()
 	self.wardsByDefenderID = {}
 	self.defendersByID = {}
 	self.unitGuardDistances = {}
-	self.ai.frontPosition = {}
+	self.frontPosition = {}
 end
 
 function DefendHandler:AddWard(behaviour, turtle)
@@ -275,13 +275,13 @@ function DefendHandler:AssignAll(GAS, mtype) -- Ground Air Submerged (weapon), m
 					local defender = dfndbehaviour.unit:Internal()
 					local ux, uy, uz = defender:GetPosition()
 					if ux then
-						if self.ai.maphandler:UnitCanGoHere(defender, wardPos) then
+						if self.maphandler:UnitCanGoHere(defender, wardPos) then
 							local defenderPos = defender:GetPosition()
 							local dist = Distance(defenderPos, wardPos)
 							bydistance[dist] = dfndbehaviour -- the probability of the same distance is near zero
 						end
 					else
-						-- game:SendToConsole(self.ai.id, "defender unit nil position", defender:ID(), defender:Name())
+						-- game:SendToConsole(self.id, "defender unit nil position", defender:ID(), defender:Name())
 					end
 				end
 			end
@@ -436,7 +436,7 @@ function DefendHandler:AddDefender(dfndbehaviour)
 end
 
 function DefendHandler:RemoveDefender(dfndbehaviour)
-	-- Spring.Echo(self.ai.id, "remove defender", dfndbehaviour.hits, dfndbehaviour.mtype, self.defenders[dfndbehaviour.hits])
+	-- Spring.Echo(self.id, "remove defender", dfndbehaviour.hits, dfndbehaviour.mtype, self.defenders[dfndbehaviour.hits])
 	if dfndbehaviour.tough or dfndbehaviour.hits == "air" then
 		for i = #self.defenders[dfndbehaviour.hits][dfndbehaviour.mtype], 1, -1 do
 			local db = self.defenders[dfndbehaviour.hits][dfndbehaviour.mtype][i]
@@ -552,10 +552,10 @@ function DefendHandler:FindFronts(troublingCells)
 						turtle.threatForecastAngle = AngleAtoB(turtle.position.x, turtle.position.z, cell.pos.x, cell.pos.z)
 						turtle.front = true
 						self:Danger(nil, turtle, GAS)
-						self.ai.incomingThreat = cell.response[GAS]
-						self.ai.frontPosition[GAS] = turtle.position
+						self.incomingThreat = cell.response[GAS]
+						self.frontPosition[GAS] = turtle.position
 					else
-						self.ai.incomingThreat = 0
+						self.incomingThreat = 0
 					end
 				end
 				if nearestMobile ~= nil then
@@ -580,7 +580,7 @@ end
 -- receive a signal that a building is threatened or a turtle is on the front
 function DefendHandler:Danger(behaviour, turtle, GAS)
 	local f = game:Frame()
-	if turtle == nil and behaviour ~= nil then turtle = self.ai.turtlehandler:GetUnitTurtle(behaviour.id) end
+	if turtle == nil and behaviour ~= nil then turtle = self.turtlehandler:GetUnitTurtle(behaviour.id) end
 	if turtle ~= nil then
 		for i, ward in pairs(self.wards) do
 			if ward.turtle == turtle then

@@ -45,10 +45,10 @@ BuildSiteHandler.DebugEnabled = false
 function BuildSiteHandler:Init()
 	self.debugPlotDrawn = {}
 	local mapSize = self.map:MapDimensions()
-	self.ai.maxElmosX = mapSize.x * 8
-	self.ai.maxElmosZ = mapSize.z * 8
-	self.ai.maxElmosDiag = sqrt(self.ai.maxElmosX^2 + self.ai.maxElmosZ^2)
-	self.ai.lvl1Mexes = 1 -- this way mexupgrading doesn't revert to taskqueuing before it has a chance to find mexes to upgrade
+	self.maxElmosX = mapSize.x * 8
+	self.maxElmosZ = mapSize.z * 8
+	self.maxElmosDiag = sqrt(self.maxElmosX^2 + self.maxElmosZ^2)
+	self.lvl1Mexes = 1 -- this way mexupgrading doesn't revert to taskqueuing before it has a chance to find mexes to upgrade
 	self.resurrectionRepair = {}
 	self.dontBuildRects = {}
 	self.plans = {}
@@ -83,7 +83,7 @@ function BuildSiteHandler:LandWaterFilter(pos, unitTypeToBuild, builder)
 	end
 	-- where is the con?
 	local builderPos = builder:GetPosition()
-	local water = self.ai.maphandler:MobilityNetworkHere("shp", builderPos)
+	local water = self.maphandler:MobilityNetworkHere("shp", builderPos)
 	-- is this a land or a water unit we're building?
 	local waterBuildOrder = unitTable[unitName].needsWater
 	-- if this is a movement from land to water or water to land, check the distance
@@ -108,13 +108,13 @@ function BuildSiteHandler:CheckBuildPos(pos, unitTypeToBuild, builder, originalP
 	if pos ~= nil then
 		if unitTable[unitTypeToBuild:Name()].buildOptions then
 			-- don't build factories too close to south map edge because they face south
-			-- Spring.Echo(pos.x, pos.z, self.ai.maxElmosX, self.ai.maxElmosZ)
-			if (pos.x <= 0) or (pos.x > self.ai.maxElmosX) or (pos.z <= 0) or (pos.z > self.ai.maxElmosZ - 240) then
+			-- Spring.Echo(pos.x, pos.z, self.maxElmosX, self.maxElmosZ)
+			if (pos.x <= 0) or (pos.x > self.maxElmosX) or (pos.z <= 0) or (pos.z > self.maxElmosZ - 240) then
 				self:EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)
 				pos = nil
 			end
 		else
-			if (pos.x <= 0) or (pos.x > self.ai.maxElmosX) or (pos.z <= 0) or (pos.z > self.ai.maxElmosZ) then
+			if (pos.x <= 0) or (pos.x > self.maxElmosX) or (pos.z <= 0) or (pos.z > self.maxElmosZ) then
 				self:EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)
 				pos = nil
 			end
@@ -160,7 +160,7 @@ function BuildSiteHandler:CheckBuildPos(pos, unitTypeToBuild, builder, originalP
 	end
 	-- don't build where the builder can't go
 	if pos ~= nil then
-		if not self.ai.maphandler:UnitCanGoHere(builder, pos) then
+		if not self.maphandler:UnitCanGoHere(builder, pos) then
 			self:EchoDebug(builder:Name() .. " can't go there: " .. pos.x .. "," .. pos.z)
 			pos = nil
 		end
@@ -177,7 +177,7 @@ function BuildSiteHandler:CheckBuildPos(pos, unitTypeToBuild, builder, originalP
 			end
 		elseif bigPlasmaList[uname] or littlePlasmaList[uname] or nukeList[uname] then
 			-- don't build bombarding units outside of bombard positions
-			local b = self.ai.targethandler:IsBombardPosition(pos, uname)
+			local b = self.targethandler:IsBombardPosition(pos, uname)
 			if not b then
 				self:EchoDebug("bombard not in bombard position")
 				pos = nil
@@ -305,12 +305,12 @@ end
 function BuildSiteHandler:ClosestHighestLevelFactory(builderPos, maxDist)
 	if not builderPos then return end
 	local minDist = maxDist
-	local maxLevel = self.ai.maxFactoryLevel
+	local maxLevel = self.maxFactoryLevel
 	self:EchoDebug(maxLevel .. " max factory level")
 	local factorybhvr
-	if self.ai.factoriesAtLevel[maxLevel] ~= nil then
-		for i, factory in pairs(self.ai.factoriesAtLevel[maxLevel]) do
-			if not self.ai.outmodedFactoryID[factory.id] then
+	if self.factoriesAtLevel[maxLevel] ~= nil then
+		for i, factory in pairs(self.factoriesAtLevel[maxLevel]) do
+			if not self.outmodedFactoryID[factory.id] then
 				local dist = Distance(builderPos, factory.position)
 				if dist < minDist then
 					minDist = dist
@@ -351,7 +351,7 @@ function BuildSiteHandler:DoBuildRectangleByUnitID(unitID)
 end
 
 function BuildSiteHandler:DontBuildOnMetalOrGeoSpots()
-	local spots = self.ai.scoutSpots["air"][1]
+	local spots = self.scoutSpots["air"][1]
 	for i, p in pairs(spots) do
 		self:DontBuildRectangle(p.x-40, p.z-40, p.x+40, p.z+40)
 	end
@@ -360,10 +360,10 @@ end
 
 function BuildSiteHandler:BuildNearNano(builder, utype)
 	self:EchoDebug("looking for spot near nano hotspots")
-	local nanoHots = self.ai.nanohandler:GetHotSpots()
+	local nanoHots = self.nanohandler:GetHotSpots()
 	if nanoHots then
 		self:EchoDebug("got " .. #nanoHots .. " nano hotspots")
-		local hotRadius = self.ai.nanohandler:HotBuildRadius()
+		local hotRadius = self.nanohandler:HotBuildRadius()
 		for i = 1, #nanoHots do
 			local hotPos = nanoHots[i]
 			-- find somewhere within hotspot
@@ -380,10 +380,10 @@ end
 function BuildSiteHandler:BuildNearLastNano(builder, utype)
 	self:EchoDebug("looking for spot near last nano")
 	local p = nil
-	if self.ai.lastNanoBuild then
+	if self.lastNanoBuild then
 		self:EchoDebug('found position near last nano')
 		-- find somewhere at most 400 away
-		p = self:ClosestBuildSpot(builder, self.ai.lastNanoBuild, utype, 30, nil, nil, 400)
+		p = self:ClosestBuildSpot(builder, self.lastNanoBuild, utype, 30, nil, nil, 400)
 	end
 	return p
 end
@@ -405,7 +405,7 @@ function BuildSiteHandler:UnitCreated(unit)
 				if unitTable[unitName].isBuilding or nanoTurretList[unitName] then
 					-- so that oversized factory lane rectangles will overlap with existing buildings
 					self:DontBuildRectangle(plan.x1, plan.z1, plan.x2, plan.z2, unitID)
-					self.ai.turtlehandler:PlanCreated(plan, unitID)
+					self.turtlehandler:PlanCreated(plan, unitID)
 				end
 				-- tell the builder behaviour that construction has begun
 				plan.behaviour:ConstructionBegun(unitID, plan.unitName, plan.position)
@@ -424,7 +424,7 @@ function BuildSiteHandler:UnitCreated(unit)
 		local rect = { position = position, unitName = unitName }
 		self:CalculateRect(rect)
 		self:DontBuildRectangle(rect.x1, rect.z1, rect.x2, rect.z2, unitID)
-		self.ai.turtlehandler:NewUnit(unitName, position, unitID)
+		self.turtlehandler:NewUnit(unitName, position, unitID)
 	end
 	self:PlotAllDebug()
 end
@@ -518,7 +518,7 @@ function BuildSiteHandler:NewPlan(unitName, position, behaviour, resurrect)
 	local plan = {unitName = unitName, position = position, behaviour = behaviour, resurrect = resurrect}
 	self:CalculateRect(plan)
 	if unitTable[unitName].isBuilding or nanoTurretList[unitName] then
-		self.ai.turtlehandler:NewUnit(unitName, position, plan)
+		self.turtlehandler:NewUnit(unitName, position, plan)
 	end
 	table.insert(self.plans, plan)
 	self:PlotAllDebug()
@@ -529,7 +529,7 @@ function BuildSiteHandler:ClearMyPlans(behaviour)
 		local plan = self.plans[i]
 		if plan.behaviour == behaviour then
 			if not plan.resurrect and (unitTable[plan.unitName].isBuilding or nanoTurretList[unitName]) then
-				self.ai.turtlehandler:PlanCancelled(plan)
+				self.turtlehandler:PlanCancelled(plan)
 			end
 			table.remove(self.plans, i)
 		end

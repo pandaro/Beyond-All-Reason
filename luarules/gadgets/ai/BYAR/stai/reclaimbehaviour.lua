@@ -14,7 +14,7 @@ local CMD_RESURRECT = 125
 function ReclaimBehaviour:Init()
 	self.DebugEnabled = false
 
-	local mtype, network = self.ai.maphandler:MobilityOfUnit(self.unit:Internal())
+	local mtype, network = self.maphandler:MobilityOfUnit(self.unit:Internal())
 	self.mtype = mtype
 	self.canReclaimGAS = {}
 	if self.mtype == "veh" or self.mtype == "bot" or self.mtype == "amp" or self.mtype == "hov" then
@@ -40,15 +40,15 @@ function ReclaimBehaviour:OwnerDead()
 	-- notify the command that area is too hot
 	-- self:EchoDebug("reclaimer " .. self.name .. " died")
 	if self.target then
-		self.ai.targethandler:AddBadPosition(self.target, self.mtype)
+		self.targethandler:AddBadPosition(self.target, self.mtype)
 	end
-	self.ai.buildsitehandler:ClearMyPlans(self)
+	self.buildsitehandler:ClearMyPlans(self)
 end
 
 function ReclaimBehaviour:OwnerIdle()
 	if self.active then
 		if self.myFeature then
-			self.ai.targethandler:RemoveFeature(self.myFeature, self.myFeaturePos)
+			self.targethandler:RemoveFeature(self.myFeature, self.myFeaturePos)
 			self.myFeature = nil
 			self.myFeaturePos = nil
 		end
@@ -105,16 +105,16 @@ function ReclaimBehaviour:Check()
 	local doreclaim = false
 	if self.dedicated and not self.resurrecting then
 		doreclaim = true
-	elseif self.ai.conCount > 2 and self.ai.needToReclaim and self.ai.reclaimerCount == 0 and self.ai.IDByName[self.id] ~= 1 and self.ai.IDByName[self.id] == self.ai.nameCount[self.name] then
-		if not self.ai.haveExtraReclaimer then
-			self.ai.haveExtraReclaimer = true
+	elseif self.conCount > 2 and self.needToReclaim and self.reclaimerCount == 0 and self.IDByName[self.id] ~= 1 and self.IDByName[self.id] == self.nameCount[self.name] then
+		if not self.haveExtraReclaimer then
+			self.haveExtraReclaimer = true
 			self.extraReclaimer = true
 			doreclaim = true
 		elseif self.extraReclaimer then
 			doreclaim = true
 		end
 	elseif self.extraReclaimer then
-		self.ai.haveExtraReclaimer = false
+		self.haveExtraReclaimer = false
 		self.extraReclaimer = false
 		self:EraseTargets()
 		self.unit:ElectBehaviour()
@@ -129,14 +129,14 @@ function ReclaimBehaviour:Retarget()
 	self:EchoDebug("needs target")
 	self:EraseTargets()
 	local unit = self.unit:Internal()
-	local tcell, tunit = self.ai.targethandler:GetBestReclaimCell(unit)
+	local tcell, tunit = self.targethandler:GetBestReclaimCell(unit)
 	self:EchoDebug(tcell, tunit)
 	if tunit then
 		self:EchoDebug("got unit to reclaim from GetBestReclaimCell")
 		self.targetUnit = tunit.unit
 	end
-	if not self.targetUnit and self.dedicated and self.ai.Metal.full > 0.5 and self.ai.Energy.full > 0.75 then
-		local bestThing, bestCell = self.ai.targethandler:WreckToResurrect(unit, true)
+	if not self.targetUnit and self.dedicated and self.Metal.full > 0.5 and self.Energy.full > 0.75 then
+		local bestThing, bestCell = self.targethandler:WreckToResurrect(unit, true)
 		if bestThing then
 			if bestThing.className == 'unit' then
 				self:EchoDebug("got damaged to repair from WreckToResurect cell")
@@ -149,13 +149,13 @@ function ReclaimBehaviour:Retarget()
 		self.targetCell = bestCell
 	end
 	if not self.targetResurrection and not self.targetUnit then
-		if tcell and (self.ai.Metal.full < 0.75 or tcell.metal > 1000) then
+		if tcell and (self.Metal.full < 0.75 or tcell.metal > 1000) then
 			self:EchoDebug("got cell for reclaim")
 			self.targetCell = tcell
 		end
-		if not self.targetCell and self.ai.Metal.full < 0.75 then
+		if not self.targetCell and self.Metal.full < 0.75 then
 			self:EchoDebug("looking for closest cleanable to reclaim")
-			self.targetUnit = self.ai.cleanhandler:ClosestCleanable(unit)
+			self.targetUnit = self.cleanhandler:ClosestCleanable(unit)
 		end
 	end
 	self.unit:ElectBehaviour()
@@ -186,7 +186,7 @@ function ReclaimBehaviour:Act()
 			local unitName = featureTable[self.targetResurrection.featureName].unitName
 			self:EchoDebug(unitName)
 			CustomCommand(self.unit:Internal(), CMD_RESURRECT, {resPosition.x, resPosition.y, resPosition.z, 15})
-			self.ai.buildsitehandler:NewPlan(unitName, resPosition, self, true)
+			self.buildsitehandler:NewPlan(unitName, resPosition, self, true)
 			self.resurrecting = true
 			return true
 		else
@@ -226,5 +226,5 @@ end
 
 function ReclaimBehaviour:ResurrectionComplete()
 	self.resurrecting = false
-	self.ai.buildsitehandler:ClearMyPlans(self)
+	self.buildsitehandler:ClearMyPlans(self)
 end

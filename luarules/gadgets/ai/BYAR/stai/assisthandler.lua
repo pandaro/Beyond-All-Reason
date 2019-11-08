@@ -20,32 +20,32 @@ function AssistHandler:Init()
 	self.working = {}
 	self.totalAssignments = 0
 	self.magnets = {}
-	self.ai.IDByName = {}
+	self.IDByName = {}
 	self.IDByNameTaken = {}
 	self.lastAllocation = Spring.GetGameFrame()
-	self.ai.nonAssistantsPerName = 2
-	self.ai.nonAssistant = {}
+	self.nonAssistantsPerName = 2
+	self.nonAssistant = {}
 end
 
 function AssistHandler:Update()
 	local f = Spring.GetGameFrame()
 	if f > self.lastAllocation + 1800 then
 		self.lastAllocation = f
-		if self.ai.Metal.full > 0.33 then
-			self.ai.nonAssistantsPerName = math.max(self.ai.nonAssistantsPerName - 1, 2)
-		elseif self.ai.Metal.tics < 2 or self.ai.Metal.full < 0.1 then
-			self.ai.nonAssistantsPerName = math.min(self.ai.nonAssistantsPerName + 1, self.ai.conUnitPerTypeLimit)
+		if self.Metal.full > 0.33 then
+			self.nonAssistantsPerName = math.max(self.nonAssistantsPerName - 1, 2)
+		elseif self.Metal.tics < 2 or self.Metal.full < 0.1 then
+			self.nonAssistantsPerName = math.min(self.nonAssistantsPerName + 1, self.conUnitPerTypeLimit)
 			for fi = #self.free, 1, -1 do
 				local asstbehaviour = self.free[fi]
-				if self.ai.IDByName[asstbehaviour.id] == nil then self:AssignIDByName(asstbehaviour) end
-				if self.ai.IDByName[asstbehaviour.id] <= self.ai.nonAssistantsPerName then
-					self.ai.nonAssistant[asstbehaviour.id] = true
+				if self.IDByName[asstbehaviour.id] == nil then self:AssignIDByName(asstbehaviour) end
+				if self.IDByName[asstbehaviour.id] <= self.nonAssistantsPerName then
+					self.nonAssistant[asstbehaviour.id] = true
 					asstbehaviour.unit:ElectBehaviour()
 					table.remove(self.free, fi)
 				end
 			end
 		end
-		self:EchoDebug("nonassistants per name: " .. self.ai.nonAssistantsPerName)
+		self:EchoDebug("nonassistants per name: " .. self.nonAssistantsPerName)
 	end
 end
 
@@ -59,7 +59,7 @@ function AssistHandler:IsLocal(asstbehaviour, position)
 			return false
 		end
 	else
-		if not self.ai.maphandler:UnitCanGoHere(aunit, position) then
+		if not self.maphandler:UnitCanGoHere(aunit, position) then
 			return false
 		end
 	end
@@ -250,9 +250,9 @@ function AssistHandler:Release(builder, bid, dead)
 		local asstbehaviour = table.remove(self.working[bid])
 		if dead then asstbehaviour:Assign(nil) end
 		table.insert(self.free, asstbehaviour)
-		if self.ai.IDByName[asstbehaviour.id] ~= nil then
-			if self.ai.IDByName[asstbehaviour.id] <= self.ai.nonAssistantsPerName then
-				self.ai.nonAssistant[asstbehaviour.id] = true
+		if self.IDByName[asstbehaviour.id] ~= nil then
+			if self.IDByName[asstbehaviour.id] <= self.nonAssistantsPerName then
+				self.nonAssistant[asstbehaviour.id] = true
 			end
 		end
 		-- self.ai:UnitIdle(asstbehaviour.unit:Internal())
@@ -325,11 +325,11 @@ function AssistHandler:RemoveWorking(asstbehaviour)
 end
 
 function AssistHandler:AssignIDByName(asstbehaviour)
-	-- game:SendToConsole("assisthandler:assignidbyname", ai, ai.id, self.ai, self.ai.id)
+	-- game:SendToConsole("assisthandler:assignidbyname", ai, ai.id, self.ai, self.id)
 	local uname = asstbehaviour.name
 	if self.IDByNameTaken[uname] == nil then
 		asstbehaviour.IDByName = 1
-		self.ai.IDByName[asstbehaviour.id] = 1
+		self.IDByName[asstbehaviour.id] = 1
 		self.IDByNameTaken[uname] = {}
 		self.IDByNameTaken[uname][1] = asstbehaviour.id
 	else
@@ -337,18 +337,18 @@ function AssistHandler:AssignIDByName(asstbehaviour)
 			self.IDByNameTaken[uname][asstbehaviour.IDByName] = nil
 		end
 		local id = 1
-		while id <= self.ai.nameCount[uname] do
+		while id <= self.nameCount[uname] do
 			id = id + 1
 			if not self.IDByNameTaken[uname][id] then break end
 		end
 		asstbehaviour.IDByName = id
-		self.ai.IDByName[asstbehaviour.id] = id
+		self.IDByName[asstbehaviour.id] = id
 		self.IDByNameTaken[uname][id] = asstbehaviour.id
 	end
-	if self.ai.IDByName[asstbehaviour.id] > self.ai.nonAssistantsPerName then
-		self.ai.nonAssistant[asstbehaviour.id] = nil
+	if self.IDByName[asstbehaviour.id] > self.nonAssistantsPerName then
+		self.nonAssistant[asstbehaviour.id] = nil
 	else
-		self.ai.nonAssistant[asstbehaviour.id] = true
+		self.nonAssistant[asstbehaviour.id] = true
 	end
 	if asstbehaviour.active then
 		if asstbehaviour:DoIAssist() then
@@ -363,6 +363,6 @@ function AssistHandler:RemoveAssistant(asstbehaviour)
 	local uname = asstbehaviour.name
 	local uid = asstbehaviour.id
 	-- game:SendToConsole("assistant " .. uname .. " died")
-	if self.IDByNameTaken[uname] ~= nil then self.IDByNameTaken[uname][self.ai.IDByName[uid]] = nil end
-	self.ai.IDByName[uid] = nil
+	if self.IDByNameTaken[uname] ~= nil then self.IDByNameTaken[uname][self.IDByName[uid]] = nil end
+	self.IDByName[uid] = nil
 end
