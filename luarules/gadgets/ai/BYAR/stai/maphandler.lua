@@ -560,6 +560,7 @@ function MapHandler:Init()
 	self.landMetalSpots = landMetalSpots
 	self.UWMetalSpots = UWMetalSpots
 	self.scoutSpots = scoutSpots
+    MapHandler.scoutSpots = scoutSpots
 	self.mobNetworkMetals = mobNetworkMetals
 	self.mobNetworks = mobNetworks
 	if not hotSpot then

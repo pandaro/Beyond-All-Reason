@@ -351,7 +351,11 @@ function BuildSiteHandler:DoBuildRectangleByUnitID(unitID)
 end
 
 function BuildSiteHandler:DontBuildOnMetalOrGeoSpots()
-	local spots = self.scoutSpots["air"][1]
+    
+    for i,v in pairs(self) do
+        print(i .. ' ' ..tostring(v))
+    end
+	local spots = MapHandler.scoutSpots["air"][1]
 	for i, p in pairs(spots) do
 		self:DontBuildRectangle(p.x-40, p.z-40, p.x+40, p.z+40)
 	end

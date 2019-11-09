@@ -33,7 +33,7 @@ function EconHandler:Update()
 		local name = resourceNames[i]
 		local udata = self.game:GetResourceByName(name)
 		sample[name] = { income = udata.income, usage = udata.usage, reserves = udata.reserves }
-		self.ai[name].capacity = udata.capacity -- capacity is not something that fluctuates wildly
+		self[name].capacity = udata.capacity -- capacity is not something that fluctuates wildly
 	end
 	self.samples[#self.samples+1] = sample
 	if not self.hasData or #self.samples == framesPerAvg then self:Average() end
@@ -56,18 +56,18 @@ function EconHandler:Average()
 	local totalSamples = #self.samples
 	for name, resource in pairs(self.samples[1]) do
 		for property, value in pairs(resource) do
-			self.ai[name][property] = resources[name][property] / totalSamples
+			self[name][property] = resources[name][property] / totalSamples
 		end
-		self.ai[name].extra = self.ai[name].income - self.ai[name].usage
-		if self.ai[name].capacity == 0 then
-			self.ai[name].full = math.inf
+		self[name].extra = self[name].income - self[name].usage
+		if self[name].capacity == 0 then
+			self[name].full = math.inf
 		else
-			self.ai[name].full = self.ai[name].reserves / self.ai[name].capacity
+			self[name].full = self[name].reserves / self[name].capacity
 		end
-		if self.ai[name].income == 0 then
-			self.ai[name].tics = math.inf
+		if self[name].income == 0 then
+			self[name].tics = math.inf
 		else
-			self.ai[name].tics = self.ai[name].reserves / self.ai[name].income
+			self[name].tics = self[name].reserves / self[name].income
 		end
 	end
 	self.hasData = true
@@ -78,7 +78,7 @@ end
 function EconHandler:DebugAll()
 	if DebugEnabled then
 		for i, name in pairs(resourceNames) do
-			local resource = self.ai[name]
+			local resource = self[name]
 			for property, value in pairs(resource) do
 				self:EchoDebug(name .. "." .. property .. ": " .. value)
 			end
