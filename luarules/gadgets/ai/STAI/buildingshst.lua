@@ -302,6 +302,35 @@ function BuildingsHST:searchPosNearCategories(utype,builder,minDist,maxDist,cate
 
 end
 
+function BuildingsHST:SearchPosInGrid(utype, builder,minDist,maxDist,grid,neighbours,number)
+	self:EchoDebug('search pos in list for',utype:Name())
+	local maxDist = maxDist or 390
+	local d = 0
+	local tmpDistValue = 0
+	local builderPos = builder:GetPosition()
+	local tmpPos = {}
+	if not grid then 		return	end
+	for X,row in pairs(self.ai.targethst.turtling) do
+		for Z,turtled in pairs(row) do
+			if not neighbours or not self:unitsNearCheck(self.ai.maphst.GRID[X][Z].POS.x,self.ai.maphst.GRID[X][Z].POS.y,self.ai.maphst.GRID[X][Z].POS.z, maxDist,number,neighbours)then
+				d = math.max(turtled / self.ai.tool:distance(self.ai.maphst.GRID[X][Z].POS,builderPos))
+				if d > tmpDistValue then
+					tmpDistValue = d
+					tmpPos.x = self.ai.maphst.GRID[X][Z].POS.x
+					tmpPos.y = self.ai.maphst.GRID[X][Z].POS.y
+					tmpPos.z = self.ai.maphst.GRID[X][Z].POS.z
+				end
+			end
+		end
+	end
+	if tmpPos and tmpPos.x then
+		tmpPos = self:FindClosestBuildSite(utype, tmpPos.x,tmpPos.y,tmpPos.z, minDist, maxDist,builder,tmpPos)
+		if tmpPos and tmpPos.x then
+			self:EchoDebug('found Position in list at: ' , tmpPos.x ,tmpPos.z,'for',utype:Name())
+			return tmpPos
+		end 
+	end
+end
 function BuildingsHST:searchPosInList(utype, builder,minDist,maxDist,list,neighbours,number)
 	
 	self:EchoDebug('search pos in list for',utype:Name())

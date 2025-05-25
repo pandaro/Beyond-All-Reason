@@ -945,7 +945,7 @@ function TasksHST:startRolesParams()
 				end,--economicParameters
 			duplicate = false , --duplicateFilter
 			numeric = false , --numericalParameter
-			location = {list = self.ai.maphst.hotSpots,min = 50,neighbours = {'_specialt_'}} ,
+			location = {list  = self.ai.maphst.hotSpots,grid = self.ai.targethst.turtling,min = 50,neighbours = {'_specialt_'}} ,
 	        },
 
 		{ 	category = '_popup1_' ,
@@ -954,7 +954,7 @@ function TasksHST:startRolesParams()
 				end,--economicParameters
 			duplicate = false , --duplicateFilter
 			numeric = false , --numericalParameter
-			location = {list = self.ai.maphst.trampledCells,min = 50,neighbours = {'_popup2_','_popup1_'}} ,
+			location = {grid = self.ai.targethst.turtling,list = self.ai.maphst.hotSpots,min = 50,neighbours = {'_popup2_','_popup1_'}} ,
 	        },
 
 		{ 	category = '_popup2_' ,
@@ -963,7 +963,7 @@ function TasksHST:startRolesParams()
 				end,--economicParameters
 			duplicate = false , --duplicateFilter
 			numeric = false , --numericalParameter
-			location = {list = self.ai.maphst.trampledCells,min = 50,neighbours = {'_popup2_'}} ,
+			location = {grid = self.ai.targethst.turtling,list = self.ai.maphst.hotSpots,min = 50,neighbours = {'_popup2_'}} ,
 	        },
 
 		{ 	category = '_heavyt_' ,
@@ -972,7 +972,7 @@ function TasksHST:startRolesParams()
 				end,--economicParameters
 			duplicate = true , --duplicateFilter
 			numeric = false , --numericalParameter
-			location = {list = self.ai.maphst.hotSpots, min = 50 , neighbours = {'_heavyt_','_laser2_'}} ,
+			location = {grid = self.ai.targethst.turtling, list = self.ai.maphst.hotSpots, min = 50 , neighbours = {'_heavyt_','_laser2_'}} ,
 	        },
 
 		{ 	category = '_laser2_' ,
@@ -981,7 +981,7 @@ function TasksHST:startRolesParams()
 				end,--economicParameters
 			duplicate = true , --duplicateFilter
 			numeric = false , --numericalParameter
-			location = {min = 50,list = self.ai.maphst.hotSpots,neighbours = {'_laser2_'}} ,
+			location = {min = 50,grid = self.ai.targethst.turtling, list = self.ai.maphst.hotSpots,neighbours = {'_laser2_'}} ,
 	        },
 
 		{ 	category = '_aa1_' ,

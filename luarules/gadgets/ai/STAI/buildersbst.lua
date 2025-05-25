@@ -237,8 +237,13 @@ function BuildersBST:findPlace(utype, value, cat, loc)
 				end
 			end
 		end
+		if not POS and loc.grid then
+			self:EchoDebug('loc.grid', loc.grid)
+			POS = site:SearchPosInGrid(utype, builder, loc.min, loc.max, loc.grid, loc.neighbours)
+			self:EchoDebug('POS grid', POS)
+		end
 		if not POS and loc.list then
-			self:EchoDebug('loc.max', loc.max)
+			self:EchoDebug('loc.list', loc.list)
 			POS = site:searchPosInList(utype, builder, loc.min, loc.max, loc.list, loc.neighbours)
 			self:EchoDebug('POS2', POS)
 		end

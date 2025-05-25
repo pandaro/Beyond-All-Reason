@@ -17,6 +17,7 @@ function TargetHST:Init()
 	self.pathModifierFuncs = {}
 	self.enemyFrontList = {}
 	self.blobchecked = {}
+	self.turtling = {}
 	self.enemyCenter = {x = 0,y = 0,z = 0}
 	self.enemyBasePosition = {x = 0,y = 0,z = 0}
 	self.enemybasecount = 0
@@ -64,6 +65,13 @@ function TargetHST:GetBlobs(_blobs_,param) --reset all the old blobs
 		blob.position.z = blob.position.z / #blob.cells
 		blob.position.y = map:GetGroundHeight(blob.position.x,blob.position.z)
 		blob.targetCell.X,blob.targetCell.Z = self.ai.maphst:PosToGrid(blob.position)
+		if _blobs_ == 'MOBILE_BLOBS' then
+			self.turtling[blob.targetCell.X] = self.turtling[blob.targetCell.X] or {}
+			self.turtling[blob.targetCell.X][blob.targetCell.Z] =  self.turtling[blob.targetCell.X][blob.targetCell.Z] or 0
+			self.turtling[blob.targetCell.X][blob.targetCell.Z] = self.turtling[blob.targetCell.X][blob.targetCell.Z] + (1 * 1 - (self.ai.tool:distance(self.ai.loshst.CENTER,blob.position)/self.ai.maphst.elmoMapMaxDistance))
+			Spring.MarkerAddPoint(self.ai.maphst.GRID[blob.targetCell.X][blob.targetCell.Z].POS.x,self.ai.maphst.GRID[blob.targetCell.X][blob.targetCell.Z].POS.z,self.ai.maphst.GRID[blob.targetCell.X][blob.targetCell.Z].POS.z,self.turtling[blob.targetCell.X][blob.targetCell.Z])
+		end
+
 	end
 	self:EchoDebug('selfblob',_blobs_,self[_blobs_])
 end
@@ -123,9 +131,13 @@ function TargetHST:EnemiesCellsAnalisy() --TODO:--MOVE TO TACTICALHST!!!
 			end
 		end
 	end
-	self.enemyCenter.x = self.enemyCenter.x / self.cellCount
-	self.enemyCenter.z = self.enemyCenter.z / self.cellCount
-	self.enemyCenter.y = map:GetGroundHeight(self.enemyCenter.x,self.enemyCenter.z)
+	if self.cellCount > 0 then
+		
+		
+		self.enemyCenter.x = self.enemyCenter.x / self.cellCount
+		self.enemyCenter.z = self.enemyCenter.z / self.cellCount
+		self.enemyCenter.y = map:GetGroundHeight(self.enemyCenter.x,self.enemyCenter.z)
+	end
 	if self.enemybasecount > 0 then
 		self.enemyBasePosition.x = self.enemyBasePosition.x / self.enemybasecount
 		self.enemyBasePosition.z = self.enemyBasePosition.z / self.enemybasecount

@@ -273,6 +273,7 @@ function MapHST:NewCell(gx, gz)
 	cell.POS = cellPos --the cell position
 	cell.X = gx --the cell coordinate X on the grid
 	cell.Z = gz --the cell coordinate Z on the grid
+	cell.XZ = tostring(gx) .. ':' ..tostring(gz)
 	cell.moveLayers = self:moveLayerTest(cellPos) --hold the  layers and networks in this cell
 	cell.metalSpots = {} --hold the metalSpots of this cell
 	cell.geoSpots = {} --hold the geoSpots of this cell

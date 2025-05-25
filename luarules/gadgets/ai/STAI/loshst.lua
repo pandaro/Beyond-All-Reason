@@ -17,6 +17,7 @@ function LosHST:Init()
 	self.ownMobile = {}
 	self.allyImmobile = {}
 	self.allyMobile = {}
+	self.StaticDanger = {}
 	self.ALLY = {}
 	self.ALLIES = {}
 	self.OWN = {}
@@ -93,7 +94,7 @@ function LosHST:Update()
 		else
 			local X,Z = self.ai.maphst:RawPosToGrid(x,y,z)
 			self:setCellLos(self.ENEMY,game:GetUnitByID(id),X,Z)
-			self:SetStaticAreaDanger(unit,X,Z)
+			--self:SetStaticAreaDanger(game:GetUnitByID(id),X,Z)
 		end
 	end
 	for id,def in pairs(self.radarEnemy) do
@@ -110,31 +111,36 @@ function LosHST:Update()
 		end
 	end
 end
-
+--[[
 function LosHST:SetStaticAreaDanger(unit,X,Z,remove)
 	local name = unit:Name()
 -- 	local uPos = unit:GetPosition()
-	--local x,y,z = unit:GetRawPos()
+	local px,py,pz = unit:GetRawPos()
 	local ut = self.ai.armyhst.unitTable[name]
+	print('setareadanger')
 	if not ut.isWeapon or ut.speed > 0 then
 		return
 	end
-	local R = ut.groundRange / self.ai.maphst.gridSize
+	local R = math.floor(ut.groundRange / self.ai.maphst.gridSize)
+	print(R)
 	for x = X - R , X + R,1  do
 		for z = Z - R , Z + R,1 do
+			print(z,z)
 			if self.ai.maphst.GRID[x] and self.ai.maphst.GRID[x][z] and math.abs(X-x) > 0 and math.abs(Z-z) > 0 then
 				self.StaticDanger[x] = self.StaticDanger[x] or {}
 				self.StaticDanger[x][z] = self.StaticDanger[x][z] or 0
 				if remove then
 					self.StaticDanger[x][z] = self.StaticDanger[x][z] - ut.metalCost
+					Spring.MarkerAddPoint(px,py,pz,self.StaticDanger[x][z])
 				else
 					self.StaticDanger[x][z] = self.StaticDanger[x][z] + ut.metalCost
+					Spring.MarkerAddPoint(px,py,pz,self.StaticDanger[x][z])
 				end
 			end
 		end
 	end
 end
-
+]]
 function LosHST:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
 	if allyTeam ~= self.ai.allyId then
 		return
@@ -184,9 +190,9 @@ function LosHST:UnitDead(unit)--this is a bit cheat, we always know if a unit di
 	self.ownMobile[unit:ID()] = nil
 	self.allyImmobile[unit:ID()] = nil
 	self.allyMobile[unit:ID()] = nil
-	local x,y,z = unit:GetRawPos()
-	local X,Z = self.ai.maphst:RawPosToGrid(x,y,z)
-	self:SetStaticAreaDanger(unit,X,Z,true)
+	--local x,y,z = unit:GetRawPos()
+	--local X,Z = self.ai.maphst:RawPosToGrid(x,y,z)
+	--self:SetStaticAreaDanger(unit,X,Z,true)
 	self:getCenter()
 
 
