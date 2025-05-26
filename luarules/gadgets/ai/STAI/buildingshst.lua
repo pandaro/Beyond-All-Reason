@@ -132,8 +132,9 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx,by,bz, minDist, maxDist,
 	--map:EraseAll(ch)
 
 	maxDist = maxDist or 390
-	minDist = minDist or 1
-	minDist = math.max(minDist,1)
+	local unitName = unittype:Name()
+	minDist = minDist or math.max(self.ai.armyhst.unitTable[unitName].xsize, self.ai.armyhst.unitTable[unitName].zsize) * 2
+	minDist = math.max(minDist, 50) -- Minimum of 50 for any building
 
 	local twicePi = math.pi * 2
 	local angleIncMult = twicePi / minDist
@@ -565,17 +566,23 @@ function BuildingsHST:SetRole(builderID)
 	local builder = game:GetUnitByID(builderID)
 	local name = builder:Name()
 	local role = nil
+	
+	-- Check for amphibious builders first
+	local mtype = self.ai.armyhst.unitTable[name].mtype
+	if mtype == 'amp' then
+		return 'amphibious'
+	end
+
 	if self.ai.armyhst.commanderList[name] then
 		local _,_, roleCount,_ = self:RoleCounter(nil,'eco')
 		local _,_, expandCount,_ = self:RoleCounter(nil,'expand')
-		--if roleCount < 1 then
 		if self.ai.tool:countFinished( {'_nano_'},self.ai.teamID) == 0 and self.ai.tool:countMyUnit( {'_nano_'}) == 1 then
 			role = 'assist'
 		elseif self.ai.tool:countFinished( {'_nano_'},self.ai.teamID) == 0 then
 			role = 'starter'
-		elseif roleCount >= 1 and expandCount >= 3	then
+		elseif roleCount >= 1 and expandCount >= 3 then
 			role = 'assist'
-		elseif roleCount >= 1	then
+		elseif roleCount >= 1 then
 			role = 'expand'
 		else
 			role = 'default'

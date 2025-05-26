@@ -444,12 +444,22 @@ function TasksHST:startRolesParams()
 
 	self.roles.default = {
 		{ 	category = 'factoryMobilities' ,
-			economy = function(_,param,name)--ecofunc()
-						return M.income > 8 and E.income > 30
-					end,
-			duplicate = true , --duplicateFilter
-			numeric = false , --numericalParameter
-			location = true ,},
+			economy = function(_,param,name)
+				local builder = self.ai.unit
+				local mtype = self.ai.armyhst.unitTable[builder:Name()].mtype
+				-- Adjust economy thresholds based on mobility type
+				local minMetal = (mtype == 'amp' or mtype == 'hov') and 6 or 8
+				local minEnergy = (mtype == 'amp' or mtype == 'hov') and 25 or 30
+				return M.income > minMetal and E.income > minEnergy
+			end,
+			duplicate = true,
+			numeric = false,
+			location = function(builder)
+				-- Prefer building factories near same mobility type structures
+				local mtype = self.ai.armyhst.unitTable[builder:Name()].mtype
+				return {categories = {mtype..'techs'}, min = 50, max = 300}
+			end,
+		},
 
 		{ 	category = '_wind_' ,
 			economy = function(_,param,name)--ecofunc()
@@ -739,15 +749,70 @@ function TasksHST:startRolesParams()
 	----------------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------
 
+	self.roles.amphibious = {
+		{ 	category = '_mex_' ,
+			economy = function(_,param,name)
+				return true
+			end,
+			duplicate = false,
+			numeric = false,
+			location = {
+				categories = {'_mex_'},
+				min = 50,
+				max = 250,
+				waterCheck = true
+			}
+		},
+		{ 	category = '_llt_' ,
+			economy = function(_,param,name)
+				return true
+			end,
+			duplicate = false,
+			numeric = 2,
+			location = {
+				categories = {'_mex_'},
+				min = 50,
+				max = 300,
+				waterCheck = true
+			}
+		},
+		{ 	category = '_nano_' ,
+			economy = function(_,param,name)
+				return E.full > 0.2 and M.full > 0.2
+			end,
+			duplicate = false,
+			numeric = false,
+			location = {
+				categories = {'factoryMobilities'},
+				min = 50,
+				max = 200,
+				waterCheck = true
+			}
+		}
+	}
+
 	self.roles.expand = {
 		{ 	category = '_mex_' ,
-			economy = function(_,param,name)--ecofunc()
+			economy = function(_,param,name)
+				return true
+			end,
+			duplicate = false,
+			numeric = false,
+			location = function(builder)
+				local mtype = self.ai.armyhst.unitTable[builder:Name()].mtype
+				if mtype == 'amp' then
+					return {
+						categories = {'_mex_'},
+						min = 50,
+						max = 250,
+						neighbours = {'_mex_'},
+						waterCheck = true
+					}
+				else
 					return true
-				end,--economicParameters
-			duplicate = false , --duplicateFilter
-			numeric = false , --numericalParameter
-			location = true ,
-	        },
+				end
+			end,
+		},
 		
 		{ 	category = '_llt_' ,
 			economy = function(_,param,name)--ecofunc()
@@ -852,14 +917,27 @@ function TasksHST:startRolesParams()
 			special = true } , --specialFilter
 
 		{ 	category = '_nano_' ,
-			economy = function(_,param,name)--ecofunc()
-					return (E.full > 0.3  and M.full > 0.3 and M.income > 10 and E.income > 100) --or
-					--(self.ai.tool:countMyUnit({name}) == 0 and (M.income > 10 and E.income > 60 ))
-				end,--economicParameters
-			duplicate = false , --duplicateFilter
-			numeric = false , --numericalParameter
-			location = true , --positional category to search near
-	        },
+			economy = function(_,param,name)
+				local builder = self.ai.unit
+				local mtype = self.ai.armyhst.unitTable[builder:Name()].mtype
+				-- Lower thresholds for mobile builders
+				local minE = (mtype == 'amp' or mtype == 'hov') and 0.25 or 0.3
+				local minM = (mtype == 'amp' or mtype == 'hov') and 0.25 or 0.3
+				return (E.full > minE and M.full > minM and M.income > 10 and E.income > 100) or
+					(self.ai.tool:countMyUnit({name}) == 0 and (M.income > 10 and E.income > 60))
+			end,
+			duplicate = false,
+			numeric = false,
+			location = function(builder)
+				-- Mobile builders place nanos closer to factories
+				local mtype = self.ai.armyhst.unitTable[builder:Name()].mtype
+				if mtype == 'amp' or mtype == 'hov' then
+					return {categories = {'factoryMobilities'}, min = 50, max = 200}
+				else
+					return true
+				end
+			end,
+		},
 
 		{ 	category = '_estor_' ,
 			economy = function(_,param,name)--ecofunc()

@@ -5,7 +5,7 @@ function LabsBST:Name()
 end
 
 function LabsBST:Init()
-	self.DebugEnabled = false
+	self.DebugEnabled = true
 	self:EchoDebug('initialize tasklab')
 	local u = self.unit:Internal()
 	self.id = u:ID()
@@ -140,6 +140,7 @@ function LabsBST:Update()
 end
 
 function LabsBST:getQueue()
+	self:EchoDebug('getting queue')
 	if self.name == 'armamsub' or self.name == 'coramsub' then
 		return self.ai.taskshst.labs.amphibiousComplex
 	
@@ -163,7 +164,10 @@ function LabsBST:getSoldier()
 	local param
 	local utype
 	self.queue = self:getQueue()
-
+	self:EchoDebug('queue:' ,self.queue,self.qIndex)
+	if self.qIndex > #self.queue then
+			self.qIndex = 1
+		end
 	for i = self.qIndex , #self.queue do
 		param = self.queue[i]
 		soldier,utype = self:getSoldierFromCategory(param.category)
@@ -185,9 +189,7 @@ function LabsBST:getSoldier()
 			end
 		end
 		self.qIndex = self.qIndex + 1
-		if self.qIndex > #self.queue then
-			self.qIndex = 1
-		end
+		
 		if soldier then
 			return soldier,param,utype
 		end
