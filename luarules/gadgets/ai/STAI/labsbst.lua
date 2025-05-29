@@ -121,6 +121,7 @@ function LabsBST:Update()
 	if soldier then
 		local limit = param.wave
    		if type(param.wave) == 'function' then
+			Spring.Echo(self.queue[self.qIndex],self.qIndex,self.name,self.queue)
 			self:EchoDebug('function param wave',self.queue[self.qIndex].wave)
 			limit = param:wave(_)
 		end
@@ -163,7 +164,9 @@ function LabsBST:getSoldier()
 	local param
 	local utype
 	self.queue = self:getQueue()
-
+	if self.qIndex > #self.queue then
+		self.qIndex = 1
+	end
 	for i = self.qIndex , #self.queue do
 		param = self.queue[i]
 		soldier,utype = self:getSoldierFromCategory(param.category)
@@ -185,7 +188,7 @@ function LabsBST:getSoldier()
 			end
 		end
 		self.qIndex = self.qIndex + 1
-		if self.qIndex > #self.queue then
+		if self.qIndex > #self.queue then --double check needed
 			self.qIndex = 1
 		end
 		if soldier then

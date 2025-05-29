@@ -100,16 +100,8 @@ function ShardUnitType:CanGuard()
 	return self.def.canGuard
 end
 
-function ShardUnitType:CanCloak()
-	return self.def.canCloak
-end
-
 function ShardUnitType:CanSelfDestruct()
 	return self.def.canSelfDestruct
-end
-
-function ShardUnitType:CanCloak()
-	return self.def.canCloak
 end
 
 function ShardUnitType:CanRestore()
@@ -245,11 +237,11 @@ function ShardUnitType:TerraformSpeed()
 end
 
 function ShardUnitType:FootprintX()
-	return self.def.footprintX
+	return self.def.xsize
 end
 
 function ShardUnitType:FootprintZ()
-	return self.def.footprintZ
+	return self.def.xsize
 end
 
 function ShardUnitType:maxVelocity()

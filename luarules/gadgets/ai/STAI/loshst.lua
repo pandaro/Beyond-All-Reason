@@ -81,7 +81,7 @@ end
 function LosHST:Update()
 	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then return end
 	self:FreeCellsToPool('ENEMY')
-	self:FreeCellsToPool('OWN')
+	--self:FreeCellsToPool('OWN')
 	self:FreeCellsToPool('ALLY')
 
 	for id,def in pairs(self.losEnemy) do
@@ -108,6 +108,7 @@ function LosHST:Update()
 			self:setCellRadar(self.ENEMY,game:GetUnitByID(id),X,Z)
 		end
 	end
+	--self:BaseDistal()
 end
 
 function LosHST:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
@@ -159,6 +160,10 @@ function LosHST:UnitDead(unit)--this is a bit cheat, we always know if a unit di
 	self.ownMobile[unit:ID()] = nil
 	self.allyImmobile[unit:ID()] = nil
 	self.allyMobile[unit:ID()] = nil
+	local X,Z = self.ai.maphst:PosToGrid(unit:GetPosition())
+	if self.OWN[X] and self.OWN[X][Z] then
+		self.OWN[X][Z] = nil
+	end
 	self:getCenter()
 
 
@@ -175,6 +180,11 @@ function LosHST:UnitCreated(unit, unitDefID, teamId)
 	if teamId == self.ai.id then
 		if UnitDefs[unitDefID].speed == 0 then
 			self.ownImmobile[unit:ID()] = unitDefID
+			local X,Z = self.ai.maphst:PosToGrid(unit:GetPosition())
+			self.OWN[X] = self.OWN[X] or {}
+			self.OWN[X][Z] = self.OWN[X][Z] or 1
+			--print('cell added to OWN',X,Z)
+			--Spring.Echo(self.ENEMY)
 			self:getCenter()
 		else
 			self.ownMobile[unit:ID()] = unitDefID
@@ -186,7 +196,7 @@ function LosHST:UnitCreated(unit, unitDefID, teamId)
 			self.allyMobile[unit:ID()] = unitDefID
 		end
 	end
-	self:getCenter()
+	--self:getCenter()
 end
 
 function LosHST:cleanEnemy(id)
@@ -243,6 +253,26 @@ function LosHST:setPosLayer2(unitName,x,y,z)
 	return 0 , floating
 end
 
+function LosHST:BaseDistal()
+	local worstDist = 0
+	local dist
+	local DX,DZ
+	for X,row in pairs(self.OWN) do
+		for Z,Cell in pairs(row ) do
+			dist = self.ai.tool:distance (self.ai.maphst.GRID[X][Z].POS,self.CENTER)
+			if dist > worstDist then
+				worstDist = dist
+				DX = X
+				DZ = Z
+			end
+		end
+	end
+	self.Distal = {DX,DZ}
+	self.CenterToDistal = dist
+	
+end
+
+
 function LosHST:getCenter()
 	self.CENTER = self.CENTER or {}
 	self.CENTER.x = 0
@@ -262,6 +292,7 @@ function LosHST:getCenter()
 	self.CENTER.x = self.CENTER.x / count
 	self.CENTER.y = self.CENTER.y / count
 	self.CENTER.z = self.CENTER.z / count
+	--Spring.MarkerAddPoint(self.CENTER.x,self.CENTER.y,self.CENTER.z,'center')
 end
 
 

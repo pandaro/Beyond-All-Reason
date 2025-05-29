@@ -223,7 +223,7 @@ function Tool:TableToString(t)
 	else
 		for k,v in pairs(t) do
 
-			if type(v) == 'number' then
+			if type(v) == 'number' or type(v) == 'string' then
 				serialized = serialized ..v ..','
 			else
 				self:TableToString(v)

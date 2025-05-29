@@ -132,8 +132,8 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx,by,bz, minDist, maxDist,
 	--map:EraseAll(ch)
 
 	maxDist = maxDist or 390
-	minDist = minDist or 1
-	minDist = math.max(minDist,1)
+	minDist = minDist or minDist or math.max(unittype:FootprintX(), unittype:FootprintZ()) * 8
+	minDist = math.max(minDist,0)
 
 	local twicePi = math.pi * 2
 	local angleIncMult = twicePi / minDist

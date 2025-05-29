@@ -211,7 +211,7 @@ function AttackHST:SquadAdvance(squad)
 	if self.ai.tool:distance(squad.position,self.ai.maphst:GridToPos(squad.target.X,squad.target.Z)) < 512 then
 		self.ai.tool:GiveOrder(squad.cmdUnitId,CMD.FIGHT ,squad.path[squad.step],0,'1-2')
 	else
-		self.ai.tool:GiveOrder(squad.cmdUnitId,CMD.MOVE ,squad.path[squad.step],0,'1-2')
+		self.ai.tool:GiveOrder(squad.cmdUnitId,CMD.FIGHT ,squad.path[squad.step],0,'1-2')
 	end
 	self:EchoDebug('advance after members move')
 end
@@ -248,6 +248,12 @@ function AttackHST:SquadsTargetUpdate()
 					squad.target = offense
 					squad.role = 'offense'
 					squad.path = path
+					Spring.Echo('path1',squad.path[1])
+					if offense.startPos then
+						print('startPos added')
+						table.insert(path,1,offense.startPos)
+					end
+					Spring.Echo('path1mod',squad.path[1])
 					squad.step = step
 					self:EchoDebug('set offensive target for',squad.squadID,squad.target.X,squad.target.Z)
 				end
@@ -287,20 +293,38 @@ end
 function AttackHST:SquadsTargetPrevent2(squad)
 	local targetDist = math.huge
 	local targetCell
+	--local tX,tZ
 	for index,blob in pairs(self.ai.targethst.MOBILE_BLOBS)do
 		local dist = self.ai.tool:distance(blob.position,self.ai.loshst.CENTER)
 		if dist < targetDist then
 			targetDist = dist
-			targetCell = {X = blob.targetCell.X,Z = blob.targetCell.Z}
+			targetCell = {X = blob.targetCell.X,Z = blob.targetCell.Z,dist = dist}
 		end
 	end
-	return  targetCell
+	if targetCell then
+		local secure = targetCell.dist - 500
+		local vx = self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.x -  self.ai.loshst.CENTER.x
+		local vz = self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.z - self.ai.loshst.CENTER.z
+		local length = math.sqrt(vx * vx + vz * vz)
+		local ux = vx / length
+    	local uz = vz / length
+		local xx = self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.x - 700 * ux
+		local zz = self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.z - 700 * uz
+		local tx = self.ai.loshst.CENTER.x +(self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.x -  self.ai.loshst.CENTER.x) --* (targetCell.dist - 500)
+		local ty = self.ai.loshst.CENTER.y +(self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.y - self.ai.loshst.CENTER.y) --* (targetCell.dist - 500)
+		local tz = self.ai.loshst.CENTER.z +(self.ai.maphst.GRID[targetCell.X][targetCell.Z].POS.z - self.ai.loshst.CENTER.z) --* (targetCell.dist - 500)
+		local tX,tZ = self.ai.maphst:RawPosToGrid(xx,ty,zz)
+		--Spring.MarkerAddPoint(xx,ty,zz,'go')
+		return  {X = tX,Z=tZ}
+	end
+	
 end
 
 function AttackHST:SquadsTargetAttack(squad)
 	local bestTarget = nil
 	local worstDist = 0
 	local bestDist = math.huge
+	local startPos = nil
 	local dist
 	self:EchoDebug('search a offensive target for squad ', squad.squadID)
 	for ref, blob in pairs(self.ai.targethst.IMMOBILE_BLOBS) do
@@ -322,11 +346,26 @@ function AttackHST:SquadsTargetAttack(squad)
 							bestTarget = {X = blob.targetCell.X, Z = blob.targetCell.Z}
 						end
 					end
-					
 				end
 			end
 		end
 		--end
+	end
+	worstDist = math.huge
+	
+	if bestTarget then
+		for X,Row in pairs(self.ai.loshst.OWN) do
+			for Z ,CELL in pairs(Row) do
+				dist = self.ai.tool:distance(self.ai.maphst.GRID[X][Z].POS,self.ai.maphst.GRID[bestTarget.X][bestTarget.Z].POS)
+				if dist < worstDist then
+					worstDist = dist
+					startPos = self.ai.maphst.GRID[X][Z].POS
+				end
+			end
+		end
+	end
+	if startPos then
+		bestTarget.startPos = startPos
 	end
 	return bestTarget
 end
