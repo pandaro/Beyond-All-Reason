@@ -34,8 +34,8 @@ function DamageHST:UnitDamaged(defender, attacker, damage)
 
  			if attackerut then
  				if attackerut.isBuilding then
-					self.ai.loshst.losEnemy[attacker:ID()] = defenderUt.defId
-					self.ai.loshst.radarEnemy[attacker:ID()] = 	nil
+					Shard.AllyData[self.ai.allyId].losEnemy[attacker:ID()] = defenderUt.defId
+					Shard.AllyData[self.ai.allyId].radarEnemy[attacker:ID()] = 	nil
 --  					self.ai.loshst:scanEnemy(attacker,isShoting)---isshoting maybe need to be true?
 --  					return
  				end

@@ -251,7 +251,7 @@ end
 function RaidHST:SquadsTargetUpdate()
 	self:EchoDebug('SquadsTargetUpdate')
 	for id,squad in pairs(self.squads) do
-		if squad.target and squad.role == 'offense' and self.ai.maphst:GetCell(squad.target.X,squad.target.Z,self.ai.loshst.ENEMY) then
+		if squad.target and squad.role == 'offense' and self.ai.maphst:GetCell(squad.target.X,squad.target.Z,Shard.AllyData[self.ai.allyId].ENEMY) then
 			self:EchoDebug('squadID',squad.squadID, 'have offense cell', squad.target.X,squad.target.Z)
 		elseif squad.target and type(squad.role) == 'number' and game:GetUnitByID(squad.role):GetPosition() then
 			self:EchoDebug('squad' , squad.squadID, 'guard ', squad.role)
@@ -354,7 +354,7 @@ function RaidHST:SquadsTargetDefense(squad)
 	local targetDist = math.huge
 	local targetCell
 	for index,blob in pairs(self.ai.targethst.MOBILE_BLOBS)do
-		if self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z] then
+		if Shard.AllyData[self.ai.allyId].ENEMY[blob.targetCell.X][blob.targetCell.Z] then
 			if self.ai.maphst:UnitCanGoHere(game:GetUnitByID(squad.leader), blob.position) then
 				
 				
@@ -375,7 +375,7 @@ function RaidHST:SquadsTargetAttack(squad)
 	local worstDist = -1
 	for ref, blob in pairs(self.ai.targethst.IMMOBILE_BLOBS) do
 		if not self:SquadsTargetHandled(blob) then
-			if self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z] then
+			if Shard.AllyData[self.ai.allyId].ENEMY[blob.targetCell.X][blob.targetCell.Z] then
 				if self.ai.maphst:UnitCanGoHere(game:GetUnitByID(squad.leader), blob.position) then
 					local dist = self.ai.tool:distance(blob.position,self.ai.targethst.enemyCenter)
 					if dist > worstDist then

@@ -238,7 +238,7 @@ else	-- UNSYNCED CODE
 
 	function gadget:Initialize()
 		spEcho("Looking for AIs")
-
+		Shard.AllyData = {}
 		for i = 1, #teamList do
 			local id = teamList[i]
 			local _, _, _, isAI, side, allyId = spGetTeamInfo(id, false)
@@ -248,6 +248,7 @@ else	-- UNSYNCED CODE
 					Shard.AIsByTeamID[id] = thisAI
 					Shard.AIs[#Shard.AIs + 1] = thisAI
 					thisAI.index = #Shard.AIs
+					Shard.AllyData[allyId] = Shard.AllyData[allyId] or {}
 				end
 			end
 		end

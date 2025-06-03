@@ -70,7 +70,7 @@ end
 function ScoutHST:TargetAvailable(X,Z,scoutID)
 	if self.SCOUTED[X] and self.SCOUTED[X][Z] then
 		self:EchoDebug('networkSpots', X,Z, 'is in a SCOUTED cell')
-	elseif self.ai.loshst.ENEMY[X] and self.ai.loshst.ENEMY[X][Z] then
+	elseif Shard.AllyData[self.ai.allyId].ENEMY[X] and Shard.AllyData[self.ai.allyId].ENEMY[X][Z] then
 		self:EchoDebug('networkSpots', X,Z, 'is in a ENEMY cell')
 	elseif self.ai.damagehst.DAMAGED[X] and self.ai.damagehst.DAMAGED[X][Z] then
 		self:EchoDebug('networkSpots', X,Z, 'is in a DAMAGE cell')
