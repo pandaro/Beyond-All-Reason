@@ -39,11 +39,11 @@ function TargetHST:GetBlobs(_blobs_,param) --reset all the old blobs
 		self.ai.tool:ResetTable(self[_blobs_])
 	--end
 	local blobref
-	for X, cells in pairs(self.ai.loshst.ENEMY) do --find all the bew blobs
+	for X, cells in pairs(Shard.AllyData[self.ai.allyId].ENEMY) do --find all the bew blobs
 		for Z,cell in pairs( cells) do
 			blobref = X..':'..Z
 			if not self.blobchecked[blobref] then
-				self:Blobbing(self.ai.loshst.ENEMY,param,X,Z,_blobs_,blobref)
+				self:Blobbing(Shard.AllyData[self.ai.allyId].ENEMY,param,X,Z,_blobs_,blobref)
 			end
 		end
 	end
@@ -53,12 +53,12 @@ function TargetHST:GetBlobs(_blobs_,param) --reset all the old blobs
 	for ref, blob in pairs(self[_blobs_]) do-- fill the blobs with data
 		for i,v in pairs(blob.cells) do
 			
-			for id,name in pairs(self.ai.loshst.ENEMY[v.X][v.Z].units) do
+			for id,name in pairs(Shard.AllyData[self.ai.allyId].ENEMY[v.X][v.Z].units) do
 				blob.units[id] = name
 			end
-			blob.position.x = blob.position.x + self.ai.loshst.ENEMY[v.X][v.Z].POS.x
-			blob.position.z = blob.position.z + self.ai.loshst.ENEMY[v.X][v.Z].POS.z
-			blob.metal = blob.metal + self.ai.loshst.ENEMY[v.X][v.Z].metal
+			blob.position.x = blob.position.x + Shard.AllyData[self.ai.allyId].ENEMY[v.X][v.Z].POS.x
+			blob.position.z = blob.position.z + Shard.AllyData[self.ai.allyId].ENEMY[v.X][v.Z].POS.z
+			blob.metal = blob.metal + Shard.AllyData[self.ai.allyId].ENEMY[v.X][v.Z].metal
 		end
 		blob.position.x = blob.position.x / #blob.cells
 		blob.position.z = blob.position.z / #blob.cells
@@ -110,7 +110,7 @@ function TargetHST:EnemiesCellsAnalisy() --TODO:--MOVE TO TACTICALHST!!!
 	self.enemyCenter.y = 0
 	self.enemyCenter.z = 0
 	
-	for X, cells in pairs(self.ai.loshst.ENEMY) do
+	for X, cells in pairs(Shard.AllyData[self.ai.allyId].ENEMY) do
 		for Z,cell in pairs(cells) do
 			self.enemyCenter.x = self.enemyCenter.x + cell.POS.x
 			self.enemyCenter.y = self.enemyCenter.y + cell.POS.y
@@ -138,7 +138,7 @@ function TargetHST:EnemiesCellsAnalisy() --TODO:--MOVE TO TACTICALHST!!!
 end
 
 function TargetHST:NearbyVulnerable(position)
-	local danger,subValues, cells = self.ai.maphst:getCellsFields(position,{'ARMED','UNARM'},1,self.ai.loshst.ENEMY)
+	local danger,subValues, cells = self.ai.maphst:getCellsFields(position,{'ARMED','UNARM'},1,Shard.AllyData[self.ai.allyId].ENEMY)
 	if subValues.armed == 0 and subValues.unarm > 0 then
 		for index , cell in pairs(cells) do
 			for id,name in pairs (cell.units ) do
@@ -160,7 +160,7 @@ function TargetHST:IsSafeCell(position, unitName, threshold, adjacent) --TODO mo
 -- 		layer = self.ai.armyhst.unitTable[unitName].LAYER
 -- 	end
 	--WARNING here implement a count of danger per layer, but now we count all danger layer as dangerous
-	local danger = self.ai.maphst:getCellsFields(position,{'ARMED'},adjacent,self.ai.loshst.ENEMY)
+	local danger = self.ai.maphst:getCellsFields(position,{'ARMED'},adjacent,Shard.AllyData[self.ai.allyId].ENEMY)
 	return danger <= threshold
 end
 

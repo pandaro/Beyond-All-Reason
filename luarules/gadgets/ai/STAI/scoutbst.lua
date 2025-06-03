@@ -132,7 +132,7 @@ end
 function ScoutBST:Attacking()
 	self:EchoDebug('attacking')
 	if not self.attacking then return end
-	if not self.ai.loshst.losEnemy[self.attacking] or not game:GetUnitByID(self.attacking) or not game:GetUnitByID(self.attacking):GetPosition() then
+	if not Shard.AllyData[self.ai.allyId].losEnemy[self.attacking] or not game:GetUnitByID(self.attacking) or not game:GetUnitByID(self.attacking):GetPosition() then
 		self.attacking = nil
 		return
 	end
@@ -185,7 +185,7 @@ end
 function ScoutBST:bestAdjacentPos(unit,target)
 	local upos = self.position
 	local X, Z = self.ai.maphst:PosToGrid(upos)
-	local areacells = self.ai.maphst:areaCells(X,Z,1,self.ai.loshst.ENEMY)
+	local areacells = self.ai.maphst:areaCells(X,Z,1,Shard.AllyData[self.ai.allyId].ENEMY)
 	local risky = {}
 	local greedy = {}
 	local neutral = {}

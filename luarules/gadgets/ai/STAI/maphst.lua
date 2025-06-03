@@ -784,7 +784,7 @@ function MapHST:ClosestFreeMex(unittype, builder, position)--get the closest fre
 			spotPosition = false
 		end
 		
-		CELL = self:GetCell(spot,self.ai.loshst.ENEMY)
+		CELL = self:GetCell(spot,Shard.AllyData[self.ai.allyId].ENEMY)
 		if spotPosition and  (not CELL or CELL.ENEMY == 0) then
 			self:EchoDebug(spot.x,spot.z,'no enemy')
 		else
@@ -813,7 +813,7 @@ function MapHST:ClosestFreeMex(unittype, builder, position)--get the closest fre
 			if not self.ai.buildingshst:PlansOverlap(spot, uname) then
 				if self.ai.targethst:IsSafeCell(spot, builder) then
 					if map:CanBuildHere(unittype, spot) then
-						local CELL = self:GetCell(spot,self.ai.loshst.ENEMY)
+						local CELL = self:GetCell(spot,Shard.AllyData[self.ai.allyId].ENEMY)
 						if not CELL or CELL.ENEMY == 0 then
 							return spot
 						else

@@ -230,7 +230,7 @@ end
 
 function AttackHST:SquadsTargetUpdate()
 	for id,squad in pairs(self.squads) do
-		if squad.target and squad.role == 'offense' and self.ai.maphst:GetCell(squad.target.X,squad.target.Z,self.ai.loshst.ENEMY) then
+		if squad.target and squad.role == 'offense' and self.ai.maphst:GetCell(squad.target.X,squad.target.Z,Shard.AllyData[self.ai.allyId].ENEMY) then
 			self:EchoDebug('squadID',squad.squadID, 'offense cell', squad.target.X,squad.target.Z)
 		else
 			self:SquadResetTarget(squad)
@@ -304,8 +304,8 @@ function AttackHST:SquadsTargetAttack(squad)
 	local dist
 	self:EchoDebug('search a offensive target for squad ', squad.squadID)
 	for ref, blob in pairs(self.ai.targethst.IMMOBILE_BLOBS) do
-		if self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z] then
-			if not self:SquadsTargetHandled(self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z])  or squad.squadID == not self:SquadsTargetHandled(self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z])then
+		if Shard.AllyData[self.ai.allyId].ENEMY[blob.targetCell.X][blob.targetCell.Z] then
+			if not self:SquadsTargetHandled(Shard.AllyData[self.ai.allyId].ENEMY[blob.targetCell.X][blob.targetCell.Z])  or squad.squadID == not self:SquadsTargetHandled(Shard.AllyData[self.ai.allyId].ENEMY[blob.targetCell.X][blob.targetCell.Z])then
 				local mclass =self.ai.armyhst.unitTable[game:GetUnitByID(squad.leader):Name()].mclass
 				local path = map:PathTest(mclass,squad.leaderPos.x,squad.leaderPos.y,squad.leaderPos.z,blob.position.x,blob.position.y,blob.position.z,8)
 				if path then
@@ -516,7 +516,7 @@ function AttackHST:SquadAttackbackup(squad)
 		self:EchoDebug('squad',squad.squadID,'execute defense')
 		return true
 	end
-	if self.ai.loshst.ENEMY[squad.target.X] and self.ai.loshst.ENEMY[squad.target.X][squad.target.Z]  and self.ai.tool:distance(squad.position,squad.target.POS) < 256 then
+	if Shard.AllyData[self.ai.allyId].ENEMY[squad.target.X] and Shard.AllyData[self.ai.allyId].ENEMY[squad.target.X][squad.target.Z]  and self.ai.tool:distance(squad.position,squad.target.POS) < 256 then
 		self:EchoDebug('squad',squad.squadID,'are near to offensive target, do attack')
 	
 		for i,member in pairs(squad.members) do
@@ -566,7 +566,7 @@ function AttackHST:SquadAttack(squad)
 		self:EchoDebug('squad',squad.squadID,'execute defense')
 		return true
 	end
-	if self.ai.loshst.ENEMY[squad.target.X] and self.ai.loshst.ENEMY[squad.target.X][squad.target.Z]  and self.ai.tool:distance(squad.position,squad.target.POS) < 256 then
+	if Shard.AllyData[self.ai.allyId].ENEMY[squad.target.X] and Shard.AllyData[self.ai.allyId].ENEMY[squad.target.X][squad.target.Z]  and self.ai.tool:distance(squad.position,squad.target.POS) < 256 then
 		self:EchoDebug('squad',squad.squadID,'are near to offensive target, do attack')
 	
 		for i,member in pairs(squad.members) do

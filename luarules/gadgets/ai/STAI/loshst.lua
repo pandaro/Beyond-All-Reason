@@ -11,8 +11,8 @@ end
 function LosHST:Init()
 	self.DebugEnabled = false
 	self.knownEnemies = {}
-	self.losEnemy = {}
-	self.radarEnemy = {}
+	Shard.AllyData[self.ai.allyId].losEnemy = {}
+	Shard.AllyData[self.ai.allyId].radarEnemy = {}
 	self.ownImmobile = {}
 	self.ownMobile = {}
 	self.allyImmobile = {}
@@ -20,12 +20,13 @@ function LosHST:Init()
 	self.ALLY = {}
 	self.ALLIES = {}
 	self.OWN = {}
-	self.ENEMY = {}
+	Shard.AllyData[self.ai.allyId].lastEnemyUpdate = game:Frame()
+	Shard.AllyData[self.ai.allyId].ENEMY = {}
 	self.ai.friendlyTeamID = {}
 	--self.cellPool = {} -- LIFO pool
 	self:buildPools('poolENEMY')
-	self:buildPools('poolOWN')
-	self:buildPools('poolALLIES')
+	--self:buildPools('poolOWN')
+	--self:buildPools('poolALLIES')
 
 
 end
@@ -39,12 +40,12 @@ end
 
 function LosHST:GetCellFromPool(X,Z,grid)
 	local gn = nil
-	if grid == self.ENEMY then
+	if grid == Shard.AllyData[self.ai.allyId].ENEMY then
 		gn = 'ENEMY'
-	elseif grid == self.OWN then
+	--[[elseif grid == self.OWN then
 		gn = 'OWN'
 	elseif grid == self.ALLIES then
-		gn = 'ALLIES'
+		gn = 'ALLIES']]
 	end
  	local gridname = 'pool'..gn
 
@@ -68,7 +69,7 @@ end
 
 function LosHST:FreeCellsToPool(grid)
 	local gridname = 'pool'..grid
-	for x, row in pairs(self[grid]) do
+	for x, row in pairs(Shard.AllyData[self.ai.allyId][grid]) do
 		for z, cell in pairs(row) do
 
 			self[gridname][x][z] = cell
@@ -80,32 +81,39 @@ end
 
 function LosHST:Update()
 	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then return end
-	self:FreeCellsToPool('ENEMY')
-	self:FreeCellsToPool('OWN')
-	self:FreeCellsToPool('ALLY')
+	if game:Frame() < Shard.AllyData[self.ai.allyId].lastEnemyUpdate + 30 then 
+		print('skip enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
+		return 
 
-	for id,def in pairs(self.losEnemy) do
+	end
+	print('perform enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
+	Shard.AllyData[self.ai.allyId].lastEnemyUpdate = game:Frame()
+	self:FreeCellsToPool('ENEMY')
+	--self:FreeCellsToPool('OWN')
+	--self:FreeCellsToPool('ALLY')
+
+	for id,def in pairs(Shard.AllyData[self.ai.allyId].losEnemy) do
 		local x,y,z = game:GetUnitByID(id):GetRawPos()
-		if self.losEnemy[id] and self.radarEnemy[id] then
+		if Shard.AllyData[self.ai.allyId].losEnemy[id] and Shard.AllyData[self.ai.allyId].radarEnemy[id] then
 			self:Warn('unit in los and in radar, with losStatus:' ,game:GetUnitLos(id))
 		elseif not  x or not game:GetUnitByID(id):IsAlive()then
 			self:cleanEnemy(id)
 		else
 			local X,Z = self.ai.maphst:RawPosToGrid(x,y,z)
-			self:setCellLos(self.ENEMY,game:GetUnitByID(id),X,Z)
+			self:setCellLos(Shard.AllyData[self.ai.allyId].ENEMY,game:GetUnitByID(id),X,Z)
 		end
 	end
-	for id,def in pairs(self.radarEnemy) do
+	for id,def in pairs(Shard.AllyData[self.ai.allyId].radarEnemy) do
 		local x,y,z = game:GetUnitByID(id):GetRawPos()
 		--self:EchoDebug('enemyunitx',x,unit.x,unit.y,unit.z)
 
-		if self.losEnemy[id] and self.radarEnemy[id] then
+		if Shard.AllyData[self.ai.allyId].losEnemy[id] and Shard.AllyData[self.ai.allyId].radarEnemy[id] then
 			self:Warn('unit in los and in radar, with losStatus:' ,game:GetUnitLos(id))
 		elseif not  x or not game:GetUnitByID(id):IsAlive()then
 			self:cleanEnemy(id)
 		else
 			local X,Z = self.ai.maphst:RawPosToGrid(x,y,z)
-			self:setCellRadar(self.ENEMY,game:GetUnitByID(id),X,Z)
+			self:setCellRadar(Shard.AllyData[self.ai.allyId].ENEMY,game:GetUnitByID(id),X,Z)
 		end
 	end
 end
@@ -115,8 +123,10 @@ function LosHST:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
 		return
 	end
 	self:EchoDebug(	'ENTER LOS',unitID,unitTeam,allyTeam,unitDefID,UnitDefs[unitDefID].name)
-	self.losEnemy[unitID] = unitDefID
-	self.radarEnemy[unitID] = nil
+
+	if not Shard.AllyData[self.ai.allyId].losEnemy[unitID] then  Shard.AllyData[self.ai.allyId].losEnemy[unitID] = unitDefID end
+	
+	if Shard.AllyData[self.ai.allyId].radarEnemy[unitID] then  Shard.AllyData[self.ai.allyId].radarEnemy[unitID] = nil end
 end
 
 function LosHST:UnitLeftLos(unitID, unitTeam, allyTeam, unitDefID)
@@ -125,10 +135,10 @@ function LosHST:UnitLeftLos(unitID, unitTeam, allyTeam, unitDefID)
 	end
 	local speed = UnitDefs[unitDefID].speed
 	if speed == 0  then
-		self.losEnemy[unitID] = unitDefID
-		self.radarEnemy[unitID] = nil
+		if not Shard.AllyData[self.ai.allyId].losEnemy[unitID] then Shard.AllyData[self.ai.allyId].losEnemy[unitID] = unitDefID end
+		if Shard.AllyData[self.ai.allyId].radarEnemy[unitID] then Shard.AllyData[self.ai.allyId].radarEnemy[unitID] = nil end
 	else
-		self.losEnemy[unitID] = nil
+		if Shard.AllyData[self.ai.allyId].losEnemy[unitID] then Shard.AllyData[self.ai.allyId].losEnemy[unitID] = nil end
 	end
 	self:EchoDebug('LEFT LOS',unitID,unitTeam,allyTeam,unitDefID)
 end
@@ -137,8 +147,8 @@ function LosHST:UnitEnteredRadar(unitID, unitTeam, allyTeam, unitDefID)
 	if allyTeam ~= self.ai.allyId then
 		return
 	end
-	if not self.losEnemy[unitID] then
-		self.radarEnemy[unitID] = unitDefID
+	if not Shard.AllyData[self.ai.allyId].losEnemy[unitID] then
+		Shard.AllyData[self.ai.allyId].radarEnemy[unitID] = unitDefID
 	end
 	self:EchoDebug('ENTER RADAR',unitID,unitTeam,allyTeam,unitDefID)
 end
@@ -147,7 +157,7 @@ function LosHST:UnitLeftRadar(unitID, unitTeam, allyTeam, unitDefID)
 	if allyTeam ~= self.ai.allyId then
 		return
 	end
-	self.radarEnemy[unitID] = nil
+	if Shard.AllyData[self.ai.allyId].radarEnemy[unitID] then Shard.AllyData[self.ai.allyId].radarEnemy[unitID] = nil end
 	self:EchoDebug('LEFT RADAR',unitID,unitTeam,allyTeam,unitDefID)
 end
 
@@ -167,7 +177,7 @@ end
 function LosHST:UnitDamaged(unit, attacker, damage)
 	--if  attacker ~= nil and attacker:AllyTeam() ~= self.ai.allyId then --TODO --WARNING NOTE ATTENTION CAUTION TEST ALERT
 		--a shoting unit is individuable by a medium player so is managed as a unit in LOS :full view
-		--self.losEnemy[attacker:ID()] = self.ai.armyhst.unitTable[attacker:Name()].defId
+		--Shard.AllyData[self.ai.allyId].losEnemy[attacker:ID()] = self.ai.armyhst.unitTable[attacker:Name()].defId
 	--end
 end
 
@@ -191,8 +201,8 @@ end
 
 function LosHST:cleanEnemy(id)
 	self:EchoDebug('unit dead removed from los and radar',id)
-	self.losEnemy[id] = nil
-	self.radarEnemy[id] = nil
+	Shard.AllyData[self.ai.allyId].losEnemy[id] = nil
+	Shard.AllyData[self.ai.allyId].radarEnemy[id] = nil
 end
 
 
@@ -526,11 +536,11 @@ function LosHST:Draw()
 	end
 	local ch = 5
 	self.map:EraseAll(ch)
-	for id,def in pairs(self.losEnemy) do
+	for id,def in pairs(Shard.AllyData[self.ai.allyId].losEnemy) do
 		local u = self.game:GetUnitByID(id)
 		u:DrawHighlight({1,0,0,1} , nil, ch )
 	end
-	for id,def in pairs(self.radarEnemy) do
+	for id,def in pairs(Shard.AllyData[self.ai.allyId].radarEnemy) do
 		local u = self.game:GetUnitByID(id)
 		u:DrawHighlight({0,1,0,1} , nil, ch )
 	end
@@ -550,7 +560,7 @@ function LosHST:Draw()
 	end
 	map:DrawPoint(self.CENTER, {1,1,1,1}, 'BASE',  ch)
 	local cellElmosHalf = self.ai.maphst.gridSizeHalf
-	for X,cells in pairs (self.ENEMY) do
+	for X,cells in pairs (Shard.AllyData[self.ai.allyId].ENEMY) do
 		for Z,cell in pairs (cells) do
 			local p = cell.POS
 			--map:DrawCircle(p,cellElmosHalf, colours.balance, cell.ENEMY,false,  4)

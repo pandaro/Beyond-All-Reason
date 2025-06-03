@@ -159,7 +159,7 @@ function BomberHST:GetTarget(squad)
 	self:EchoDebug('squad ',squad.squadID,'get new target')
 	local bestCell = nil
 	local bestValue = 0
-	for X,cells in pairs(self.ai.loshst.ENEMY) do
+	for X,cells in pairs(Shard.AllyData[self.ai.allyId].ENEMY) do
 		for Z,cell in pairs(cells) do
 			if squad.layer == 'S' then
 				if cell.POS.y < 5 then

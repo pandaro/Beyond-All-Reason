@@ -51,7 +51,7 @@ function NukeBST:Update()
 			self:EchoDebug("got target")
 		end
 	elseif self.stock > 0 and self.gotTarget then
-		if not self.ai.loshst.ENEMY[self.currentTarget.X] or not self.ai.loshst.ENEMY[self.currentTarget.X][self.currentTarget.Z] then
+		if not Shard.AllyData[self.ai.allyId].ENEMY[self.currentTarget.X] or not Shard.AllyData[self.ai.allyId].ENEMY[self.currentTarget.X][self.currentTarget.Z] then
 			self.gotTarget = nil
 			self.currentTarget = nil
 			return
@@ -66,9 +66,9 @@ end
 function NukeBST:GetBestNukeCell()
 	local best
 	local bestValueThreat = 0
-	for X, cells in pairs(self.ai.loshst.ENEMY) do
+	for X, cells in pairs(Shard.AllyData[self.ai.allyId].ENEMY) do
 		for Z, cell in pairs(cells) do
-			local areaCell = self.ai.maphst:getCellsFields(cell.POS,{'ENEMY'},2,self.ai.loshst.ENEMY)
+			local areaCell = self.ai.maphst:getCellsFields(cell.POS,{'ENEMY'},2,Shard.AllyData[self.ai.allyId].ENEMY)
 			if areaCell and areaCell > bestValueThreat then
 				best = cell
 				bestValueThreat = areaCell
