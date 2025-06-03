@@ -82,11 +82,11 @@ end
 function LosHST:Update()
 	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then return end
 	if game:Frame() < Shard.AllyData[self.ai.allyId].lastEnemyUpdate + 30 then 
-		print('skip enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
+		self:EchoDebug('skip enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
 		return 
 
 	end
-	print('perform enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
+	self:EchoDebug('perform enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
 	Shard.AllyData[self.ai.allyId].lastEnemyUpdate = game:Frame()
 	self:FreeCellsToPool('ENEMY')
 	--self:FreeCellsToPool('OWN')
