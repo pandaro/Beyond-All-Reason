@@ -86,7 +86,7 @@ function LosHST:Update()
 		return 
 
 	end
-	print('perform enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
+	self:EchoDebug('perform enemy update team: ', self.ai.id,'ally: ', self.ai.allyId)
 	Shard.AllyData[self.ai.allyId].lastEnemyUpdate = game:Frame()
 	self:FreeCellsToPool('ENEMY')
 	--self:FreeCellsToPool('OWN')
