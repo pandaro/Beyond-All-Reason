@@ -13,6 +13,7 @@ function AIBase:internalName()
 end
 
 function AIBase:Init()
+	print('initAIBASE')
 end
 
 function AIBase:Update()

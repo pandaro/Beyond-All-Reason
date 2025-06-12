@@ -58,6 +58,7 @@ VFS.Include("luarules/gadgets/ai/shard_runtime/spring_lua/boot.lua")
 Shard = VFS.Include("luarules/gadgets/ai/shard_runtime/spring_lua/shard.lua")
 Shard.AIs = {}
 Shard.AIsByTeamID = {}
+Shard.supermodules = {}
 
 -- fake os object
 --os = shard_include("spring_lua/fakeos")
@@ -238,7 +239,7 @@ else	-- UNSYNCED CODE
 
 	function gadget:Initialize()
 		spEcho("Looking for AIs")
-
+		local supermodule = self:SetupAI(-1)
 		for i = 1, #teamList do
 			local id = teamList[i]
 			local _, _, _, isAI, side, allyId = spGetTeamInfo(id, false)
@@ -264,6 +265,16 @@ else	-- UNSYNCED CODE
 	end
 
 	function gadget:SetupAI(id)
+		if id < 0 then
+			--local supermodule = (VFS.Include("luarules/gadgets/ai/shard_runtime/supermodule.lua"))
+			VFS.Include("luarules/gadgets/ai/STAI/metamodules/modules.lua")
+			Spring.Echo(NullModule2.game)
+			
+			--table.insert(Shard.supermodules,NullModule2)
+			NullModule2:Init()
+
+			return
+		end
 		local aiInfo = spGetTeamLuaAI(id)
 		if type(aiInfo) == "string" then
 			spEcho("AI Player " .. id .. " is a " .. aiInfo)
@@ -334,7 +345,10 @@ else	-- UNSYNCED CODE
 --local RAM
 	function gadget:GameFrame(n)
 		-- for each AI...
-
+		for i,supermodule in pairs(Shard.supermodules) do
+			print('supermoduleupdateailoader')
+			supermodule:Update()
+		end
 		for i, thisAI in ipairs(Shard.AIs) do
 			-- update sets of unit ids : own, friendlies, enemies
 			--1 run AI game frame update handlers
@@ -360,8 +374,11 @@ else	-- UNSYNCED CODE
 
 	function gadget:UnitCreated(unitId, unitDefId, teamId, builderId)
 		-- for each AI...
-
+			
 		local unit = Shard:shardify_unit(unitId)
+--		
+		NullModule2:UnitCreated(unit, unitDefId, teamId, builderId)
+		
 		for _, thisAI in ipairs(Shard.AIs) do
 			if spGetUnitTeam(unitId) == thisAI.id then
 				thisAI.ownUnitIds[unitId] = true
