@@ -1,4 +1,4 @@
-shard_include ("metamodule/nullmodule2")
+shard_include ("nullmodule2.lua")
 
 print('ksjdcksjcbsdkcjhbdskc')
 

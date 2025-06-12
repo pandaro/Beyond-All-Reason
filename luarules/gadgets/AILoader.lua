@@ -267,12 +267,10 @@ else	-- UNSYNCED CODE
 	function gadget:SetupAI(id)
 		if id < 0 then
 			--local supermodule = (VFS.Include("luarules/gadgets/ai/shard_runtime/supermodule.lua"))
-			VFS.Include("luarules/gadgets/ai/STAI/metamodules/modules.lua")
-			Spring.Echo(NullModule2.game)
+			local n = VFS.Include("luarules/gadgets/ai/STAI/nullmodule2.lua")
+			n.api = VFS.Include("luarules/gadgets/ai/shard_runtime/api.lua")
+			n:Init()
 			
-			--table.insert(Shard.supermodules,NullModule2)
-			NullModule2:Init()
-
 			return
 		end
 		local aiInfo = spGetTeamLuaAI(id)
