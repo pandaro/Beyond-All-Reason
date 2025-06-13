@@ -246,7 +246,6 @@ end
 
 local spots = GetSpots()
 
-collectgarbage("collect")
 
 
 return spots

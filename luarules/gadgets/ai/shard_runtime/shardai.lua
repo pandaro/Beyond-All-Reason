@@ -36,7 +36,6 @@ function ShardAI:internalName()
 end
 
 function ShardAI:Init()
-	print('initshardai')
 	if self.loaded == true then
 		self:Warn( self:Name() .. " Init called multiple times" )
 		return

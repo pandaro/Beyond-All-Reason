@@ -248,7 +248,7 @@ else	-- UNSYNCED CODE
 					Shard.AIsByTeamID[id] = thisAI
 					Shard.AIs[#Shard.AIs + 1] = thisAI
 					thisAI.index = #Shard.AIs
-					self:AddMetaModules(thisAI.fullname)
+					self:AddMetaModules(thisAI)
 				end
 			end
 		end
@@ -267,26 +267,20 @@ else	-- UNSYNCED CODE
 		collectgarbage('collect')
 	end
 	local MetaModuleLoaded = {}
-	function gadget:AddMetaModules(AIName)
-		if VFS.FileExists("luarules/gadgets/ai/"..AIName.."/meta/modules.lua") then
-			
+	function gadget:AddMetaModules(thisAI)
+		local AIName = thisAI.fullname
+		if not MetaModuleLoaded[AIName] and VFS.FileExists("luarules/gadgets/ai/"..AIName.."/meta/modules.lua") then
 			spEcho("Loading Shard "..AIName.." meta modules")
-			if MetaModuleLoaded[AIName] then
-				MetaModuleLoaded[AIName] = true
-				
-				local MetaModules = VFS.Include("luarules/gadgets/ai/"..AIName.."/meta/modules.lua")
-				
-				for i,v in pairs(MetaModules) do
-					table.insert(Shard.MetaAIs,v)
-					print('ooo',i,v)
-					v.api = VFS.Include("luarules/gadgets/ai/shard_runtime/api.lua")
-					v.game = v.api.game
-					v.map = v.api.map
-				end
+			MetaModuleLoaded[AIName] = true
+			local MetaModules = VFS.Include("luarules/gadgets/ai/"..AIName.."/meta/modules.lua")
+			for i,v in pairs(MetaModules) do
+				table.insert(Shard.MetaAIs,v)
+				v.api = thisAI.api--VFS.Include("luarules/gadgets/ai/shard_runtime/api.lua")
+				v.game = v.api.game
+				v.map = v.api.map
+				spEcho("Shard",AIName, "add meta module",v:Name())
 			end
-			
-			
-		end
+			end
 	end
 
 	function gadget:SetupAI(id)

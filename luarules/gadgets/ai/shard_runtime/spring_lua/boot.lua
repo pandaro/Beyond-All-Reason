@@ -68,13 +68,9 @@ local runtime_includes = {
 	"spring_lua/unittype",
 	"spring_lua/damage",
 	"spring_lua/feature",
-	--"supermodule",
-	
-	
 }
 
 
-for key,include in ipairs(runtime_includes) do
-	local result = shard_include( include )
-	
+for _,include in ipairs(runtime_includes) do
+	shard_include( include )
 end
