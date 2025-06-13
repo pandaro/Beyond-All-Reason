@@ -57,8 +57,8 @@ VFS.Include("luarules/gadgets/ai/shard_runtime/spring_lua/boot.lua")
 -- Shard object
 Shard = VFS.Include("luarules/gadgets/ai/shard_runtime/spring_lua/shard.lua")
 Shard.AIs = {}
+Shard.MetaAIs = {}
 Shard.AIsByTeamID = {}
-Shard.supermodules = {}
 
 -- fake os object
 --os = shard_include("spring_lua/fakeos")
@@ -239,7 +239,6 @@ else	-- UNSYNCED CODE
 
 	function gadget:Initialize()
 		spEcho("Looking for AIs")
-		local supermodule = self:SetupAI(-1)
 		for i = 1, #teamList do
 			local id = teamList[i]
 			local _, _, _, isAI, side, allyId = spGetTeamInfo(id, false)
@@ -249,9 +248,13 @@ else	-- UNSYNCED CODE
 					Shard.AIsByTeamID[id] = thisAI
 					Shard.AIs[#Shard.AIs + 1] = thisAI
 					thisAI.index = #Shard.AIs
+					self:AddMetaModules(thisAI.fullname)
 				end
 			end
 		end
+		
+	
+
 		-- catch up to started game
 		if spGetGameFrame() > 1 then
 			self:GameStart()
@@ -263,16 +266,30 @@ else	-- UNSYNCED CODE
 		end
 		collectgarbage('collect')
 	end
+	local MetaModuleLoaded = {}
+	function gadget:AddMetaModules(AIName)
+		if VFS.FileExists("luarules/gadgets/ai/"..AIName.."/meta/modules.lua") then
+			
+			spEcho("Loading Shard "..AIName.." meta modules")
+			if MetaModuleLoaded[AIName] then
+				MetaModuleLoaded[AIName] = true
+				
+				local MetaModules = VFS.Include("luarules/gadgets/ai/"..AIName.."/meta/modules.lua")
+				
+				for i,v in pairs(MetaModules) do
+					table.insert(Shard.MetaAIs,v)
+					print('ooo',i,v)
+					v.api = VFS.Include("luarules/gadgets/ai/shard_runtime/api.lua")
+					v.game = v.api.game
+					v.map = v.api.map
+				end
+			end
+			
+			
+		end
+	end
 
 	function gadget:SetupAI(id)
-		if id < 0 then
-			--local supermodule = (VFS.Include("luarules/gadgets/ai/shard_runtime/supermodule.lua"))
-			local n = VFS.Include("luarules/gadgets/ai/STAI/nullmodule2.lua")
-			n.api = VFS.Include("luarules/gadgets/ai/shard_runtime/api.lua")
-			n:Init()
-			
-			return
-		end
 		local aiInfo = spGetTeamLuaAI(id)
 		if type(aiInfo) == "string" then
 			spEcho("AI Player " .. id .. " is a " .. aiInfo)
@@ -325,7 +342,10 @@ else	-- UNSYNCED CODE
 
 	function gadget:GameStart()
 		-- Initialise AIs
-
+		
+		for i,v in pairs(Shard.MetaAIs) do
+			v:Init()
+		end
 		for _, thisAI in ipairs(Shard.AIs) do
 			local _, _, _, isAI, side = spGetTeamInfo(thisAI.id, false)
 			thisAI.side = side
@@ -343,10 +363,7 @@ else	-- UNSYNCED CODE
 --local RAM
 	function gadget:GameFrame(n)
 		-- for each AI...
-		for i,supermodule in pairs(Shard.supermodules) do
-			print('supermoduleupdateailoader')
-			supermodule:Update()
-		end
+		
 		for i, thisAI in ipairs(Shard.AIs) do
 			-- update sets of unit ids : own, friendlies, enemies
 			--1 run AI game frame update handlers
@@ -374,8 +391,10 @@ else	-- UNSYNCED CODE
 		-- for each AI...
 			
 		local unit = Shard:shardify_unit(unitId)
---		
-		NullModule2:UnitCreated(unit, unitDefId, teamId, builderId)
+		for _,v in pairs(Shard.MetaAIs) do
+			v:UnitCreated(unit, unitDefId, teamId, builderId)
+		end
+		
 		
 		for _, thisAI in ipairs(Shard.AIs) do
 			if spGetUnitTeam(unitId) == thisAI.id then

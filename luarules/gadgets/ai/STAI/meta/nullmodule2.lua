@@ -1,6 +1,10 @@
 NullModule2 = class(Module)
 
+
+
+
 function NullModule2:Name()
+	
 	return "NullModule2" -- a nice developer friendly response
 end
 
@@ -10,7 +14,9 @@ end
 
 function NullModule2:Init()
 	self.space = {}
-	print('NullModule2 Init',self.game,self.space)
+	print(self.game:Frame())
+	
+	print('NullModule2 Init',self.api,self.space)
 	
 	-- we should setup some variables here
 end
@@ -21,5 +27,5 @@ function NullModule2:Update()
 end
 
 function NullModule2:UnitCreated(unit, unitDefID, teamId)
-	Spring.Echo('unitcreated',unit)
+	Spring.Echo('nullmodule2 unitcreated',unit)
 end
