@@ -530,7 +530,7 @@ else	-- UNSYNCED CODE
 	end
 
 -- 	function gadget:UnitMoved(a,b,c,d)
--- 		print('unit moved',a,b,c,d)
+-- 		spEcho('unit moved',a,b,c,d)
 -- 	end
 
  	--function gadget:UnitMoveFailed(a,b,c,d)
