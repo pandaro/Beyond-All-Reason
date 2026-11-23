@@ -15,17 +15,59 @@
 
 ## Compito attuale
 
-### T3b: due difetti vecchi del runtime
+### T4: codifica degli ordini e outbox
 
-**Impegno: basso.** Due correzioni piccole, già individuate in T3; nessuna decisione da prendere.
+**Impegno: alto.** È il formato che attraversa il confine fra unsynced e synced: un byte fuori posto fa dare ordini sbagliati o li fa scartare tutti, e il relay synced (T5) si fiderà di queste funzioni. In partita non si vede ancora niente, perché il loader arriva con T5: tutto va provato con i test.
 
-1. `shard_runtime/behaviour.lua`, riga 7: `function Module:internalName()` diventa `function Behaviour:internalName()`, stesso valore restituito. Oggi, quando il file viene incluso, cambia il default di tutti i moduli da `"error"` a `"unknown behaviour"`, e il controllo di `ShardAI:LoadModule` sui moduli senza `internalName()` non scatta mai.
-   - Test in `shardai_spec.lua` (o in una spec accanto, se più pulito): con `behaviour.lua` caricato, un modulo senza `internalName()` non si carica e produce il `Warn` «has no internal name»; e `Module.internalName` resta `"error"` dopo il caricamento di `behaviour.lua`. Verifica che il test fallisca sul codice di prima.
-2. `shard_runtime/shard_null/boot.lua`: carica anche `shardai`, `shardally` e `shardglobal`, nello stesso modo e nello stesso ordine dei file che carica già (dopo `module`), così il ramo `shard_null` ha le classi che `STAI/boot.lua` e `Shard/boot.lua` usano. Se per caricare `shardai.lua` in quel ramo serve altro (globali o file mancanti), non inventarlo: fermati e scrivilo nei risultati.
+**Prima di tutto** leggi:
+- in `.ai-notes/proposta-architettura.md` le sezioni sugli ordini, sul formato del messaggio e «Lettura dei byte»;
+- in `.ai-notes/drafts/AILoader.lua` il lato synced (righe 84–330 circa): costanti del formato v1, `RecvLuaMsg`, `AddOrder`, `GiveOrders`. È il decodificatore che il tuo codificatore deve soddisfare;
+- `git show 3ad8f3fb^:luarules/gadgets/AILoader.lua` (righe 150–250 circa) e `STAI/tool.lua` (`Tool:GiveOrder`, `SerializeOrder`): cosa significano i metodi `'1-1'`, `'2-1'`, `'1-2'`, `'2-2'` e come STAI passa `params` e `options`.
 
-Controlli: StyLua sui file toccati, `lx --lua-version 5.1 test`, partita headless come in T3.
+**Formato v1** (già deciso, non cambiarlo):
+- intestazione, 16 byte: magic `"AIFw"`, versione U8 (= 1), teamID U8, seq U32, frame di emissione U32, numero di ordini U16;
+- ogni ordine, 8 + 4n byte: unitID U16, cmdID S32, options U8, n U8, poi n parametri F32.
 
-Commit: uno per punto. Nei risultati: righe toccate, output dei test, eventuali problemi del punto 2.
+**Lavoro**
+
+1. `shard_runtime/ordercodec.lua`, nuovo: l'unica definizione del formato, usata da entrambi i lati (l'outbox ora, il relay in T5), così codifica e decodifica non possono divergere.
+   - Costanti: magic, versione, dimensione dell'intestazione e della parte fissa di un ordine.
+   - Scrittura: intestazione e ordine con `VFS.Pack*`.
+   - Lettura: intestazione e un ordine alla volta con `VFS.Unpack*`, restituendo i campi e la posizione successiva, senza creare tabelle (i parametri restano da leggere a chi chiama, come nella bozza). Rispetta il vincolo già scoperto: `VFS.Unpack*` non restituisce nulla se la posizione è uguale a `#msg`, quindi le coppie di U8 si leggono come un U16, come fa la bozza.
+   - Il file non usa nulla di unsynced (niente timer, niente `Spring.GetMyPlayerID`…): in T5 lo includerà anche il synced, che deve restare deterministico.
+2. `shard_runtime/spring_lua/outbox.lua`, nuovo: `ShardOutbox(teamID)`, una coda per AI.
+   - `Queue(unitID, cmdID, params, options)`: aggiunge un ordine. `params` può essere `nil`, un numero o una tabella (al massimo 255 valori, altrimenti `Warn` e ordine scartato). `options` può essere un numero o una tabella di nomi (`"shift"`, `"alt"`, `"ctrl"`, `"meta"`, `"right"`), da convertire nella maschera di bit di `CMD.OPT_*`; il risultato deve stare in un U8.
+   - `Flush(frame, send)`: se la coda non è vuota, costruisce **un** messaggio con al massimo 25 ordini (costante in cima al file, è una soglia della fase 0), seq crescente da 1, frame di emissione `frame`, e lo passa a `send(msg)`. Gli ordini in più restano in coda, nello stesso ordine, per i frame seguenti.
+   - Gli ordini nati da una stessa chiamata (un array di comandi per un'unità) non si spezzano fra due messaggi: se non ci stanno, aspettano il frame dopo. Una sola chiamata con più di 25 ordini parte da sola in un messaggio suo; scrivilo nei risultati se lo trovi usato da STAI.
+   - Nessuna tabella creata a ogni frame: la coda riusa le sue strutture, e i pezzi del messaggio si uniscono con un buffer riusato e `table.concat`.
+   - `Reset()`: svuota la coda e riparte da seq 1 (servirà in T5 quando cambia l'host).
+3. `spring_lua/game.lua`: `game:GiveOrder(id, cmd, params, options, method)` con i codici di STAI, che mette gli ordini nell'outbox dell'AI (`self.ai.outbox`):
+   - `'1-1'`: un comando a un'unità;
+   - `'2-1'`: un array di comandi a un'unità, ordini consecutivi della stessa unità;
+   - `'1-2'`: un comando a un array di unità, un ordine per unità;
+   - `'2-2'`: un array di comandi a un array di unità.
+   Segui esattamente la forma degli argomenti che usava il vecchio loader per ciascun metodo. Se `self.ai.outbox` non esiste (nessun loader, `shard_null`), un solo `Warn` e niente. Togli il vecchio `game:GiveOrder(message)` a stringhe e `game:SendLuaRulesMessage`, se non li usa più nessuno.
+4. `spring_lua/unit.lua`: `ShardUnit:SyncOrder(id, cmd, params, opts)` smette di dare solo l'avviso e passa da `game:GiveOrder(id, cmd, params, opts, "1-1")`, così `Move`, `Build`, `Attack` e gli altri metodi d'ordine funzionano di nuovo. Usa il `game` globale, come già fa `ShardUnit:Build` con `game:GetTypeByName`; se trovi un modo più diretto e sicuro per arrivare all'AI dell'unità, proponilo nei risultati senza applicarlo.
+5. `STAI/tool.lua`: `Tool:GiveOrder` chiama direttamente `game:GiveOrder(id, cmd, parameters, options, method)`, senza `SerializeOrder`. Non togliere `SerializeOrder` e `DeserializeOrder`: si puliranno nel porting di STAI.
+
+**Test**
+
+- Busted, in `spec/luarules/gadgets/ai/shard_runtime/` (stessa impostazione delle spec di T2 e T3), con un `VFS.Pack*`/`Unpack*` finto **fedele ai byte** (little-endian, F32 vero via `math.frexp`), compreso il caso in cui `Unpack` a posizione `#msg` non restituisce nulla:
+  - andata e ritorno: ogni ordine codificato si rilegge uguale (unitID, cmdID, options, parametri, anche negativi e con decimali entro la precisione di F32);
+  - un ordine senza parametri (STOP) in ultima posizione nel messaggio;
+  - i quattro metodi producono gli ordini attesi, nell'ordine atteso;
+  - `options` come numero e come tabella di nomi;
+  - tetto di 25: con 60 ordini escono tre messaggi in tre `Flush`, con seq 1, 2, 3, nessun ordine perso o duplicato, ordine conservato;
+  - un array di comandi di un'unità non viene spezzato fra due messaggi;
+  - `Reset()` riparte da seq 1;
+  - nessun messaggio se la coda è vuota.
+- Test d'integrazione headless in `luaui/Tests/shard/` con il `VFS` vero: andata e ritorno di un messaggio con alcuni ordini, per confermare che il finto e il vero leggono gli stessi byte. Usa il formato del test runner (`return { test = test }`).
+
+**Controlli**: StyLua sui file toccati, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, partita headless (deve passare anche il nuovo test).
+
+**Commit**: uno per `ordercodec` + outbox + spec, uno per `game.lua` + `unit.lua` + `tool.lua`, uno per il test headless.
+
+**Nei risultati**: righe per file, output dei test, come hai trattato i quattro metodi (con un esempio di argomenti per ciascuno, preso da STAI), byte order verificato col test headless, dubbi.
 
 ## Risultati
 
@@ -192,7 +234,7 @@ Un metodo `AIBase:ConsoleOwner()`: guarda l'ambito di `self.ai or self` (il cont
 - `warnedScopes` è per classe: con l'ambiente per tipo (T2) la classe è una sola per tutte le AI del tipo. Senza ambiente (include rieseguito) ogni contenitore ha classi nuove e l'avviso uscirebbe una volta per contenitore.
 - Un modulo condiviso è cercato in `self.ally`/`self.global` solo se quel contenitore ha già fatto `Init`: l'ordine globale → ally → team della bozza del loader è quindi necessario, non solo comodo.
 
-### T3b (agente locale, 23 novembre 2026)
+### T3b (agente locale, 23 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
