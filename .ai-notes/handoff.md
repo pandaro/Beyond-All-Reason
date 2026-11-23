@@ -362,3 +362,89 @@ L'ultima è una mutazione equivalente: per un'unità che non esiste `GetUnitTeam
 - Il commento del lato unsynced rimanda a «T5b», come chiesto; `.github/agents.md` vieta nei commenti i riferimenti ai compiti, quindi va riscritto entro T5b, comunque prima di una PR.
 - Dalla bozza, non cambiato: un messaggio rifiutato per numero di ordini consuma lo stesso il posto nel limite per frame di emissione (il contatore sale prima del controllo `count`); e il contatore riparte a ogni cambio di frame di emissione, quindi frame che si alternano (999, 1000, 999…) non incontrano mai il limite. Solo l'host può farlo, e la seq deve comunque crescere; da decidere se basta.
 - Il lato synced non verifica che il messaggio arrivi con un frame di emissione non più vecchio di quello del messaggio precedente: un host potrebbe mandare frame decrescenti entro la finestra di 900. Anche questo dalla bozza.
+
+### T5b (agente locale, 23 novembre 2026)
+
+**Commit**
+
+1. `ab1c26f58b` «Shard relay: emission frames never go back, size check before the frame limit»: `ShardAILoader.lua` +10 −4, `shard_ai_loader_spec.lua` +22 (due casi).
+2. `cd1c46fdd9` «Shard: ShardAILoader unsynced side, the AIs run again on their host»: `ShardAILoader.lua` +689 −1, `spring_lua/unit.lua` +7 −1, `spec/luarules/gadgets/shard_ai_loader_unsynced_spec.lua` (nuovo, 492), tipo di AI finto in `spec/fixtures/shard_ai/` (`boot.lua` 5, `ai.lua` 9, `modules.lua` 3, `specmodules.lua` 45, `behaviourfactory.lua` 1).
+3. `3ef3a56aeb` «STAI and Shard back in luaai.lua; STAI squads order with '2-2'»: `luaai.lua` +8 (STAI e Shard fra ScavengersAI e RaptorsAI, come a `3ad8f3fb^`, stessi testi), `STAI/attackhst.lua` +4 −4.
+
+**Punto 1, relay**: dopo il controllo della finestra, `frame < lastFrame[teamID]` → `Reject("frame")`; poi `count`; poi il contatore per frame. Casi nuovi: frame che scende (999 dopo 1000) rifiutato e il 1000 successivo accettato; un messaggio da 4001 ordini fra due messaggi validi con lo stesso frame non consuma il posto (il terzo passa). Mutazioni: senza il controllo del frame che scende fallisce 1 caso; con `count` di nuovo dopo il contatore, 1 caso in errore.
+
+**Punto 2, lato unsynced** (cosa fa, nell'ordine del file)
+
+- `LoadRuntime` come la bozza senza `ShardScheduler` e senza `Shard.perceptions`; il runtime si carica solo in `AddAI`, cioè solo se il giocatore locale è `aiHostPlayer` di un team AI (`Initialize`) o lo diventa (`shard_host`).
+- `gadget:HashGameID(gameID)`: `hash = (hash * 31 + byte) % 65521` (primo più grande sotto 2^16; il passaggio massimo è 65520 · 31 + 255 = 2.031.375 < 2^24); `TeamSeed`: `(hash * 31 + teamID + 1) % 65521`. È un metodo del gadget per poterlo provare nella spec.
+- `Call(target, name, …)`: `target:Prepare()` e `target[name](…)` dentro `xpcall` con `debug.traceback`; gli argomenti passano per upvalue salvati e ripristinati (rientrante, nessuna closure per chiamata). `ReportError` scrive `[AI Loader] error in <AI> team|ally team|global <id>, <call-in>: <traceback>` una volta per coppia oggetto + call-in ogni 900 frame (tabella a chiavi deboli). L'avvio usa `Call(target, "Prepare")`, quindi anche un errore in `Init` è contenuto e scritto come `Prepare`.
+- `LoadAIType`, `GetAlly`, `SetupAI`, `AddAI`, `StartObject`, `StartAIs`, `Ready`, `CatchUp`, `RelayRejected`, `Initialize`, `GameStart`, `FeatureDestroyed`, `GameID`, `Shutdown` come la bozza, tolte percezione e registro.
+- `HostChanged`: se il giocatore locale diventa host, `AddAI` e `CatchUp(StartAIs())` (solo gli oggetti nuovi sentono le unità esistenti); se smette di esserlo, `StopAI`: `outbox:Reset()`, l'AI esce da `Shard.AIsByTeamID`, `Shard.AIs` (indici rinumerati), `ally.AIs`, `global.AIs`, e `hosting` torna `false` se non resta nessuna AI.
+- `GameOver` → `GameEnd()` con `Call` su team, ally, global (ordine della bozza).
+- `UnitDestroyed` → dopo `UnitDead`, `Shard:unshardify_unit(unitId)`.
+
+**Punto 3**: `ShardUnit:SyncOrder` usa `Shard.AIsByTeamID[Spring.GetUnitTeam(id)]` e passa per `owner.game:GiveOrder(…, "1-1")`; se l'unità non è di un'AI ospitata qui: `Spring.Echo("Shard Warning: unit <id> is not of an AI hosted here, order dropped")` e `false`. `ShardUnit` non ha un metodo `Warn` (il vecchio `self:Warn` di `SyncOrder` sarebbe andato in errore), quindi `Spring.Echo`.
+
+**Punto 4**: le quattro righe ora usano `"2-2"`. Le righe 612 e 631 stanno dentro un `--[[ … ]]` (righe 588–634, una seconda `AttackHST:SquadAttack` commentata): cambiate lo stesso, come chiesto, ma non girano.
+
+**Parti provvisorie, esattamente dove sono** (tutte in `ShardAILoader.lua`, lato unsynced)
+
+| Parte | Dove | Come funziona oggi |
+| --- | --- | --- |
+| Update | `gadget:GameFrame` → `UpdateObject` | a ogni frame `Call(obj, "Update")` su global, poi ally, poi team; poi `outbox:Flush(n, Spring.SendLuaRulesMsg)` di ogni AI di team |
+| Consegna eventi | `Deliver`, `DeliverToShared`, `DeliverToAIs`, `DeliverToAll`, `DeliverSight` e i call-in `Unit*` | vedi tabella sotto; il blocco ha il commento «Provisional, as the old loader did» |
+| Tabelle di unità | `AddToUnitTables`, `RemoveFromUnitTables`, i cinque campi creati in `SetupAI` | onniscienti; lette da `game:GetUnits()`, `GetFriendlies()`, `GetEnemies()` in `spring_lua/game.lua` |
+| Errori | `ReportError`, `Call` | per oggetto + call-in, nessuna quarantena per modulo |
+| Oggetti senza moduli | `HasModules` | un `ShardAlly`/`ShardGlobal` senza moduli del suo ambito non riceve né `Update` né eventi |
+
+| Call-in | Chi lo riceve | Tabelle |
+| --- | --- | --- |
+| `UnitCreated` | global e ally tutti; fra le AI di team **solo la proprietaria** | aggiunge |
+| `UnitFinished` → `UnitBuilt` | tutti | — |
+| `UnitDestroyed` → `UnitDead` | tutti, poi `unshardify_unit` | toglie |
+| `UnitDamaged` | tutti (`unit`, `attacker`, oggetto danno) | — |
+| `UnitIdle` | tutti | — |
+| `UnitTaken` → `UnitDead` | tutti | toglie |
+| `UnitGiven` → `UnitCreated` | tutti | aggiunge col nuovo team |
+| `UnitEntered/LeftLos/Radar` | gli ally di quell'`allyTeam` e tutte le AI di team | — |
+
+**Scostamenti dal compito, dalla bozza e dal vecchio loader**
+
+1. **`UnitCreated` solo all'AI proprietaria** (il compito dice «a tutti gli oggetti»): il vecchio loader lo dava solo alla proprietaria, e i moduli di STAI lo trattano come un'unità propria: `BuildingsHST:UnitCreated` blocca il terreno di ogni struttura non pianificata di cui sente parlare (`DontBuildRectangle`). Darlo a tutte le AI cambierebbe il comportamento di STAI in T5c. Global e ally lo ricevono tutti (oggi STAI non ha moduli lì). `UnitGiven` invece va a tutti, come nel vecchio loader.
+2. **Oggetti senza moduli saltati** (`HasModules`): con STAI tutti i moduli sono `"team"`, quindi `ShardGlobal` e `ShardAlly` hanno `modules` vuoto, e `ShardAI:UnitCreated` scriverebbe «No modules found in AI» a ogni unità (dubbio di T3).
+3. **`Wants`, `AllyTeamWants`, `Sees`, `DeliverToObservers` tolte**, non lasciate inutilizzate: la consegna mirata le riscriverà comunque sopra gli handler per modulo, e codice morto in un gadget non passa le regole di BAR (`CONTRIBUTING.md`: no dead code). Restano nella bozza.
+4. **Gaia**: il vecchio loader confrontava l'ally team dell'unità con l'ID del **team** Gaia (`unitAllyTeam == spGetGaiaTeamID`), vero solo quando i due numeri coincidono; ora `teamID == gaiaTeamID`. In una 1v1 i numeri coincidono (stesso risultato di prima); in una 2v2 le unità Gaia (le critter di BAR) prima erano nemiche, ora neutrali.
+5. **Tabelle in `UnitTaken`/`UnitGiven`**: il vecchio loader non le aggiornava (le aggiornava solo `UnitCreated`/`UnitDestroyed`); il compito lo chiede: `UnitTaken` toglie l'unità, `UnitGiven` la classifica col nuovo team.
+6. **`Shard:RegisterUnit`/`UnregisterUnit` della bozza tolti**: `spring_lua/shard.lua` non li ha; con le tabelle provvisorie non servono.
+7. **LOS e radar**: niente `shardify_unit` (il vecchio loader creava l'oggetto e poi passava solo gli ID).
+8. **`StopAI`** non esiste nella bozza: la bozza ignorava la perdita dell'host. Gli oggetti ally e global restano anche se restano senza AI.
+
+**Test** (`shard_ai_loader_unsynced_spec.lua`, 14 casi): il runtime vero (`boot.lua`, classi, `game.lua`, `outbox.lua`, codec) sopra un engine finto; l'AI finta `SpecAI` ha un modulo per ambito che scrive ogni chiamata in `SpecLog`, con ganci `SpecHooks` per dare ordini o andare in errore.
+
+- client non host: `Shard` resta `nil`, nessun log, nessun messaggio; client host solo dei team 0 e 1: niente oggetti per il team 2 né per l'ally team 1;
+- avvio: 1 global, 1 ally per ally team, 3 team; `Init` nell'ordine global, ally, ally, team ×3; moduli condivisi raggiungibili dai team; `startPos`;
+- `UnitFinished` arriva una volta a ognuno dei 6 oggetti; `UnitCreated` a global, ai due ally e alla sola proprietaria; `UnitEnteredLos` all'ally che vede, non all'altro, e alle 3 AI;
+- tabelle dopo `UnitCreated` (propria, alleata, nemica, Gaia neutrale), `UnitTaken` + `UnitGiven`, `UnitDestroyed`; `unitsByID` senza l'unità morta;
+- un ordine in `Update` esce in `SendLuaRulesMsg` nello stesso `GameFrame` con team, frame e unità giusti; `ShardUnit:Move` su un'unità del team 2 finisce nel messaggio del team 2 anche col `game` globale del team 0; un'unità di un umano: avviso e nessun ordine;
+- errore in `Update` del team 1: scritto una volta in due frame, gli altri oggetti girano, il team 1 viene richiamato; 900 frame dopo è scritto di nuovo;
+- cambio di host verso questo client (solo i nuovi `ShardAlly` e team sentono le unità esistenti) e via da questo client (AI fuori dalle liste, outbox vuota, niente più `Update` né eventi);
+- `GameOver` → `GameEnd` una volta a ogni oggetto;
+- seme: stesso `GameID` → stesso valore, ogni passaggio di un riferimento calcolato nel test sotto 2^24, semi diversi per team.
+
+Suite completa: `2611 successes / 0 failures / 0 errors / 1 pending` (T5a: 2595).
+
+**Mutazioni del lato unsynced** (una alla volta, spec unsynced): senza `xpcall` (1 errore); errore scritto a ogni frame; senza filtro del catch-up; `UnitCreated` a tutte le AI; vista a tutti gli ally; senza `Reset()` dell'outbox; AI fermata lasciata in `Shard.AIs`; senza `unshardify_unit`; team avviati prima dei condivisi; modulo del seme `2147483647`; `UnitTaken` senza togliere dalle tabelle; Gaia come nemico; senza `Flush` (2 casi); senza il controllo dell'host in `Initialize` (3 casi); `GameOver` senza i team; `SyncOrder` con il `game` globale. **Tutte e 16 fanno fallire almeno un caso.**
+
+**Controlli**
+
+- StyLua pulito sui file toccati.
+- EmmyLua: 0 warning e 0 errori in `ShardAILoader.lua`, nella spec e nelle fixture; `unit.lua` invariato (2 warning). Totale del repository 22 errori, come prima. Annotazioni aggiunte: cast su `gameHash`, `unitDefID`, `teamID`; `---@type any` sulle variabili della chiamata in corso; `disable-next-line` su `ShardGlobal()`, `ShardAlly()`, `ShardOutbox()` (le classi di `class()` non sono chiamabili per l'analizzatore), su `self:UnitCreated`/`UnitFinished` in `CatchUp`, sul controllo di `traceback` e sulle due globali dell'ambiente del gadget (`ShardSpringLua`, `Shard`).
+- Strumento: `RESULT: ok` (`test_ordercodec.lua` ok nei due lati, controllo negativo visto); `[AI Loader] ShardLua bot Deactivated!` in synced e unsynced (nessuna AI Shard nella partita); righe d'errore identiche a T4. Il lato unsynced con un'AI vera non è ancora girato nell'engine: è T5c.
+
+**Dubbi**
+
+- `ShardAI:Init` mette `loaded = true` prima di caricare i moduli: se `Init` va in errore a metà, l'oggetto resta caricato con una parte dei moduli e non riprova. L'errore è scritto (come `Prepare`).
+- Un `ShardGlobal` che esisteva già non risente le unità del nuovo ally team quando un team arriva per cambio di host (nota della bozza, invariata).
+- Gli eventi di vista vanno a tutte le AI di team per ogni ally team, come nel vecchio loader: con molte AI e molte unità è il costo maggiore; la consegna mirata lo toglierà.
+- `debug.traceback` nel LuaRules unsynced: usato se c'è, altrimenti il solo messaggio. Da confermare in T5c leggendo una riga d'errore vera.
+- Il seme ha solo 65.521 valori possibili: basta per la casualità di un'AI; se serve di più, due hash con moduli diversi.
