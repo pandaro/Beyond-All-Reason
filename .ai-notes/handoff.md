@@ -511,3 +511,70 @@ Relay: `3886 messages, 23906 orders given, 14 orders rejected`. Nessun errore.
    - righe `<team>, STAI, Info: , adding … module` (tutti i moduli caricati);
    - **nessuna** riga `[AI Loader] error in …`;
    - alla fine `Shard relay:, <messaggi>, messages,, <ordini>, orders given,, <rifiutati>, orders rejected` con messaggi e ordini > 0 e rifiutati pochi.
+
+### T6 (agente locale, 24 novembre 2026)
+
+**Commit**
+
+1. `5faa0dad2a` «Shard loader: an AI that fails to load or initialise is dropped, LuaRules goes on»: `ShardAILoader.lua` +107 −18, spec unsynced +99 −7, `spec/fixtures/shard_ai_broken/boot.lua` (nuovo, 6), `luaui/Tests/shard/test_contained_load_error.lua` (nuovo, 20).
+2. `19311ddb75` «Shard loader: a dead unit's ShardUnit stays 900 frames before it leaves the cache»: `ShardAILoader.lua` +53 −3, spec unsynced +73 −4, `spec/fixtures/shard_ai/specmodules.lua` +4 −1 (`SpecQuiet`).
+3. `45ec9599a3` «Shard loader: ShardMemStats writes the Lua memory allocated per frame once a minute»: `ShardAILoader.lua` +35, spec unsynced +93.
+4. `45d5cf2bb1` (strumento): `SHARD_MEM_STATS=1` in `run_engine_game.sh` scrive `ShardMemStats = 1` nel `springsettings.cfg` della cartella dati temporanea (mai in `~/.spring`).
+5. `5893143262`: annotazioni per EmmyLua (`newAllies`, contatori della memoria).
+
+**Punto 1 — caricamento protetto**
+
+- `AddAI` esegue `LoadRuntime` e `SetupAI` (quindi `LoadAIType`, `boot.lua` e i file inclusi, `NewAPI`, `GetAlly`, `ShardOutbox`…) dentro `xpcall` con traceback. Se fallisce: `[AI Loader] error loading <AI> for team <id>: <traceback>`, l'AI non entra in `Shard.AIs`/`AIsByTeamID`, e i `ShardAlly` creati durante quel tentativo e rimasti senza AI vengono tolti (`newAllies`, `RemoveNewAllies`). `Shard.types[nome]` e `Shard.globals` si riempiono solo alla fine di `LoadAIType`, quindi un tipo fallito non lascia oggetti.
+- Un tipo fallito è ricordato in `failedTypes`: gli altri team di quel tipo scrivono la loro riga con lo stesso errore, senza rieseguire `boot.lua`. Lo stesso per il runtime (`runtimeFailure`). Vale in `Initialize` e nel cambio di host (`HostChanged` → `AddAI`).
+- Anche `Init` (primo `Prepare()` in `StartAIs`) fa cadere l'AI: `Call` ora restituisce l'esito; un oggetto il cui `Init` fallisce va in una lista e, alla fine della sua fase (global, ally, team), `DropFailed` lo toglie: un team con `StopAI(id, "failed to initialise")`; un ally o un global con tutte le sue AI (`"lost its ally object, which failed to initialise"`), poi l'ally esce da `alliesByAllyID`, il global da `Shard.globals` e il suo tipo va in `failedTypes`. Motivo: con `Init` interrotto a metà, l'AI sbaglia a ogni chiamata (è quello che si è visto con `LabsHST` in T5c). `StopAI` prende il motivo come argomento.
+- Test busted (5 casi nuovi): tipo `BrokenAI` (il cui `boot.lua` va in errore) per due team → nessuna loro AI, nessun ally per l'ally team 1, una riga per team, `boot.lua` eseguito una volta, la terza AI gira; modulo di team in errore in `Init` → solo quel team cade, gli altri fanno `Update`; modulo d'ally in errore in `Init` → cade l'ally e la sua AI; `SetupAI` che fallisce dopo `GetAlly` (con `AreTeamsAllied` finto in errore) → l'ally nuovo viene tolto; cambio di host verso un team `BrokenAI` → riga d'errore e nessuna AI. Contro il loader di prima: 2 fallimenti e 2 errori.
+- Mutazioni: senza `xpcall` in `AddAI` 2 errori; senza memoria dei tipi falliti 1 fallimento; senza rimozione degli ally vuoti 1 fallimento; `Init` fallito tenuto 2 fallimenti; oggetto condiviso fallito che tiene le AI 1 fallimento.
+- Strumento: `test_contained_load_error.lua` include `spec/fixtures/shard_ai_broken/boot.lua` dentro `xpcall` con `debug.traceback`, controlla che l'errore arrivi con `broken boot` e che dopo il LuaRules includa ancora file: `ok` in synced e unsynced. Limite: non passa dal loader (la partita di test non ha team AI); il percorso del loader è coperto dalle spec.
+
+**Punto 2 — unità morte**
+
+- `UnitDestroyed`: dopo `UnitDead` il `ShardUnit` resta in `Shard.unitsByID`, segnato `destroyed = true`, e va in un anello di tre array paralleli (ID, oggetto, frame di scadenza = frame + 900). L'anello raddoppia solo quando è pieno (prima volta 64 posti); `ExpireDeadUnits(n)` in `GameFrame` toglie dalla testa le voci scadute, e solo se in cache c'è ancora lo stesso oggetto.
+- `UnitCreated` di un ID il cui oggetto in cache è `destroyed` lo sostituisce con uno nuovo; la scadenza vecchia trova un oggetto diverso e non tocca il nuovo.
+- Test busted (3 casi nuovi): `GetUnitByID(id):Name()` nello stesso frame della morte e 899 frame dopo → nome giusto, dopo 901 frame l'ID non è più in cache (sul loader di prima: errore, l'errore della partita dell'utente riprodotto); ID riusato prima della scadenza → oggetto nuovo col suo nome, ancora in cache dopo la scadenza vecchia; 300 unità morte in coda, 1450 `GameFrame` con le scadenze in mezzo, GC ferma: `collectgarbage("count")` identico prima e dopo (nessuna allocazione; per misurarlo i moduli finti tacciono con `SpecQuiet`). Il caso esistente sulle tabelle di unità ora si aspetta l'unità morta ancora in `unitsByID`. Mutazioni: sostituzione dell'ID riusato tolta, scadenza che toglie anche l'oggetto nuovo, anello ricostruito a ogni frame → 1 fallimento ciascuna.
+- `shardify_unit` di un ID che non esiste e non è in cache (invariato): crea un `ShardUnit` con `UnitDefID` nil e `type.def` nil, lo mette in cache **per sempre** (nessun `UnitDestroyed` lo toglierà) e ogni metodo che legge la definizione va in errore (`Name`, `CanMove`…). Proposta: in `shardify_unit`, se l'ID non è in cache e `Spring.ValidUnitID(id)` è falso, restituire `nil` senza mettere niente in cache; il chiamante di STAI che fa `game:GetUnitByID(id):Name()` andrebbe comunque in errore (indice di `nil`), ma senza oggetti fantasma. Da decidere insieme alla correzione di STAI.
+
+**Punto 3 — memoria per frame**
+
+- Commento in testa al lato unsynced con l'opzione. `memoryStats` si legge da `Spring.GetConfigInt("ShardMemStats", 0)` al caricamento e di nuovo ogni 1800 frame (così `/set ShardMemStats 1` vale dal minuto dopo). Spenta: un solo `local memoryBefore = memoryStats and …` per frame. Accesa: `collectgarbage("count")` dopo `Ready()` e alla fine di `GameFrame`; somma, massimo e frame in tre numeri; ogni 1800 frame (non al frame 0) la riga `[AI Loader] memory per frame: avg … KB max … KB over N frames, heap … MB` e i contatori ripartono. Nessuna tabella.
+- `Shard memory record:` di `Shutdown` resta, con un commento: è l'unico dato di memoria (picco di `gcinfo()` ogni 300 frame) quando l'opzione è spenta.
+- Test busted (3 casi): media, massimo, numero di frame e heap esatti su due minuti, con un heap finto e un modulo che alloca 6 o 2 KB a frame alterni e poi 10; spenta → nessuna riga e nessuna chiamata a `collectgarbage("count")`; accesa a metà del primo minuto → una sola riga, nel secondo. Mutazioni: misura sempre accesa (2 fallimenti), contatori non azzerati, configurazione mai riletta, massimo non tenuto (1 ciascuna); senza il salto del frame 0, 1 fallimento.
+
+**Partita A di T5c, 15 minuti, `SHARD_MEM_STATS=1`** (Comet Catcher Remake 1.8, seme 54414): nessuna riga `[AI Loader] error`; relay `2964 messages, 7725 orders given, 3 orders rejected`; STAI 146 unità, 2 fabbriche, 26 mex; SimpleAI 56 unità. Tutte le righe della memoria:
+
+```
+[AI Loader] memory per frame: avg 0.18 KB max 25.82 KB over 1801 frames, heap 13.1 MB
+[AI Loader] memory per frame: avg 0.19 KB max 11.69 KB over 1800 frames, heap 13.1 MB
+[AI Loader] memory per frame: avg 0.27 KB max 29.73 KB over 1800 frames, heap 13.2 MB
+[AI Loader] memory per frame: avg 0.25 KB max 17.17 KB over 1800 frames, heap 13.6 MB
+[AI Loader] memory per frame: avg 0.26 KB max 15.07 KB over 1800 frames, heap 13.4 MB
+[AI Loader] memory per frame: avg 0.29 KB max 14.33 KB over 1800 frames, heap 13.5 MB
+[AI Loader] memory per frame: avg 0.30 KB max 15.96 KB over 1800 frames, heap 13.8 MB
+[AI Loader] memory per frame: avg 0.35 KB max 16.79 KB over 1800 frames, heap 13.8 MB
+[AI Loader] memory per frame: avg 0.35 KB max 22.86 KB over 1800 frames, heap 13.9 MB
+[AI Loader] memory per frame: avg 0.38 KB max 29.79 KB over 1800 frames, heap 13.9 MB
+[AI Loader] memory per frame: avg 0.46 KB max 56.52 KB over 1800 frames, heap 14.3 MB
+[AI Loader] memory per frame: avg 0.46 KB max 32.70 KB over 1800 frames, heap 14.0 MB
+[AI Loader] memory per frame: avg 0.56 KB max 42.14 KB over 1800 frames, heap 14.1 MB
+[AI Loader] memory per frame: avg 0.73 KB max 49.75 KB over 1800 frames, heap 14.6 MB
+[AI Loader] memory per frame: avg 0.82 KB max 45.50 KB over 1800 frames, heap 14.3 MB
+Shard memory record:, 15004
+```
+
+**Controlli**: StyLua pulito; EmmyLua 0 warning nei file toccati (22 errori nel repository, come prima); `lx --lua-version 5.1 test`: `2625 successes / 0 failures / 0 errors / 1 pending` (T5c: 2614); `run_engine_tests.sh`: `RESULT: ok`, 3 test per lato.
+
+**Errori di STAI annotati, non corretti**
+
+- `STAI/buildersbst.lua:122` e `STAI/bomberhst.lua:192`: `game:GetUnitByID(id):Name()` su ID di unità che possono essere morte (con il tempo di grazia ora funziona per 30 s; oltre, o per ID mai esistiti, resta l'errore).
+- `STAI/buildersbst.lua:122`: gli argomenti di `EchoDebug` (anche `:Name()`) si calcolano a ogni chiamata, anche col debug spento: lavoro e allocazioni inutili.
+- `STAI/loshst.lua` (celle) tiene ID di unità senza toglierli alla morte.
+
+**Dubbi**
+
+- La media per frame (0,2–0,8 KB) è probabilmente sottostimata: `collectgarbage("count")` misura tutto lo stato LuaRules unsynced e i passi della GC incrementale dentro il frame la abbassano (il limite è scritto nel commento). Per una misura netta servirebbe fermare la GC durante il frame, che però cambierebbe il comportamento: non l'ho fatto.
+- La media cresce nel corso della partita (0,18 → 0,82 KB) insieme al numero di unità: atteso con STAI, che alloca per unità.
+- `DropFailed` di un global segna il tipo come fallito per tutta la partita: un cambio di host verso un team di quel tipo non riprova.
