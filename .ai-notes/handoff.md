@@ -17,33 +17,38 @@
 
 ## Compito attuale
 
-### T5c: STAI in partita, con l'engine vero
+### T6: errori di caricamento contenuti, unità morte, misura della memoria per frame
 
-**Impegno: alto.** È la prima volta che tutto gira insieme nell'engine: caricamento, ambiti, eventi, outbox, relay. Non è un compito di scrittura ma di prova e di diagnosi: bisogna leggere log veri, capire le cause e distinguere i nostri difetti da quelli vecchi di STAI. Correggi solo ciò che il nostro lavoro ha rotto o che impedisce la partita; il resto va annotato, non sistemato.
+**Impegno: medio.** Tre correzioni circoscritte, con le cause già individuate; serve cura nei test (uno riproduce un errore visto in partita) e nel non allocare a ogni frame.
+
+**Contesto**: nella partita dell'utente (STAI contro SimpleAI, circa 30 minuti di gioco a velocità 10, vinta da STAI; relay 8626 messaggi, 47217 ordini, 1 rifiutato) sono uscite due righe:
+- `[AI Loader] error in STAI team 1, Update: unittype.lua:12: attempt to index field 'def' (a nil value)`, da `STAI/buildersbst.lua:122` (argomenti di un `EchoDebug`, calcolati anche con il debug spento) via `game:GetUnitByID(self.assistant):Name()`;
+- lo stesso errore da `STAI/bomberhst.lua:192` (`game:GetUnitByID(id):Name()` sulle unità delle celle di `LosHST`).
+Causa: da T5b `UnitDestroyed` chiama `Shard:unshardify_unit`; STAI tiene ancora ID di unità morte, e `shardify_unit` crea un `ShardUnit` nuovo per un ID che non esiste più, con `UnitDefs[nil]` come definizione. Il vecchio loader non toglieva mai gli oggetti, e il difetto restava nascosto. Regola dell'utente: **un errore deve far cadere l'AI, mai la battle**.
 
 **Lavoro**
 
-1. **Partite headless con AI**, con uno script nuovo accanto allo strumento, `.ai-notes/tools/run_engine_game.sh` (stesse regole: cartella dati temporanea per default, gadget di controllo copiato e **sempre** tolto alla fine, `git add -f`). Lo script prende uno startscript con team AI (in `.ai-notes/tools/startscripts/`) e una durata in minuti di gioco, e chiude la partita da solo alla fine.
-   Un gadget di controllo (in `.ai-notes/tools/`, mai fuori) scrive ogni minuto di gioco una riga facile da cercare con, per ogni team: numero di unità, metallo ed energia (`Spring.GetTeamResources`), e se è un team Shard, `aiHostPlayer`. Alla fine una riga di riepilogo.
-2. **Tre partite**, su una mappa piccola già presente in `~/.spring/maps` (scegli tu e scrivi quale), 15 minuti di gioco ciascuna:
-   - A: STAI contro SimpleAI, 1v1;
-   - B: 2 STAI contro 2 SimpleAI (due STAI nello stesso ally team: un solo `ShardAlly`, un solo `ShardGlobal`);
-   - C: STAI contro STAI, 1v1.
-3. **Cosa controllare in ogni partita**, dall'`infolog.txt`:
-   - nessuna riga `[AI Loader] error` (se c'è: traceback, causa, se è nostra o vecchia di STAI);
-   - le righe di `Shutdown` del relay: messaggi e ordini > 0, **ordini rifiutati = 0** e messaggi rifiutati = 0 (se no: quali motivi, e perché);
-   - il numero di unità dei team STAI cresce nei primi minuti, e STAI costruisce fabbriche e mex (dalle righe del gadget di controllo);
-   - una riga d'errore vera conferma che `debug.traceback` esiste nel LuaRules unsynced (dubbio di T5b); se non c'è nessun errore, provalo una volta con un errore voluto in un modulo, poi togli la modifica;
-   - i semi casuali dei team, scritti una volta all'avvio (aggiungi tu una riga di log se serve, poi lasciala solo se utile in generale).
-4. **Confronto con il vecchio STAI** (solo se la partita A gira): stessa partita A sul commit di BAR prima della rimozione è troppo costosa; basta confrontare a occhio la crescita delle unità con quella che ti aspetti da STAI in 15 minuti, e scrivere se ti sembra normale. Niente misure di tempo: arriveranno con lo scheduler.
-5. **Correzioni**: solo per i difetti che vengono dal nostro lavoro o che fermano la partita. Ogni correzione con un test (busted o con lo strumento) che fallisce prima e passa dopo. Elenca a parte, senza correggerli, gli errori vecchi di STAI che vedi.
-6. **Istruzioni per la prova dell'utente**: in fondo ai risultati, i passi per provare STAI in SkyLobby su questa copia di sviluppo (quale gioco scegliere, come aggiungere il bot STAI, contro chi, cosa guardare nel log), in modo che l'utente possa farla senza chiedere.
+1. **`AddAI` protetto.** Il caricamento di un tipo di AI e di un'AI (`LoadAIType`, `SetupAI`, `boot.lua`, i file inclusi) passa da `xpcall` con traceback. Se fallisce: una riga `[AI Loader] error loading <AI> for team <id>: <traceback>`, quell'AI non viene caricata (nessun oggetto lasciato a metà nelle liste di `Shard`), le altre AI e il resto del LuaRules continuano. Se fallisce il tipo, tutte le AI di quel tipo restano non caricate, con una riga per team. Vale sia in `Initialize` sia nel cambio di host.
+   Test: busted (un tipo di AI finto il cui `boot.lua` va in errore; uno il cui modulo va in errore in `Init`) e con lo strumento (`run_engine_tests.sh`, un test in `luaui/Tests/shard/` che carica un tipo rotto e verifica che il LuaRules sia vivo dopo).
+2. **Unità morte: tempo di grazia.** In `UnitDestroyed` il `ShardUnit` non si toglie subito: va in una coda di rimozione e viene tolto da `Shard.unitsByID` dopo 900 frame (30 secondi di gioco). Nel frattempo `game:GetUnitByID(id)` restituisce l'oggetto vecchio, con il suo tipo e il suo nome, come faceva il vecchio loader.
+   - La coda non alloca a ogni frame: array circolare o due array paralleli riusati (ID e frame di scadenza), svuotati in `GameFrame` dalla testa finché scadono.
+   - Se lo stesso ID viene riusato dall'engine per un'unità nuova prima della scadenza, `UnitCreated` deve sostituire l'oggetto vecchio con uno nuovo (e la scadenza vecchia non deve togliere quello nuovo).
+   - `shardify_unit` di un ID che non esiste e non è in cache: invariato per ora, ma scrivi nei risultati cosa succede e proponi cosa fare.
+   Test busted: l'errore della partita riprodotto (unità creata, distrutta, poi `GetUnitByID(id):Name()` nello stesso frame e 899 frame dopo → nome giusto; 901 frame dopo → l'oggetto è uscito dalla cache); ID riusato prima della scadenza; nessuna tabella nuova in `GameFrame` con la coda piena (conta le tabelle con un `setmetatable` strumentato o con `collectgarbage("count")` stabile su molti frame).
+3. **Misura della memoria per frame** (idea dell'utente). In `gadget:GameFrame` del lato unsynced: `collectgarbage("count")` all'inizio e alla fine; il delta è la memoria allocata dal loader e dalle AI in quel frame (con il limite noto: un passo della GC incrementale in mezzo lo riduce, anche sotto zero).
+   - Attivata solo se `Spring.GetConfigInt("ShardMemStats", 0) == 1` (impostabile dall'utente in `springsettings.cfg` o con `/set ShardMemStats 1`); spenta non costa nulla oltre a un controllo per frame.
+   - Ogni 1800 frame (un minuto di gioco) una riga `[AI Loader] memory per frame: avg <KB> max <KB> over <N> frames, heap <MB>`, poi i contatori ripartono. Niente tabelle nuove.
+   - Togli la riga `Shard memory record:` di `Shutdown` se non è più utile, o tienila e spiega perché.
+   - Documenta l'opzione in un commento in testa al lato unsynced.
+   Test: busted per il calcolo di media e massimo e per lo spegnimento; con lo strumento, una partita breve con l'opzione accesa che scriva almeno una riga.
 
-**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test`, `run_engine_tests.sh`, e le tre partite.
+**Fuori dal compito**: correggere STAI (gli ID vecchi in `buildersbst`, `bomberhst`, `LosHST`, l'`EchoDebug` con argomenti costosi): annotali soltanto.
 
-**Commit**, in inglese: uno per gli strumenti in `.ai-notes/tools/`, uno per ogni correzione.
+**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test`, `run_engine_tests.sh`, e una partita A di T5c con `run_engine_game.sh` (15 minuti) con l'opzione della memoria accesa: nessuna riga `[AI Loader] error`, e le righe della memoria nel log.
 
-**Nei risultati**: per ogni partita mappa, durata, righe chiave del log (unità per minuto dei team STAI, contatori del relay, errori), correzioni fatte con causa e test, errori vecchi di STAI non toccati, istruzioni per l'utente.
+**Commit**, in inglese: uno per punto.
+
+**Nei risultati**: righe per file, test e mutazioni, le righe della memoria della partita A (tutte), dubbi.
 
 ## Risultati
 
