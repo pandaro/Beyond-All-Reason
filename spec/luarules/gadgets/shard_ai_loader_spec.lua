@@ -264,6 +264,28 @@ describe("ShardAILoader synced relay", function()
 		assert.same({ rate = 1 }, rejections(loader))
 	end)
 
+	it("rejects an emission frame below the last accepted one", function()
+		local loader = started()
+
+		receive(loader, 0, message(loader, 0, 1, 1000, { { 100, CMD_STOP } }))
+		receive(loader, 0, message(loader, 0, 2, 999, { { 100, CMD_STOP } }))
+		receive(loader, 0, message(loader, 0, 3, 1000, { { 100, CMD_STOP } }))
+
+		assert.equal(2, #loader.orders)
+		assert.same({ frame = 1 }, rejections(loader))
+	end)
+
+	it("does not count a message rejected for its size against the limit per emission frame", function()
+		local loader = started()
+
+		receive(loader, 0, message(loader, 0, 1, 1000, { { 100, CMD_STOP } }))
+		receive(loader, 0, loader.codec.PackHeader(0, 2, 1000, 4001))
+		receive(loader, 0, message(loader, 0, 3, 1000, { { 101, CMD_STOP } }))
+
+		assert.same({ 100, 101 }, { loader.orders[1].unit, loader.orders[2].unit })
+		assert.same({ count = 1 }, rejections(loader))
+	end)
+
 	it("rejects a wrong version, a short header and more than 4000 orders, and keeps all three", function()
 		local loader = started()
 		local VFS = loader.VFS

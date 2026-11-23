@@ -221,7 +221,16 @@ if gadgetHandler:IsSyncedCode() then
 		if frame > now or frame < now - MAX_FRAME_AGE then
 			return Reject("frame")
 		end
-		if frame == lastFrame[teamID] then
+		-- emission frames never go back, so alternating frames cannot dodge the limit per frame
+		local previousFrame = lastFrame[teamID]
+		if previousFrame ~= nil and frame < previousFrame then
+			return Reject("frame")
+		end
+		-- before the limit per frame, so that a rejected message does not use up a place
+		if count > MAX_ORDERS_PER_MESSAGE then
+			return Reject("count")
+		end
+		if frame == previousFrame then
 			if messagesInFrame[teamID] >= MAX_MESSAGES_PER_FRAME then
 				return Reject("rate")
 			end
@@ -229,9 +238,6 @@ if gadgetHandler:IsSyncedCode() then
 		else
 			lastFrame[teamID] = frame
 			messagesInFrame[teamID] = 1
-		end
-		if count > MAX_ORDERS_PER_MESSAGE then
-			return Reject("count")
 		end
 		lastSeq[teamID] = seq
 
