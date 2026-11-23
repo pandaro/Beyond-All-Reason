@@ -25,13 +25,14 @@ The design behind these choices is in the architecture proposal. This guide only
 11. [Logging and debugging](#logging-and-debugging)
 12. [Testing](#testing)
 13. [Rules for code that runs every frame](#rules-for-code-that-runs-every-frame)
+14. [How an AI runs in a game](#how-an-ai-runs-in-a-game)
 
 ## Files and folders
 
 **Stable.**
 
 ```
-luarules/gadgets/ShardAILoader.lua          -- the gadget that finds AI teams, runs them and relays their orders (in progress)
+luarules/gadgets/ShardAILoader.lua          -- the gadget that finds AI teams, runs them and relays their orders
 luarules/gadgets/ai/shard_runtime/          -- the framework: classes, API, test doubles
     class.lua                               -- class()
     aibase.lua                              -- AIBase: the base of every Shard object
@@ -414,3 +415,37 @@ These apply to the framework and are recommended for AIs.
 - Do not create tables in code that runs every frame: reuse them. Garbage collection is the engine's, and short-lived tables make it run more often.
 - Never call `collectgarbage("collect")`: a full collection can stop the game for tens of milliseconds.
 - Spread heavy work across frames: the scheduler gives each AI a time budget.
+
+## How an AI runs in a game
+
+**Stable**, except where marked.
+
+**Registering an AI.** An AI is offered in the lobby when `luaai.lua`, at the root of the game, lists its name, and `luarules/gadgets/ai/<name>/boot.lua` exists. The name in `luaai.lua` must match the folder name.
+
+**Where it runs.** `ShardAILoader.lua` has two halves:
+
+- The **unsynced** half runs the AIs. It runs only on one client per ally team, the **host**, registered by the synced half in the team rules param `aiHostPlayer`. At first the host is the player who added the AI in the lobby. If that player leaves, another active player of the same ally team takes over, then any active player, then a spectator; the lowest player ID wins, so every client agrees. The new host loads the AI and replays the existing units to it; the old host stops it.
+- The **synced** half runs on every client. It never runs AI code: it only checks and applies the orders.
+
+**Start-up.** On the host, each AI type is loaded once, then its objects are created and initialised in this order: the `ShardGlobal`, the `ShardAlly` of each ally team, the team AIs. A container without modules of its own scope gets no events and no updates.
+
+**Every frame.** The loader calls `Update()` on every object (global, then ally, then team), then sends each AI's order queue as one message (see [Orders](#the-api-game-map-units)).
+
+**Orders and their checks.** The synced half accepts an order message only if:
+
+- it comes from the player registered as host of that team;
+- its sequence number is higher than the last one, and its emission frame is not in the future, not older than 900 frames (30 seconds), and not older than the previous message's;
+- the team sent at most 2 messages for that emission frame, with at most 4,000 orders each;
+- the message is not cut short.
+
+Each order is then given only if its unit exists and belongs to the AI's team; other orders of the same message still go through. Rejected orders are counted and reported back to the AI's host; totals are printed at the end of the game.
+
+**Events.** *Provisional*: every object receives every unit event, except `UnitCreated`, which among team AIs goes only to the unit's owner (as in the old Shard). Line of sight and radar events go to the `ShardAlly` of the ally team concerned and to every team AI. Planned: an event will reach only the modules that override its method.
+
+**Units known to an AI.** *Provisional*: the loader keeps, for every team AI, the sets `ownUnitIds`, `friendlyUnitIds`, `alliedUnitIds`, `enemyUnitIds`, `neutralUnitIds` (Gaia's units are neutral). `game:GetUnits()`, `GetFriendlies()` and `GetEnemies()` read them, and they see every unit on the map. Planned: the ally team's perception will replace them, so an AI sees only what its ally team sees.
+
+**Errors.** Every call from the loader to an object runs protected. An error is printed with its traceback, at most once every 30 seconds for the same object and event, and the other AIs keep running. Planned: a module that keeps failing is put in quarantine on its own.
+
+**End of the game.** `GameEnd()` is called on every object.
+
+**Random numbers.** Each team AI gets `randomseed`, derived from the game ID and the team ID: the same game replays with the same seed.
