@@ -15,27 +15,26 @@
 
 ## Compito attuale
 
-### T1: recupero del runtime di Shard com'era
+### T1b: pulizia dopo il recupero
 
-1. Aggiorna il tuo `CLAUDE.local.md` (file locale, non committarlo): fase attuale «fase 1, runtime»; aggiungi una riga che rimanda a questo protocollo.
-2. Recupera dal commit `3ad8f3fb^`, senza modificarli:
-   - `luarules/gadgets/ai/shard_runtime/` (tutto);
-   - `luarules/gadgets/ai/STAI/`;
-   - `luarules/gadgets/ai/Shard/`;
-   - `luaui/Widgets/shard_help_draw.lua`;
-   - `common/stai_factory_rect.lua` e `luaui/Tests/ai_stai_factory_rect.lua`.
+**Impegno: basso.** Modifiche piccole e meccaniche, già decise.
 
-   NON recuperare `luarules/gadgets/AILoader.lua` e non registrare nulla in `luaai.lua`: finché il runtime non funziona nessuna AI deve comparire nel lobby. La bozza del nuovo loader è in `.ai-notes/drafts/AILoader.lua` e resta lì per ora.
-   Commit 1: «Recupero di Shard e STAI com'erano a 3ad8f3fb^».
-3. Togli ciò che la proposta scarta: `shard_runtime/spring_cpp/`, `shard_runtime/hooks.lua` (e il suo include in `spring_lua/boot.lua`), `shard_runtime/spring_lua/metal.lua` (e il suo include in `spring_lua/map.lua`, lasciando un commento che i metal spot arriveranno dai game rules param di BAR).
-   Commit 2: «Shard: tolti backend nativo, hooks e scansione dei metal spot».
-4. Verifica che il gioco si avvii ancora con una partita normale (nessuna AI Shard): basta che non ci siano errori nuovi nell'infolog che citino `shard` o `STAI`.
+1. `luaui/Tests/ai_stai_factory_rect.lua`: adattalo al formato del test runner di oggi (`return { test = test }`, come `luaui/Tests/selftests/test_assertions.lua`) senza cambiare cosa verifica. Controlla con la stessa partita headless di T1 che l'errore `did not return a test table` sparisca e che il test passi.
+2. Togli i riferimenti a file non più presenti:
+   - `shard_runtime/api.lua`, righe 26-27: il ramo `elseif game_engine` con `spring_cpp/...`;
+   - `STAI/boot.lua` e `Shard/boot.lua`: il ramo `elseif game_engine` con `require "spring_cpp/boot"`;
+   - `shard_runtime/shard_null/boot.lua`, riga 11: `require "shard_runtime/hooks"`.
+   Lascia intatti i rami `ShardSpringLua` e `shard_null`.
+3. Aggiorna il tuo `CLAUDE.local.md` (locale, non committarlo):
+   - «Contesto»: il codice rimosso si recupera da `3ad8f3fb^` ed è la base del lavoro (togli «non va ripristinato»);
+   - «Processo»: su `shard/fase1` sono tracciati `.ai-notes/handoff.md`, `.ai-notes/proposta-architettura.md` e `.ai-notes/drafts/`, aggiunti con `git add -f`; il resto di `.ai-notes/` non si committa; tutta `.ai-notes/` si toglie prima di una PR verso BAR;
+   - «Processo»: ogni compito di questo file indica un impegno; lo imposta l'utente prima di «vai».
 
-Nei risultati: elenco dei file recuperati con il numero di righe, file che a `3ad8f3fb^` non esistono, esito del punto 4.
+Commit: uno per il punto 1 e uno per il punto 2. Nei risultati: esito della partita headless e righe toccate.
 
 ## Risultati
 
-### T1 (agente locale, 23 novembre 2026)
+### T1 (agente locale, 23 novembre 2026) — verificato dal coordinatore: 95 file identici a `3ad8f3fb^`, nessun file fuori posto
 
 **Fatto**
 
