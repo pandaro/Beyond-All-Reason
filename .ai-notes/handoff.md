@@ -428,3 +428,81 @@ Suite completa: `2611 successes / 0 failures / 0 errors / 1 pending` (T5a: 2595)
 - Gli eventi di vista vanno a tutte le AI di team per ogni ally team, come nel vecchio loader: con molte AI e molte unità è il costo maggiore; la consegna mirata lo toglierà.
 - `debug.traceback` nel LuaRules unsynced: usato se c'è, altrimenti il solo messaggio. Da confermare in T5c leggendo una riga d'errore vera.
 - Il seme ha solo 65.521 valori possibili: basta per la casualità di un'AI; se serve di più, due hash con moduli diversi.
+
+### T5c (agente locale, 23-24 novembre 2026)
+
+**Commit**
+
+1. `4519d047b7` «Shard runtime: no tail call to VFS.Include, the runtime files ran in the global environment»: `spring_lua/boot.lua` +7 −2, `luaui/Tests/shard/test_runtime_environment.lua` (nuovo, 28).
+2. `7234ffcd3d` «Shard runtime: metal spots from the game rules params of api_resource_spot_finder»: `spring_lua/map.lua` +27 −5, `spec/luarules/gadgets/ai/shard_runtime/spring_lua/map_spec.lua` (nuovo, 52); `b25ea794cd` +2 −2 (cast per EmmyLua).
+3. `84a583fb51` «Shard loader: write the random seed of each AI team»: `ShardAILoader.lua` +3 −1.
+4. `4397010419` «Notes: headless games with AI teams, control gadget and three startscripts»: `.ai-notes/tools/engine_game_gadget.lua`, `run_engine_game.sh`, `startscripts/{a_stai_vs_simpleai,b_2stai_vs_2simpleai,c_stai_vs_stai}.txt`.
+
+**Strumento** (`run_engine_game.sh <startscript> <minuti>`): cartella dati in `${TMPDIR:-/tmp}/shard-engine-game` con link a `~/.spring`; copia il gadget di controllo in `luarules/gadgets/dbg_shard_engine_game.lua` e lo toglie sempre (`trap`, e l'engine viene ucciso se lo script è interrotto); sostituisce `@QUIT_FRAME@` (fine + 30 frame) nello startscript; lancia l'engine con `stdbuf -oL` e stampa righe `[SHARD-GAME]`, `[AI Loader]`, `Shard relay`, errori. Il gadget (synced) scrive ogni minuto per ogni team unità, fabbriche, mex, metallo, energia, `aiHostPlayer`, e le righe `SUMMARY`; la sua parte unsynced manda `luarules setTestReadyPlayers` finché la partita non parte.
+
+Tre cose scoperte per far partire una partita headless con AI:
+- il giocatore deve essere **spettatore** e qualcuno deve dichiararlo pronto (`setTestReadyPlayers` di `dbg_test_env_helper.lua`, come fa il test runner); con il giocatore nello stesso team di STAI la partita resta al frame -1 e la memoria di LuaUI sale (881 MB in 100 s); anche `startscript_barb_smoke.txt` di BAR resta al frame -1 su questa macchina;
+- `setmaxspeed 100`/`setminspeed 100` nei `debugcommands`: 15 minuti di gioco in 21–28 s;
+- l'infolog e lo stdout rediretto sono scritti a blocchi: se l'engine viene ucciso, le ultime righe si perdono e sembra fermo prima di quanto sia (`stdbuf -oL` per lo stdout).
+
+**Mappa**: Comet Catcher Remake 1.8 (`comet_catcher_remake_1.8.sd7`), `StartPosType=0`, 15 minuti (frame 27000), velocità 100x.
+
+**Correzioni**
+
+1. **Runtime in `_G`** (nostra, T2): `shard_include` del runtime in `spring_lua/boot.lua` faceva `return VFS.Include(runtime_file)`. In una tail call il chiamante sparisce e `VFS.Include` senza ambiente ripiega sull'ambiente globale: tutti i file del runtime (`class`, `ShardAI`, `ShardOutbox`, `game.lua`, `map.lua`…) finivano nel `_G` del LuaRules, mentre il loader e gli ambienti dei tipi di AI li cercano nella tabella `gadget`. Effetto in partita: `STAI/ai.lua:1: attempt to call global 'class' (a nil value)` in `Initialize`, che faceva cadere tutto il LuaRules unsynced (l'errore di `Initialize` non è contenuto da `Call`). Correzione: `local result = VFS.Include(...) return result`, anche nel ramo senza ambiente di `shard_generate_include_func`. Test con lo strumento `test_runtime_environment.lua`: carica `boot.lua` e `api.lua` in un ambiente nuovo e controlla che `class`, `ShardAI`, `ShardOutbox`, `ShardUnit` e le funzioni di `game.lua`/`map.lua` stiano lì; prima: `FAILED … class: expected function, got nil` in synced e unsynced; dopo: `ok` in entrambi. La spec busted non poteva vederlo: il `VFS` finto non riproduce la regola dell'engine sulle tail call.
+2. **Metal spot vuoti** (nostra, T1): `map.metalSpots = {}` lasciato in T1 faceva `LabsHST:factoriesRating` dividere 0 per 0 (`topRatingSpots`) → `labshst.lua:96: table index is NaN` in `Init`; i moduli dopo `LabsHST` non facevano `Init`, e a catena `loshst.lua:182 ownMobile nil`, `unithst.lua:117 units nil`, `unithst.lua:22` in ogni `Update` (visto nella partita in locale dell'utente). Correzione: `map:GetMetalSpots()`, `SpotCount()`, `GetSpot()` leggono `mex_count`, `mex_x<i>`, `mex_y<i>`, `mex_z<i>` di `api_resource_spot_finder` alla prima richiesta (non al caricamento di `map.lua`, che avviene prima che siano sicuramente impostati) e li tengono quando `mex_count` esiste; `mex_count = -1` (mappa di metallo) → nessuno spot. Spec busted, 3 casi: i primi 2 falliscono sul codice di prima, il terzo (mappa di metallo) passa con entrambi e fissa il comportamento.
+3. **Seme casuale**: una riga `[AI Loader] AI team <id> random seed <seme>` in `TeamSeed`, lasciata perché serve a riprodurre una partita.
+
+**Partita A — STAI (team 0) contro SimpleAI (team 1)**
+
+| Minuto | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| STAI unità | 6 | 13 | 17 | 25 | 34 | 35 | 47 | 60 | 69 | 84 | 93 | 106 | 125 | 152 | 175 |
+| STAI mex | 2 | 3 | 3 | 5 | 6 | 7 | 11 | 13 | 15 | 18 | 19 | 22 | 25 | 30 | 32 |
+| SimpleAI unità | 5 | 13 | 20 | 24 | 30 | 38 | 43 | 45 | 50 | 60 | 58 | 56 | 58 | 63 | 60 |
+
+STAI: 1 fabbrica fino al minuto 11, 2 dal 12. Relay: `3741 messages, 14309 orders given, 24 orders rejected`, nessun messaggio rifiutato. Nessuna riga `[AI Loader] error`. Ripetuta 5 volte: in 4 STAI cresce come sopra; in una resta senza metallo dal minuto 3, si ferma a ~38 unità e viene distrutta da SimpleAI al minuto 11 (nessun errore nel log: comportamento di gioco).
+
+**Partita B — STAI (team 0, 2) contro SimpleAI (team 1, 3)**: semi 7325 e 7327.
+
+| Minuto | 1 | 3 | 5 | 7 | 9 | 11 | 13 | 15 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| STAI team 0 unità / mex | 6 / 2 | 15 / 3 | 32 / 6 | 48 / 11 | 61 / 13 | 87 / 16 | 101 / 15 | 134 / 17 |
+| STAI team 2 unità / mex | 6 / 2 | 18 / 3 | 32 / 5 | 45 / 9 | 60 / 10 | 78 / 14 | 115 / 20 | 165 / 24 |
+| SimpleAI team 1 / 3 unità | 5 / 5 | 19 / 16 | 30 / 26 | 36 / 40 | 41 / 47 | 54 / 57 | 69 / 52 | 63 / 54 |
+
+Relay: `4543 messages, 20802 orders given, 12 orders rejected`. Nessun errore. Un solo `ShardAlly` e un solo `ShardGlobal` per i due STAI: non c'è una riga di log che lo mostri; lo garantiscono `GetAlly`/`LoadAIType` e la spec unsynced («one global per AI type, one ally per ally team and type»).
+
+**Partita C — STAI contro STAI**: semi 44929 e 44930.
+
+| Minuto | 1 | 3 | 5 | 7 | 9 | 11 | 13 | 15 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| team 0 unità / mex | 6 / 2 | 12 / 3 | 31 / 6 | 41 / 7 | 69 / 11 | 103 / 16 | 116 / 19 | 146 / 23 |
+| team 1 unità / mex | 6 / 2 | 17 / 3 | 35 / 5 | 55 / 7 | 82 / 11 | 111 / 17 | 143 / 24 | 153 / 24 |
+
+Relay: `3886 messages, 23906 orders given, 14 orders rejected`. Nessun errore.
+
+**Ordini rifiutati** (12–27 per partita, circa 0,1%): con una sonda temporanea nel relay (non committata) tutti risultano `valid false`, cioè unità morte fra l'invio e l'arrivo dell'ordine, con un ritardo di 28–30 frame fra emissione e arrivo. Il ritardo è gonfiato dalla velocità 100x (latenza in tempo reale del server locale contata in frame); a velocità normale la finestra è di pochi frame. Nessun messaggio rifiutato in nessuna partita. Nota per chi scrive sonde: per un'unità che non esiste `Spring.GetUnitTeam` non restituisce nessun valore, e `tostring(Spring.GetUnitTeam(id))` va in errore; la prima versione della sonda faceva fallire `RecvLuaMsg` e nascondeva i rifiuti.
+
+**`debug.traceback`**: esiste nel LuaRules unsynced; confermato dalle righe d'errore vere della partita dell'utente (traceback completi), senza bisogno di un errore voluto.
+
+**Confronto con il vecchio STAI**: 145–175 unità, 2 fabbriche e 20–30 mex a 15 minuti su Comet Catcher, sempre sopra SimpleAI: mi sembra normale per STAI. Si vede spesso energia a 0 nei primi minuti (stallo di energia) e metallo a 0 a tratti; non so dire se il vecchio STAI facesse lo stesso.
+
+**Errori vecchi di STAI**: nessuno nelle tre partite dopo le due correzioni.
+
+**Dubbi**
+
+- Un errore in `gadget:Initialize` del loader (per esempio in `LoadAIType` o in `boot.lua` di un tipo di AI) fa ancora cadere tutto il LuaRules unsynced: `AddAI` non passa da `Call`. È il motivo per cui il primo difetto bloccava la partita invece di scrivere un errore. Proposta: proteggere `AddAI` con `xpcall`, scrivere l'errore e lasciare l'AI non caricata.
+- Il blocco con il giocatore nello stesso team di STAI (frame -1, memoria LuaUI in crescita) non l'ho indagato: in una partita normale il giocatore non sta nel team di un bot, ma da capire.
+- La partita A persa da STAI per mancanza di metallo: un caso su cinque.
+
+**Prova dell'utente in SkyLobby**
+
+1. In SkyLobby crea una partita (singleplayer o stanza locale) con il gioco «Beyond All Reason $VERSION», cioè la copia di sviluppo `~/.spring/games/BAR.sdd`; mappa: Comet Catcher Remake 1.8 (o un'altra piccola).
+2. Aggiungi un bot STAI in un **team diverso dal tuo** (con «Add bot» / «Aggiungi bot», scegliendo STAI). Avversario consigliato: un bot SimpleAI nell'altro ally team, con te spettatore; oppure STAI contro di te.
+3. Avvia e lascia giocare 10–15 minuti: il commander di STAI deve costruire subito mex e una fabbrica, poi unità.
+4. Chiudi il gioco (l'infolog viene scritto per intero solo alla chiusura) e cerca in `~/.spring/infolog.txt`:
+   - `[AI Loader] AI team <n> hosted by player <tu>` e `[AI Loader] AI team <n> random seed …`;
+   - righe `<team>, STAI, Info: , adding … module` (tutti i moduli caricati);
+   - **nessuna** riga `[AI Loader] error in …`;
+   - alla fine `Shard relay:, <messaggi>, messages,, <ordini>, orders given,, <rifiutati>, orders rejected` con messaggi e ordini > 0 e rifiutati pochi.
