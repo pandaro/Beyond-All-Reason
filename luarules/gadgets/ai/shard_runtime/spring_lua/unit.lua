@@ -554,10 +554,10 @@ end
 function ShardUnit:SyncOrder(
 	id,
 	cmd,
-	pos,
+	params,
 	opts --[[,timeout]]
 )
-	self:Warn("STAI syncOrder is unsupported please use GiveOrder instead")
+	return game:GiveOrder(id, cmd, params, opts, "1-1")
 end
 
 --- Issue an arbitrary command to the spring engine

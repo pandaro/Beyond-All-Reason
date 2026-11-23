@@ -179,8 +179,7 @@ function Tool:GiveOrder(id, cmd, parameters, options, method)
 	--	self:EchoDebug('Serialize Order wrong arg types',type(id),type(cmd),type(parameters),type(options),type(method))
 	--	return
 	--end
-	local order = self:SerializeOrder(id, cmd, parameters, options, method)
-	game:GiveOrder(order)
+	return game:GiveOrder(id, cmd, parameters, options, method)
 
 end
 

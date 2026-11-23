@@ -1,3 +1,6 @@
+---@class ShardGame
+---@field ai table the object whose game this is, set by its Init
+---@field warnedNoOutbox boolean?
 local game = {}
 --game_engine
 
@@ -192,14 +195,82 @@ function game:GetUnitByID(unit_id) -- returns a Shard unit when given an engine 
 	return Shard:shardify_unit(unit_id)
 end
 
-function game:GiveOrder(message)
-	message = "[STGO]" .. message .. "[STGO]"
-	self:SendLuaRulesMessage(message)
+local function warnOrders(game, text)
+	if game.ai ~= nil then
+		game.ai:Warn(text)
+	else
+		Spring.Echo("Shard Warning: " .. text)
+	end
 end
 
-function game:SendLuaRulesMessage(message) -- sends a message to the engine to give an order
-	message = "@Shard" .. message .. "Shard@"
-	Spring.SendLuaRulesMsg(message)
+-- The i-th entry of an optional array argument.
+local function arrayEntry(array, i)
+	if type(array) == "table" then
+		return array[i]
+	end
+	return nil
+end
+
+--- Queues orders in the outbox of this AI, with the methods of STAI's Tool:GiveOrder
+--
+-- '1-1': one command to one unit: id, cmd, params and options of the command
+-- '2-1': commands to one unit: id, then arrays cmd, params and options with an entry per command; they stay together
+-- '1-2': one command to units: an array of ids, then cmd, params and options as in '1-1'
+-- '2-2': a command each to units: arrays id, cmd, params and options; id[i] gets cmd[i], params[i] and options[i]
+--        as Spring.GiveOrderArrayToUnitArray(units, commands, true) did, up to the shorter of id and cmd
+--
+-- params: nil, a number, an array of numbers or a position table; options: a CMD.OPT_* mask or an array of names
+--
+-- @return boolean whether every order was queued
+function game:GiveOrder(id, cmd, params, options, method)
+	local outbox = self.ai and self.ai.outbox ---@type ShardOutbox?
+	if outbox == nil then
+		if not self.warnedNoOutbox then
+			self.warnedNoOutbox = true
+			warnOrders(self, "no outbox for this AI: its orders are dropped")
+		end
+		return false
+	end
+	if method == "1-1" then
+		return outbox:Queue(id, cmd, params, options)
+	elseif method == "2-1" then
+		if type(cmd) ~= "table" or (params ~= nil and type(params) ~= "table") or type(options) == "number" then
+			warnOrders(self, "GiveOrder '2-1' takes arrays of commands, params and options; orders dropped")
+			return false
+		end
+		outbox:BeginGroup()
+		for i = 1, #cmd do
+			outbox:Queue(id, cmd[i], arrayEntry(params, i), arrayEntry(options, i))
+		end
+		return outbox:EndGroup()
+	elseif method == "1-2" then
+		if type(id) ~= "table" or type(cmd) ~= "number" then
+			warnOrders(self, "GiveOrder '1-2' takes an array of units and one command; orders dropped")
+			return false
+		end
+		local queued = true
+		for i = 1, #id do
+			queued = outbox:Queue(id[i], cmd, params, options) and queued
+		end
+		return queued
+	elseif method == "2-2" then
+		if
+			type(id) ~= "table"
+			or type(cmd) ~= "table"
+			or (params ~= nil and type(params) ~= "table")
+			or type(options) == "number"
+		then
+			warnOrders(self, "GiveOrder '2-2' takes arrays of units, commands, params and options; orders dropped")
+			return false
+		end
+		local queued = true
+		for i = 1, math.min(#id, #cmd) do
+			queued = outbox:Queue(id[i], cmd[i], arrayEntry(params, i), arrayEntry(options, i)) and queued
+		end
+		return queued
+	end
+	warnOrders(self, "GiveOrder: unknown method " .. tostring(method))
+	return false
 end
 
 function game:Pause() -- pauses the game

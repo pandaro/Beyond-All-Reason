@@ -185,7 +185,7 @@ local CMD = {
 	OPT_ALT = 128,
 }
 
--- The runtime's class, outbox and codec over the fake VFS, with Spring.Echo kept in `echoes`.
+-- The runtime's class, outbox and codec, and game.lua, over the fake VFS, with Spring.Echo kept in `echoes`.
 local function loadOrders()
 	local world = { echoes = {} }
 	local env = setmetatable({ CMD = CMD }, { __index = _G })
@@ -198,6 +198,7 @@ local function loadOrders()
 	env.VFS.Include(RUNTIME_PATH .. "class.lua")
 	env.VFS.Include(RUNTIME_PATH .. "spring_lua/outbox.lua")
 	world.codec = env.VFS.Include(CODEC_PATH)
+	world.game = env.VFS.Include(RUNTIME_PATH .. "spring_lua/game.lua")
 	world.env = env
 	world.VFS = env.VFS
 	return world
@@ -495,5 +496,88 @@ describe("ShardOutbox", function()
 
 		assert.is_false(result)
 		assert.equal(0, sends)
+	end)
+end)
+
+describe("game:GiveOrder", function()
+	local world, game, outbox, warnings
+
+	before_each(function()
+		world = loadOrders()
+		game = world.game
+		outbox = world.env.ShardOutbox(2)
+		warnings = {}
+		game.ai = {
+			outbox = outbox,
+			Warn = function(_, text)
+				warnings[#warnings + 1] = text
+			end,
+		}
+	end)
+
+	it("'1-1' queues one command for one unit", function()
+		assert.is_true(game:GiveOrder(11, CMD.GUARD, 12, 0, "1-1"))
+
+		assert.same({ { unit = 11, cmd = CMD.GUARD, options = 0, params = { 12 } } }, flush(world, outbox).orders)
+	end)
+
+	it("'2-1' queues the commands of one unit together", function()
+		for unitID = 1, 24 do
+			outbox:Queue(unitID, CMD.STOP, nil, 0)
+		end
+
+		assert.is_true(game:GiveOrder(7, { -101, -101, -102 }, { 0, 0, 0 }, { 0, 0, { "shift" } }, "2-1"))
+
+		assert.equal(24, #flush(world, outbox).orders)
+		assert.same({
+			{ unit = 7, cmd = -101, options = 0, params = { 0 } },
+			{ unit = 7, cmd = -101, options = 0, params = { 0 } },
+			{ unit = 7, cmd = -102, options = CMD.OPT_SHIFT, params = { 0 } },
+		}, flush(world, outbox).orders)
+	end)
+
+	it("'1-2' queues one command for every unit", function()
+		assert.is_true(game:GiveOrder({ 3, 1, 2 }, CMD.MOVE, { x = 5, y = 6, z = 7 }, 0, "1-2"))
+
+		local orders = flush(world, outbox).orders
+		assert.same({ 3, 1, 2 }, { orders[1].unit, orders[2].unit, orders[3].unit })
+		for _, order in ipairs(orders) do
+			assert.equal(CMD.MOVE, order.cmd)
+			assert.same({ 5, 6, 7 }, order.params)
+		end
+	end)
+
+	it("'2-2' gives the i-th command to the i-th unit, up to the shorter array", function()
+		local commands = { CMD.FIGHT, CMD.ATTACK, CMD.MOVE }
+
+		assert.is_true(game:GiveOrder({ 1, 2 }, commands, { { 1, 2, 3 }, 9 }, { 0, { "shift" } }, "2-2"))
+
+		assert.same({
+			{ unit = 1, cmd = CMD.FIGHT, options = 0, params = { 1, 2, 3 } },
+			{ unit = 2, cmd = CMD.ATTACK, options = CMD.OPT_SHIFT, params = { 9 } },
+		}, flush(world, outbox).orders)
+	end)
+
+	it("drops a '1-2' call with an array of commands, with a warning", function()
+		assert.is_false(game:GiveOrder({ 1, 2 }, { CMD.FIGHT, CMD.FIGHT }, { 1, 2 }, { 0, 0 }, "1-2"))
+
+		assert.is_nil(flush(world, outbox))
+		assert.equal(1, #warnings)
+	end)
+
+	it("warns about an unknown method", function()
+		assert.is_false(game:GiveOrder(1, CMD.STOP, nil, 0, "3-1"))
+
+		assert.is_nil(flush(world, outbox))
+		assert.equal(1, #warnings)
+	end)
+
+	it("warns once and queues nothing without an outbox", function()
+		game.ai.outbox = nil
+
+		assert.is_false(game:GiveOrder(1, CMD.STOP, nil, 0, "1-1"))
+		assert.is_false(game:GiveOrder(2, CMD.STOP, nil, 0, "1-1"))
+
+		assert.equal(1, #warnings)
 	end)
 end)
