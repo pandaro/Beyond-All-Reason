@@ -15,22 +15,36 @@
 
 ## Compito attuale
 
-### T1b: pulizia dopo il recupero
+### T2: include per tipo di AI, con ambiente e cache
 
-**Impegno: basso.** Modifiche piccole e meccaniche, già decise.
+**Impegno: alto.** È il primo pezzo del runtime che cambia comportamento: tocca come ogni file di ogni AI viene eseguito, e gli errori qui (classi che si sovrascrivono, file eseguiti due volte, percorsi che non combaciano) si vedono solo più avanti e lontano dalla causa.
 
-1. `luaui/Tests/ai_stai_factory_rect.lua`: adattalo al formato del test runner di oggi (`return { test = test }`, come `luaui/Tests/selftests/test_assertions.lua`) senza cambiare cosa verifica. Controlla con la stessa partita headless di T1 che l'errore `did not return a test table` sparisca e che il test passi.
-2. Togli i riferimenti a file non più presenti:
-   - `shard_runtime/api.lua`, righe 26-27: il ramo `elseif game_engine` con `spring_cpp/...`;
-   - `STAI/boot.lua` e `Shard/boot.lua`: il ramo `elseif game_engine` con `require "spring_cpp/boot"`;
-   - `shard_runtime/shard_null/boot.lua`, riga 11: `require "shard_runtime/hooks"`.
-   Lascia intatti i rami `ShardSpringLua` e `shard_null`.
-3. Aggiorna il tuo `CLAUDE.local.md` (locale, non committarlo):
-   - «Contesto»: il codice rimosso si recupera da `3ad8f3fb^` ed è la base del lavoro (togli «non va ripristinato»);
-   - «Processo»: su `shard/fase1` sono tracciati `.ai-notes/handoff.md`, `.ai-notes/proposta-architettura.md` e `.ai-notes/drafts/`, aggiunti con `git add -f`; il resto di `.ai-notes/` non si committa; tutta `.ai-notes/` si toglie prima di una PR verso BAR;
-   - «Processo»: ogni compito di questo file indica un impegno; lo imposta l'utente prima di «vai».
+**Perché.** Oggi ogni istanza di STAI riesegue tutti i suoi file: con 3 STAI, `maphst.lua` gira 3 volte e la classe `MapHST` viene ridefinita 3 volte nello stesso ambiente globale; due tipi di AI diversi con una classe dallo stesso nome si sovrascrivono. Con questo compito ogni tipo di AI ha il proprio ambiente e ogni suo file gira una volta sola. Le istanze dei moduli restano una per AI: gli ambiti (`Scope()`) sono un compito successivo.
 
-Commit: uno per il punto 1 e uno per il punto 2. Nei risultati: esito della partita headless e righe toccate.
+1. Prima di tutto leggi `git show 3ad8f3fb^:luarules/gadgets/ai/shard_runtime/spring_lua/boot.lua` e `.ai-notes/drafts/AILoader.lua` (funzione `LoadAIType`), che è chi chiamerà la nuova firma.
+2. `shard_runtime/spring_lua/boot.lua`: `shard_generate_include_func(runtime_path, ai_path, env)`, con `env` facoltativo.
+   - Senza `env`: comportamento identico a oggi, riga per riga (nessuna cache, `VFS.Include(file)`).
+   - Con `env`:
+     - esegue il file con `VFS.Include(file, env)`;
+     - tiene una cache per funzione generata (cioè per tipo di AI), con chiave il percorso risolto in minuscolo (i percorsi VFS non distinguono maiuscole e minuscole);
+     - alla seconda richiesta dello stesso file restituisce il valore memorizzato senza rieseguirlo; memorizza anche un risultato `nil` o `false` (usa un valore sentinella, non `cache[k] or ...`);
+     - se il file non esiste: stessi messaggi di oggi, niente in cache.
+   - Resta nello stile del file (commento `---` con `@param env`, stessi nomi). Nessuna allocazione nei percorsi eseguiti a ogni frame: questa funzione gira solo al caricamento.
+3. Test busted in `spec/luarules/gadgets/ai/shard_runtime/` (segui la disposizione e lo stile di `spec/luarules/gadgets/`, con i builder di `spec/builders/` se servono; `VFS.FileExists` e `VFS.Include` simulati sopra una tabella di file finti):
+   - due tipi di AI, ognuno con un file che definisce una classe globale `Foo`: le due `Foo` restano distinte nei due ambienti, e nessuna finisce nell'ambiente globale;
+   - un file incluso due volte dallo stesso tipo gira una volta e restituisce entrambe le volte lo stesso valore;
+   - lo stesso file chiesto con maiuscole diverse non viene rieseguito;
+   - un file che restituisce `nil` non viene rieseguito;
+   - lo stesso file in due tipi di AI diversi gira una volta per tipo;
+   - senza `env`, due chiamate eseguono il file due volte (comportamento di oggi).
+   Comando: `lx --lua-version 5.1 test`.
+4. `STAI/boot.lua` e `Shard/boot.lua`: togli i rami `elseif game_engine` rimasti (erano della vecchia struttura). Restano `if ShardSpringLua` con il `return` e il ramo `else` di `shard_null`.
+5. Non toccare `AILoader.lua`, i moduli di STAI né altri file del runtime.
+6. Aggiorna il tuo `CLAUDE.local.md` (locale, non committarlo), «Decisioni da rispettare», punto 1: `Scope()` è **obbligatorio**, senza default. Un modulo senza `Scope()`, o con un valore diverso da `"team"`, `"ally"`, `"global"`, non si carica e il runtime lo segnala con `Warn`. Decisione dell'utente del 23 novembre 2026: preferisce le cose esplicite ai default. Non serve ancora nel codice: vale dal compito sugli ambiti.
+
+Controlli: `stylua --check --respect-ignores` sui file toccati, `emmylua_check -c .emmyrc.json .` senza errori nuovi, e la partita headless di T1 (gioco che parte e si chiude, nessun errore nuovo che citi `shard` o `STAI`).
+
+Commit: uno per i punti 2 e 3, uno per il punto 4. Nei risultati: output dei test, righe toccate, esito di headless e controlli, dubbi sul formato delle spec o sulla firma.
 
 ## Risultati
 
@@ -70,7 +84,7 @@ Commit: uno per il punto 1 e uno per il punto 2. Nei risultati: esito della part
 - `CLAUDE.local.md` dice ancora che il codice rimosso «non va ripristinato» e «non committare `.ai-notes/`»: contraddicono T1 e questo protocollo. Al primo tentativo il recupero è stato bloccato dal sistema di permessi; è passato quando l'utente ha ridato «vai».
 - La copia locale della vecchia proposta (fase 0) è in `.ai-notes/proposta-architettura.fase0-locale.md`, ignorata da git.
 
-### T1b (agente locale, 23 novembre 2026)
+### T1b (agente locale, 23 novembre 2026) — verificato dal coordinatore
 
 1. Commit `11c678127f`: `luaui/Tests/ai_stai_factory_rect.lua`, aggiunto `return { test = test }` in fondo (+2 righe, verifiche invariate). Partita headless come in T1: `PASS: ai_stai_factory_rect.lua` (2 volte), l'errore `did not return a test table` non c'è più, codice d'uscita 0, nessun errore che citi `shard` o `STAI`.
 2. Commit `c54881ed25`: tolti i rami `elseif game_engine` con `spring_cpp` da `shard_runtime/api.lua` (−4 righe), `STAI/boot.lua` e `Shard/boot.lua` (−2 righe ciascuno), e `require "shard_runtime/hooks"` da `shard_runtime/shard_null/boot.lua` (−1). Nessun riferimento a `spring_cpp` o `hooks` rimasto sotto `luarules/gadgets/ai/`. Rimangono in `STAI/boot.lua` e `Shard/boot.lua` i secondi rami `elseif game_engine` (`ai = STAI()` e simili), che non citano file tolti: non toccati.

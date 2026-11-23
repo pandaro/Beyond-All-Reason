@@ -11,7 +11,7 @@ L'organizzazione in tre ambiti (globale, ally team, team) elimina il lavoro ripe
 | # | Decisione | Difetto di Shard/STAI che elimina |
 | --- | --- | --- |
 | 1 | **Shard resta Shard**: stessa struttura, stesse classi e callback, stesso accesso `self.ai.<nome>`; le modifiche stanno nel runtime e nel loader | — (vincolo di progetto: il codice esistente si porta con modifiche minime) |
-| 2 | **Tre ambiti** dichiarati dal modulo con `Scope()`: `team` (default), `ally`, `global`. Un modulo condiviso si istanzia una volta e resta raggiungibile come `self.ai.<nome>` | analisi della mappa, metal spot, LOS/radar e insiemi di unità calcolati una volta per AI |
+| 2 | **Tre ambiti** dichiarati dal modulo con `Scope()`: `team`, `ally`, `global`. Un modulo condiviso si istanzia una volta e resta raggiungibile come `self.ai.<nome>` | analisi della mappa, metal spot, LOS/radar e insiemi di unità calcolati una volta per AI |
 | 3 | Tutte le AI di un ally team girano sullo stesso client, scelto dal registro dell'host | AI calcolata e ordini inviati da ogni client |
 | 4 | Relay synced dentro `AILoader.lua` che accetta solo messaggi del client host e solo per unità dei team AI che ospita | canale d'ordini aperto a qualunque client |
 | 5 | I file di ogni tipo di AI si caricano in un ambiente proprio; `ai`, `game`, `map` e `shard_include` restano, impostati da `Prepare()` come oggi | classi globali sovrascritte fra AI di tipo diverso |
@@ -35,7 +35,7 @@ Chi conosce Shard deve ritrovare tutto al suo posto: stessi file, stesse classi,
 | `shard_include` | stessa ricerca: prima la cartella dell'AI, poi il runtime | carica nell'ambiente del tipo di AI (§ Caricamento delle AI e ciclo di vita) |
 | `Name()`, `internalName()`, `self.ai.<internalName>`, `self.game`, `self.map`, `EchoDebug`, `Warn` | invariati | niente |
 | globali `ai`, `game`, `map`, impostate da `Prepare()` | restano | niente; `Prepare()` si chiama solo quando cambia l'oggetto di turno |
-| `Module:Scope()` | nuovo e facoltativo: `"team"` se assente, oppure `"ally"` o `"global"` | un modulo condiviso usa `self.ai.allyId` o l'elenco `self.ai.AIs` al posto di `self.ai.id` |
+| `Module:Scope()` | nuovo e obbligatorio (se manca, o ha un valore sconosciuto, il modulo non si carica e il runtime avvisa): `"team"`, `"ally"` o `"global"` | ogni modulo dichiara il proprio ambito; un modulo condiviso usa `self.ai.allyId` o l'elenco `self.ai.AIs` al posto di `self.ai.id` |
 | callback `Init`, `Update`, `GameEnd`, `UnitCreated`, `UnitBuilt` (smistato in `MyUnitBuilt`, `FriendlyUnitBuilt`, `EnemyUnitBuilt`, `NeutralUnitBuilt`), `UnitDead`, `UnitIdle`, `UnitDamaged`, `UnitMoveFailed`, i quattro di visibilità; `Owner*` nei behaviour | stesse firme | arrivano solo a chi li ridefinisce (§ Consegna dei callback) |
 | `SchedulerHST` di STAI: `MScheduler`, `BScheduler`, `moduleTeam`, `moduleUpdate` | entra nel runtime: uno per client, con budget | le liste passano alla classe dell'AI; le righe di controllo in `Update` restano valide |
 | `UnitHST` di STAI, `UnitHandler` dell'AI d'esempio di Shard | entra nel runtime come `UnitHandler` | in `modules.lua` `UnitHST` diventa `UnitHandler`; la `BehaviourFactory` resta dell'AI |
@@ -156,7 +156,7 @@ I percorsi abbreviati stanno sotto `luarules/gadgets/ai/` al commit `3ad8f3fb^` 
 
 ## Tre ambiti: globale, ally team, team
 
-Ogni modulo dichiara il proprio ambito con `Scope()` e il runtime lo istanzia una volta per istanza di quell'ambito: una volta per client host, una volta per ally team, una volta per AI. Ciò che è uguale per tutti si calcola una volta sola e resta raggiungibile da ogni AI con il solito `self.ai.<internalName>`.
+Ogni modulo dichiara il proprio ambito con `Scope()` e il runtime lo istanzia una volta per istanza di quell'ambito: una volta per client host, una volta per ally team, una volta per AI. La dichiarazione è obbligatoria, per scelta: un modulo senza Scope(), o con un valore diverso da quei tre, non si carica e il runtime lo segnala con Warn. Meglio un modulo assente e un avviso che un ambito sbagliato per dimenticanza. Ciò che è uguale per tutti si calcola una volta sola e resta raggiungibile da ogni AI con il solito `self.ai.<internalName>`.
 
 &#91;embedded content: tre ambiti · globale, ally team, team\]
 
@@ -192,7 +192,7 @@ function LosHST:internalName()
 end
 
 function LosHST:Scope()
-	return "ally" -- senza Scope() il modulo è "team", come in Shard
+	return "ally" -- obbligatorio: senza Scope() il modulo non si carica
 end
 
 function LosHST:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
@@ -290,7 +290,7 @@ shard_include("ecohst")
 return {
 	MapHST, -- Scope() "global": uno per client host
 	LosHST, -- Scope() "ally": uno per ally team
-	EcoHST, -- senza Scope(): uno per AI, come in Shard
+	EcoHST, -- Scope() "team": uno per AI, come in Shard
 	UnitHandler, -- dal runtime: unità e behaviour
 }
 
@@ -303,6 +303,10 @@ end
 
 function EcoHST:internalName()
 	return "ecohst"
+end
+
+function EcoHST:Scope()
+	return "team"
 end
 
 function EcoHST:Init()
