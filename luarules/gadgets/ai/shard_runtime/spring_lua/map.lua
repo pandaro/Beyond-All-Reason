@@ -260,8 +260,8 @@ local function MetalSpots(self)
 	local count = Spring.GetGameRulesParam("mex_count")
 	spots = {}
 	for i = 1, count or 0 do
-		local x = Spring.GetGameRulesParam("mex_x" .. i)
-		local z = Spring.GetGameRulesParam("mex_z" .. i)
+		local x = Spring.GetGameRulesParam("mex_x" .. i) --[[@as number?]]
+		local z = Spring.GetGameRulesParam("mex_z" .. i) --[[@as number?]]
 		if x ~= nil and z ~= nil then
 			local y = Spring.GetGameRulesParam("mex_y" .. i) or Spring.GetGroundHeight(x, z)
 			spots[#spots + 1] = { x = x, y = y, z = z }
