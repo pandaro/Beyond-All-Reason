@@ -1,0 +1,76 @@
+// A: STAI against SimpleAI, 1v1
+[GAME]
+{
+	MapName=Comet Catcher Remake 1.8;
+	GameType=Beyond All Reason $VERSION;
+	GameStartDelay=0;
+	StartPosType=0;
+	RecordDemo=0;
+	MyPlayerName=ShardRunner;
+	IsHost=1;
+	FixedRNGSeed=1;
+	NumPlayers=1;
+	NumUsers=1;
+	HostIP=127.0.0.1;
+	HostPort=0;
+	NoHelperAIs=0;
+
+	[MODOPTIONS]
+	{
+		deathmode=neverend;
+		debugcommands=1:cheat|2:setmaxspeed 100|3:setminspeed 100|@QUIT_FRAME@:quitforce;
+	}
+
+	[ALLYTEAM0]
+	{
+		NumAllies=0;
+	}
+
+	[ALLYTEAM1]
+	{
+		NumAllies=0;
+	}
+
+	[TEAM0]
+	{
+		Side=Armada;
+		Handicap=0;
+		AllyTeam=0;
+		TeamLeader=0;
+	}
+
+	[TEAM1]
+	{
+		Side=Cortex;
+		Handicap=0;
+		AllyTeam=1;
+		TeamLeader=0;
+	}
+
+	[AI0]
+	{
+		Host=0;
+		IsFromDemo=0;
+		Name=STAI(1);
+		ShortName=STAI;
+		Team=0;
+	}
+
+	[AI1]
+	{
+		Host=0;
+		IsFromDemo=0;
+		Name=SimpleAI(2);
+		ShortName=SimpleAI;
+		Team=1;
+	}
+
+	[PLAYER0]
+	{
+		IsFromDemo=0;
+		Name=ShardRunner;
+		Team=0;
+		Spectator=1;
+		Rank=0;
+	}
+}
