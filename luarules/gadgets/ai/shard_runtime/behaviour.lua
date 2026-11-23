@@ -4,7 +4,7 @@ function Behaviour:Name()
 	return "Unknown Behaviour"
 end
 
-function Module:internalName()
+function Behaviour:internalName()
 	return "unknown behaviour"
 end
 

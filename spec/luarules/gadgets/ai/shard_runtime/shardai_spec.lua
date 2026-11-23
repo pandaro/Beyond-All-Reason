@@ -3,12 +3,16 @@
 local RUNTIME_PATH = "luarules/gadgets/ai/shard_runtime/"
 local RUNTIME_FILES = { "class", "aibase", "module", "shardai", "shardally", "shardglobal" }
 
--- Loads the runtime classes into an environment of their own, as spring_lua/boot.lua does, with a console that
--- keeps every line it is sent.
-local function loadRuntime()
+-- Loads the runtime classes into an environment of their own, as spring_lua/boot.lua does, then the extra runtime
+-- files, with a console that keeps every line it is sent.
+local function loadRuntime(extraFiles)
 	local runtime = { console = {} }
 	local env = setmetatable({ Spring = { Echo = function() end } }, { __index = _G })
-	for _, name in ipairs(RUNTIME_FILES) do
+	local files = { unpack(RUNTIME_FILES) }
+	for _, name in ipairs(extraFiles or {}) do
+		files[#files + 1] = name
+	end
+	for _, name in ipairs(files) do
 		local chunk = assert(loadfile(RUNTIME_PATH .. name .. ".lua"))
 		setfenv(chunk, env)
 		chunk()
@@ -255,5 +259,29 @@ describe("ShardAI module scopes", function()
 		assert.equal(1, linesWith(runtime, "ally 1 ShardAlly allymodule module Warning: ally line"))
 		assert.equal(1, linesWith(runtime, "global ShardGlobal globalmodule module Warning: global line"))
 		assert.equal(1, linesWith(runtime, "2 Shard teammodule module Warning: team line"))
+	end)
+end)
+
+describe("behaviour.lua", function()
+	it("leaves the default internal name of modules alone", function()
+		local runtime = loadRuntime({ "behaviour" })
+
+		assert.equal("error", runtime.env.Module:internalName())
+	end)
+
+	it("lets a module without internalName() be skipped once it is loaded", function()
+		local runtime = loadRuntime({ "behaviour" })
+		local noName = runtime.env.class(runtime.env.Module)
+		function noName:Name()
+			return "noname module"
+		end
+		function noName:Scope()
+			return "team"
+		end
+		local team = newObject(runtime, runtime.env.ShardAI, { noName }, { id = 1, allyId = 0 })
+		team:Init()
+
+		assert.same({}, team.modules)
+		assert.equal(1, linesWith(runtime, "The module with the name noname module has no internal name!"))
 	end)
 end)
