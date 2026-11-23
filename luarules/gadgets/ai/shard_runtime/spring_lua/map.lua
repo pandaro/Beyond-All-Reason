@@ -1,6 +1,6 @@
 local map = {}
--- metal spots will come from the game rules params of BAR (api_resource_spot_finder: mex_count, mex_x<i>...)
-map.metalSpots = {}
+-- the metal spots of BAR's api_resource_spot_finder, read from its game rules params when first asked for
+map.metalSpots = nil
 map.geoSpots = shard_include("spring_lua/geo")
 
 local math_cos = math.cos
@@ -251,16 +251,38 @@ function map:GetMapFeaturesAt(position, radius)
 	return f
 end
 
+-- mex_count is nil until the spot finder ran, and -1 on a metal map, where there are no spots
+local function MetalSpots(self)
+	local spots = self.metalSpots
+	if spots ~= nil then
+		return spots
+	end
+	local count = Spring.GetGameRulesParam("mex_count")
+	spots = {}
+	for i = 1, count or 0 do
+		local x = Spring.GetGameRulesParam("mex_x" .. i)
+		local z = Spring.GetGameRulesParam("mex_z" .. i)
+		if x ~= nil and z ~= nil then
+			local y = Spring.GetGameRulesParam("mex_y" .. i) or Spring.GetGroundHeight(x, z)
+			spots[#spots + 1] = { x = x, y = y, z = z }
+		end
+	end
+	if count ~= nil then
+		self.metalSpots = spots
+	end
+	return spots
+end
+
 function map:SpotCount() -- returns the nubmer of metal spots
-	return #self.metalSpots
+	return #MetalSpots(self)
 end
 
 function map:GetSpot(idx) -- returns a Position for the given spot
-	return self.metalSpots[idx]
+	return MetalSpots(self)[idx]
 end
 
 function map:GetMetalSpots() -- returns a table of spot positions
-	local fv = self.metalSpots
+	local fv = MetalSpots(self)
 	local f = {}
 	for i = 1, #fv do
 		f[i] = fv[i]
