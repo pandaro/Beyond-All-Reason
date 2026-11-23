@@ -8,6 +8,10 @@ function SleepST:internalName()
 	return "sleepst"
 end
 
+function SleepST:Scope()
+	return "team"
+end
+
 function SleepST:Init()
 	self.sleeping = {}
 end

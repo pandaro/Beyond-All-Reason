@@ -8,6 +8,10 @@ function TargetHST:internalName()
 	return "targethst"
 end
 
+function TargetHST:Scope()
+	return "team"
+end
+
 function TargetHST:Init()
 	self.DebugEnabled = false
 	self.enemyCenter = self.elmoMapCenter

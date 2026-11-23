@@ -8,6 +8,10 @@ function MetalSpotHandler:internalName()
 	return "metalspothandler"
 end
 
+function MetalSpotHandler:Scope()
+	return "team"
+end
+
 function MetalSpotHandler:Init()
 	self.spots = self.game.map:GetMetalSpots()
 end

@@ -8,6 +8,10 @@ function CleanHST:internalName()
 	return "cleanhst"
 end
 
+function CleanHST:Scope()
+	return "team"
+end
+
 function CleanHST:Init()
 	self.DebugEnabled = false
 	self.theCleaner = {}

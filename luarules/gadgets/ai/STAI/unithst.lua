@@ -8,6 +8,10 @@ function UnitHST:internalName()
 	return "unithst"
 end
 
+function UnitHST:Scope()
+	return "team"
+end
+
 function UnitHST:Init()
 	self.units = {}
 	self.behaviourFactory = BehaviourFactory()

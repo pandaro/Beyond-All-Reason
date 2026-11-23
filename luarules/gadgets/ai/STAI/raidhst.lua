@@ -8,6 +8,10 @@ function RaidHST:internalName()
 	return "raidhst"
 end
 
+function RaidHST:Scope()
+	return "team"
+end
+
 local floor = math.floor
 function RaidHST:Init()
 	self.DebugEnabled = false

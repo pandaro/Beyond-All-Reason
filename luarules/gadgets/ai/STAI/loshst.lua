@@ -8,6 +8,10 @@ function LosHST:internalName()
 	return "loshst"
 end
 
+function LosHST:Scope()
+	return "team"
+end
+
 function LosHST:Init()
 	self.DebugEnabled = false
 	self.knownEnemies = {}

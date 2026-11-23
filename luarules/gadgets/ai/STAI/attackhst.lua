@@ -8,6 +8,10 @@ function AttackHST:internalName()
 	return "attackhst"
 end
 
+function AttackHST:Scope()
+	return "team"
+end
+
 local floor = math.floor
 
 function AttackHST:Init()

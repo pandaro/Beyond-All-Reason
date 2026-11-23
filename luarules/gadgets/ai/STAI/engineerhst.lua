@@ -8,6 +8,10 @@ function EngineerHST:internalName()
 	return "engineerhst"
 end
 
+function EngineerHST:Scope()
+	return "team"
+end
+
 function EngineerHST:Init()
 	self.DebugEnabled = false
 	self.Engineers = {}

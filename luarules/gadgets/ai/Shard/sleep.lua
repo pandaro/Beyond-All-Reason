@@ -8,6 +8,10 @@ function Sleep:internalName()
 	return "sleep"
 end
 
+function Sleep:Scope()
+	return "team"
+end
+
 function Sleep:Init()
 	self.sleeping = {}
 end

@@ -10,6 +10,10 @@ function Tool:internalName()
 	return "tool"
 end
 
+function Tool:Scope()
+	return "team"
+end
+
 sqrt = math.sqrt
 random = math.random
 pi = math.pi

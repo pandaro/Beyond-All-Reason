@@ -8,6 +8,10 @@ function EcoHST:internalName()
 	return "ecohst"
 end
 
+function EcoHST:Scope()
+	return "team"
+end
+
 local average = 30
 
 function EcoHST:Init()

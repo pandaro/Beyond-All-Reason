@@ -8,6 +8,10 @@ function LabsHST:internalName()
 	return "labshst"
 end
 
+function LabsHST:Scope()
+	return "team"
+end
+
 function LabsHST:Init()
 	self.DebugEnabled = false
 	self.labs = {}

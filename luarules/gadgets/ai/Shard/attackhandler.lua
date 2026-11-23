@@ -8,6 +8,10 @@ function AttackHandler:internalName()
 	return "attackhandler"
 end
 
+function AttackHandler:Scope()
+	return "team"
+end
+
 function AttackHandler:Init()
 	self.recruits = {}
 	self.counter = 8

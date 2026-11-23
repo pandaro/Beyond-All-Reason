@@ -8,6 +8,10 @@ function NullModule:internalName()
 	return "nullmodule" -- ai.nullmodule
 end
 
+function NullModule:Scope()
+	return "team"
+end
+
 function NullModule:Init()
 	-- we should setup some variables here
 end

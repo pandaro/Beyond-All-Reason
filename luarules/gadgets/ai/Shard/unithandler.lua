@@ -152,6 +152,10 @@ function UnitHandler:internalName()
 	return "unithandler"
 end
 
+function UnitHandler:Scope()
+	return "team"
+end
+
 function UnitHandler:Init()
 	self.units = {}
 	self.myActiveUnits = {}

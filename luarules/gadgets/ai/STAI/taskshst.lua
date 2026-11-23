@@ -8,6 +8,10 @@ function TasksHST:internalName()
 	return "taskshst"
 end
 
+function TasksHST:Scope()
+	return "team"
+end
+
 function TasksHST:Init()
 	self.DebugEnabled = false
 	self.roles = {}

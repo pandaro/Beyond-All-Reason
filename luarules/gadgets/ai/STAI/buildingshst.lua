@@ -8,6 +8,10 @@ function BuildingsHST:internalName()
 	return "buildingshst"
 end
 
+function BuildingsHST:Scope()
+	return "team"
+end
+
 function BuildingsHST:Init()
 	self.DebugEnabled = false
 	self.dontBuildRects = {}

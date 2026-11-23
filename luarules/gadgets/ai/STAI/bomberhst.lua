@@ -8,6 +8,10 @@ function BomberHST:internalName()
 	return "bomberhst"
 end
 
+function BomberHST:Scope()
+	return "team"
+end
+
 function BomberHST:Init()
 	self.DebugEnabled = false
 	self.recruits = {}

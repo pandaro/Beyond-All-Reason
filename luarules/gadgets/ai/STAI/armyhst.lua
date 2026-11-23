@@ -8,6 +8,10 @@ function ArmyHST:internalName()
 	return "armyhst"
 end
 
+function ArmyHST:Scope()
+	return "team"
+end
+
 function ArmyHST:Init()
 
 	self.DebugEnabled = false

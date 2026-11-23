@@ -8,6 +8,10 @@ function PlacementHandler:internalName()
 	return "placementhandler"
 end
 
+function PlacementHandler:Scope()
+	return "team"
+end
+
 function PlacementHandler:Init()
 	self.jobs = {}
 end

@@ -8,6 +8,10 @@ function DamageHST:internalName()
 	return "damagehst"
 end
 
+function DamageHST:Scope()
+	return "team"
+end
+
 function DamageHST:Init()
 	self.DebugEnabled = false
 	self.isDamaged = {}

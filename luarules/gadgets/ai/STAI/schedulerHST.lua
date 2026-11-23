@@ -8,6 +8,10 @@ function SchedulerHST:internalName()
 	return "schedulerhst"
 end
 
+function SchedulerHST:Scope()
+	return "team"
+end
+
 function SchedulerHST:Init()
 	self.DebugEnabled = false
 	self.AIs = {}

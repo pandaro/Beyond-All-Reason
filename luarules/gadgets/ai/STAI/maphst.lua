@@ -8,6 +8,10 @@ function MapHST:internalName()
 	return "maphst"
 end
 
+function MapHST:Scope()
+	return "team"
+end
+
 local pathGraphs = {}
 
 local mCeil = math.ceil

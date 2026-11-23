@@ -8,6 +8,10 @@ function ScoutHST:internalName()
 	return "scouthst"
 end
 
+function ScoutHST:Scope()
+	return "team"
+end
+
 function ScoutHST:Init()
 	self.DebugEnabled = false
 	self.scouts = {}
