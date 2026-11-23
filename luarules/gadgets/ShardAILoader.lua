@@ -324,6 +324,9 @@ else
 	local runtimeInclude = nil -- boot.lua's shard_include: runtime files only
 	local gameHash = nil
 	local memoryRecord = 0
+	local failedTypes = {} -- AI name -> the error that stopped the type from loading
+	local runtimeFailure = nil -- the error that stopped the runtime from loading
+	local newAllies = nil -- while an AI loads, the ShardAlly objects created for it
 
 	-- the runtime is loaded only by a client that hosts an AI
 	local function LoadRuntime()
@@ -423,6 +426,7 @@ else
 		if not ok then
 			ReportError(target, name, err)
 		end
+		return ok
 	end
 
 	-- A ShardAlly or ShardGlobal whose AI type has no module of its scope has nothing to run, and
@@ -578,6 +582,9 @@ else
 		ally.global = aiType.global
 		ally.AIs = {}
 		allies[#allies + 1] = ally
+		if newAllies ~= nil then
+			newAllies[#newAllies + 1] = ally
+		end
 		return ally
 	end
 
@@ -631,9 +638,66 @@ else
 		return thisAI
 	end
 
+	local function RemoveValue(list, value)
+		for i = #list, 1, -1 do
+			if list[i] == value then
+				table.remove(list, i)
+			end
+		end
+	end
+
+	local function RemoveAlly(ally)
+		local allies = Shard.alliesByAllyID[ally.allyId]
+		if allies == nil then
+			return
+		end
+		RemoveValue(allies, ally)
+		if allies[1] == nil then
+			Shard.alliesByAllyID[ally.allyId] = nil
+		end
+	end
+
+	-- the ShardAlly objects a failed load created and left without AIs
+	local function RemoveNewAllies(allies)
+		for i = 1, #allies do
+			if allies[i].AIs[1] == nil then
+				RemoveAlly(allies[i])
+			end
+		end
+	end
+
+	local function LoadingFailed(id, err)
+		spEcho("[AI Loader] error loading " .. tostring(aiTeams[id]) .. " for team " .. id .. ": " .. tostring(err))
+	end
+
+	-- loads the AI of team id; an error leaves it unloaded, and the other AIs and LuaRules go on
 	function gadget:AddAI(id)
-		LoadRuntime()
-		local thisAI = self:SetupAI(id)
+		local aiName = aiTeams[id]
+		local known = runtimeFailure or failedTypes[aiName]
+		if known ~= nil then
+			LoadingFailed(id, known)
+			return nil
+		end
+		newAllies = {}
+		local ok, result = xpcall(function()
+			LoadRuntime()
+			return self:SetupAI(id)
+		end, WithTraceback)
+		local allies = newAllies
+		newAllies = nil
+		if not ok then
+			if Shard == nil or Shard.AIs == nil then
+				runtimeFailure = result
+			elseif Shard.types[aiName] == nil then
+				failedTypes[aiName] = result
+			end
+			if Shard ~= nil and Shard.alliesByAllyID ~= nil then
+				RemoveNewAllies(allies)
+			end
+			LoadingFailed(id, result)
+			return nil
+		end
+		local thisAI = result
 		if thisAI ~= nil then
 			Shard.AIsByTeamID[id] = thisAI
 			Shard.AIs[#Shard.AIs + 1] = thisAI
@@ -643,21 +707,13 @@ else
 		return thisAI
 	end
 
-	local function RemoveValue(list, value)
-		for i = #list, 1, -1 do
-			if list[i] == value then
-				table.remove(list, i)
-			end
-		end
-	end
-
 	-- the AI of teamID stops here: no more events nor updates, and its queued orders are dropped
-	local function StopAI(teamID)
+	local function StopAI(teamID, reason)
 		local thisAI = Shard.AIsByTeamID[teamID]
 		if thisAI == nil then
 			return
 		end
-		spEcho("[AI Loader] AI team " .. teamID .. " moved to another host: stopped on this client")
+		spEcho("[AI Loader] AI team " .. teamID .. " " .. reason .. ": stopped on this client")
 		thisAI.outbox:Reset()
 		Shard.AIsByTeamID[teamID] = nil
 		RemoveValue(Shard.AIs, thisAI)
@@ -669,12 +725,39 @@ else
 		hosting = Shard.AIs[1] ~= nil
 	end
 
-	local function StartObject(target, fresh)
+	-- Init() runs on the first Prepare(), as in Shard; an object whose Init() failed goes to `failed`
+	local function StartObject(target, fresh, failed)
 		if target.loaded == true then
 			return
 		end
-		Call(target, "Prepare") -- Init() runs on the first Prepare(), as in Shard
 		fresh[target] = true
+		if not Call(target, "Prepare") then
+			failed[#failed + 1] = target
+		end
+	end
+
+	-- an object whose Init() failed leaves the lists, and so do the AIs that rely on it: a shared
+	-- object half initialised would fail its AIs in every call
+	local function DropFailed(failed)
+		for i = 1, #failed do
+			local target = failed[i]
+			local scope = target:Scope()
+			if scope == "team" then
+				StopAI(target.id, "failed to initialise")
+			else
+				local AIs = target.AIs
+				for j = #AIs, 1, -1 do
+					StopAI(AIs[j].id, "lost its " .. scope .. " object, which failed to initialise")
+				end
+				if scope == "ally" then
+					RemoveAlly(target)
+				else
+					RemoveValue(Shard.globals, target)
+					failedTypes[target.fullname] = "its global object failed to initialise"
+					Shard.types[target.fullname] = nil
+				end
+			end
+		end
 	end
 
 	-- initialise every object not loaded yet, global -> ally team -> team, so that a module finds the
@@ -682,21 +765,27 @@ else
 	function gadget:StartAIs()
 		started = true
 		local fresh = {}
+		local failed = {}
 		for _, global in ipairs(Shard.globals) do
-			StartObject(global, fresh)
+			StartObject(global, fresh, failed)
 		end
+		DropFailed(failed)
+		failed = {}
 		for _, allies in pairs(Shard.alliesByAllyID) do
 			for _, ally in ipairs(allies) do
-				StartObject(ally, fresh)
+				StartObject(ally, fresh, failed)
 			end
 		end
+		DropFailed(failed)
+		failed = {}
 		for _, thisAI in ipairs(Shard.AIs) do
 			if thisAI.loaded ~= true then
 				local x, y, z = spGetTeamStartPosition(thisAI.id)
 				thisAI.startPos = { x, y, z }
 			end
-			StartObject(thisAI, fresh)
+			StartObject(thisAI, fresh, failed)
 		end
+		DropFailed(failed)
 		return fresh
 	end
 
@@ -752,7 +841,7 @@ else
 		local hostedHere = Shard ~= nil and Shard.AIsByTeamID[teamID] ~= nil
 		if hostPlayerID ~= myPlayerID then
 			if hostedHere then
-				StopAI(teamID)
+				StopAI(teamID, "moved to another host")
 			end
 			return
 		end

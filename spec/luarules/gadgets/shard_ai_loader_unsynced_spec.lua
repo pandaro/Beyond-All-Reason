@@ -5,8 +5,10 @@ local newVFS = require("spec/support/fake_vfs")
 
 local LOADER_PATH = "luarules/gadgets/ShardAILoader.lua"
 local CODEC_PATH = "luarules/gadgets/ai/shard_runtime/ordercodec.lua"
-local SPEC_AI_PATH = "luarules/gadgets/ai/SpecAI/"
-local FIXTURE_PATH = "spec/fixtures/shard_ai/"
+local FIXTURE_PATHS = {
+	["luarules/gadgets/ai/SpecAI/"] = "spec/fixtures/shard_ai/",
+	["luarules/gadgets/ai/BrokenAI/"] = "spec/fixtures/shard_ai_broken/",
+}
 
 local CMD = { STOP = 0, MOVE = 10, OPT_META = 4, OPT_RIGHT = 16, OPT_SHIFT = 32, OPT_CTRL = 64, OPT_ALT = 128 }
 local GAIA_TEAM = 4
@@ -38,10 +40,12 @@ local function fileExists(path)
 	return false
 end
 
--- the spec AI type lives under spec/fixtures, the rest of the runtime where the engine finds it
+-- the spec AI types live under spec/fixtures, the rest of the runtime where the engine finds it
 local function realPath(path)
-	if string.sub(path, 1, #SPEC_AI_PATH) == SPEC_AI_PATH then
-		return FIXTURE_PATH .. string.sub(path, #SPEC_AI_PATH + 1)
+	for aiPath, fixturePath in pairs(FIXTURE_PATHS) do
+		if string.sub(path, 1, #aiPath) == aiPath then
+			return fixturePath .. string.sub(path, #aiPath + 1)
+		end
 	end
 	return path
 end
@@ -110,6 +114,9 @@ local function loadLoader(world)
 			return teamID, 0, false, world.teams[teamID].luaAI ~= nil, "arm", world.teams[teamID].allyId
 		end,
 		AreTeamsAllied = function(a, b)
+			if a == world.failAllied then
+				error("allied failure")
+			end
 			return world.teams[a].allyId == world.teams[b].allyId
 		end,
 		GetTeamStartPosition = function()
@@ -163,9 +170,13 @@ local function loadLoader(world)
 	return loader
 end
 
--- Initialize and GameStart, as the engine calls them, with the units already in the world.
-local function started(world)
+-- Initialize and GameStart, as the engine calls them, with the units already in the world; `hooks`
+-- go to SpecHooks before anything loads.
+local function started(world, hooks)
 	local loader = loadLoader(world)
+	for name, hook in pairs(hooks or {}) do
+		loader.hooks[name] = hook
+	end
 	loader.gadget:Initialize()
 	loader.gadget:GameStart()
 	return loader
@@ -488,5 +499,86 @@ describe("ShardAILoader unsynced side", function()
 		assert.equal((reference * 31 + 1) % 65521, o.team0.randomseed)
 		assert.are_not.equal(o.team0.randomseed, o.team1.randomseed)
 		assert.is_true(reference * 31 + 255 < 2 ^ 24)
+	end)
+
+	describe("with errors while loading", function()
+		it("leaves an AI type that fails to load unloaded, with a line per team, and runs the others", function()
+			local world = defaultWorld()
+			world.teams[1].luaAI = "BrokenAI"
+			world.teams[2].luaAI = "BrokenAI"
+			local loader = started(world)
+			loader.gadget:GameFrame(1)
+
+			local Shard = loader.env.Shard
+			assert.equal(1, #Shard.AIs)
+			assert.is_not_nil(Shard.AIsByTeamID[0])
+			assert.is_nil(Shard.alliesByAllyID[1])
+			assert.equal(1, #Shard.globals)
+			assert.equal(1, echoesWith(loader, "[AI Loader] error loading BrokenAI for team 1: "))
+			assert.equal(1, echoesWith(loader, "[AI Loader] error loading BrokenAI for team 2: "))
+			assert.equal(2, echoesWith(loader, "broken boot"))
+			assert.equal(1, #heard(loader, "BrokenBoot"))
+			assert.equal(1, countBy(heard(loader, "Update"), "owner")[Shard.AIsByTeamID[0]])
+		end)
+
+		it("drops an AI whose module fails in Init and runs the others", function()
+			local loader = started(nil, {
+				Init = function(module)
+					if module.ai.id == 1 then
+						error("broken init")
+					end
+				end,
+			})
+			loader.gadget:GameFrame(1)
+
+			local Shard = loader.env.Shard
+			assert.is_nil(Shard.AIsByTeamID[1])
+			assert.equal(2, #Shard.AIs)
+			assert.equal(1, echoesWith(loader, "AI team 1 failed to initialise: stopped on this client"))
+			assert.equal(1, echoesWith(loader, "broken init"))
+			local counts = countBy(heard(loader, "Update"), "owner")
+			assert.equal(1, counts[Shard.AIsByTeamID[0]])
+			assert.equal(1, counts[Shard.AIsByTeamID[2]])
+		end)
+
+		it("drops a shared object that fails in Init together with the AIs that rely on it", function()
+			local loader = started(nil, {
+				Init = function(module)
+					if module.ai.allyId == 1 and module:Scope() == "ally" then
+						error("broken ally init")
+					end
+				end,
+			})
+
+			local Shard = loader.env.Shard
+			assert.is_nil(Shard.alliesByAllyID[1])
+			assert.is_nil(Shard.AIsByTeamID[2])
+			assert.equal(2, #Shard.AIs)
+			assert.equal(1, echoesWith(loader, "AI team 2 lost its ally object, which failed to initialise"))
+		end)
+
+		it("takes back the ShardAlly that an AI failing after it was created left without AIs", function()
+			local world = defaultWorld()
+			world.failAllied = 2
+			local loader = started(world)
+
+			local Shard = loader.env.Shard
+			assert.is_nil(Shard.AIsByTeamID[2])
+			assert.is_nil(Shard.alliesByAllyID[1])
+			assert.equal(1, #Shard.alliesByAllyID[0])
+			assert.equal(1, echoesWith(loader, "allied failure"))
+		end)
+
+		it("does not take over a team of an AI type that failed to load", function()
+			local world = defaultWorld()
+			world.hosts[2] = 1
+			world.teams[2].luaAI = "BrokenAI"
+			local loader = started(world)
+
+			loader.syncActions.shard_host("shard_host", 2, 0)
+
+			assert.is_nil(loader.env.Shard.AIsByTeamID[2])
+			assert.equal(1, echoesWith(loader, "[AI Loader] error loading BrokenAI for team 2: "))
+		end)
 	end)
 end)
