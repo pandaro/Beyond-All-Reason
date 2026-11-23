@@ -13,3 +13,5 @@ fd46cb8511567bbb23f96daac2cdb6705c3d44a7
 # gen(bar_codemod): detach-bar-modules
 addf4addf97734cf04e0ea1254a57b0da90ebea4
 
+# gen(stylua): formattazione di Shard e STAI recuperati
+9918a93bbf97d66d13c7fc4e03f709b51f11533b
