@@ -360,7 +360,9 @@ else
 
 	local function TeamSeed(teamID)
 		local hash = gameHash --[[@as integer]]
-		return (hash * 31 + teamID + 1) % SEED_MODULUS
+		local seed = (hash * 31 + teamID + 1) % SEED_MODULUS
+		spEcho("[AI Loader] AI team " .. teamID .. " random seed " .. seed)
+		return seed
 	end
 
 	-- calls into the objects ---------------------------------------------------------------------------
