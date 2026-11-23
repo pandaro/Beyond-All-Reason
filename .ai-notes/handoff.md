@@ -26,6 +26,14 @@
 
 **Lavoro**
 
+0. **Strumento per i test con l'engine vero** (il test runner di BAR oggi non esegue i test, vedi T4; l'utente deciderà se e quando segnalarlo, noi intanto lavoriamo così):
+   - salva in `.ai-notes/tools/` il gadget temporaneo che hai usato in T4 per eseguire `luaui/Tests/shard/*.lua` in synced e in unsynced, generalizzato: esegue tutti i file di `luaui/Tests/shard/` (o quelli indicati), scrive per ognuno `ok` o `FAILED` con il messaggio d'errore, e alla fine una riga di riepilogo facile da cercare nell'`infolog.txt`;
+   - accanto, uno script `.ai-notes/tools/run_engine_tests.sh` che copia il gadget in `luarules/gadgets/`, lancia la partita headless come in `CLAUDE.local.md`, lo toglie **sempre** alla fine (anche se la partita fallisce, con `trap`), e stampa il riepilogo;
+   - controllo negativo incluso: un test che deve fallire, per provare che lo strumento vede i fallimenti;
+   - commit con `git add -f`, come gli altri file di `.ai-notes/`. Il gadget non deve mai finire fuori da `.ai-notes/` in un commit;
+   - aggiungi una riga al protocollo di questo file: «Test con l'engine vero: `.ai-notes/tools/run_engine_tests.sh`; il `PASS` del test runner di BAR non conta».
+   Da qui in poi i compiti useranno questo strumento al posto del `PASS` del runner.
+
 1. `luarules/gadgets/ShardAILoader.lua`, nuovo, dalla bozza:
    - `GetInfo` (nome «Shard AI Loader»), localizzazioni, rilevamento dei team con una Lua AI che ha `ai/<NomeAI>/boot.lua`, `return false` se non ce n'è nessuno, controllo di `Game.maxUnits` (gli unitID viaggiano come U16).
    - Lato synced com'è nella bozza: `ChooseSuccessor`, `RegisterHosts`, `aiHostPlayer` come team rules param pubblico, `Initialize`, `GameStart`, `PlayerRemoved`, `RecvLuaMsg`, `AddOrder`, `GiveOrders`, `Reject`, i contatori e `Shutdown`.
@@ -44,13 +52,13 @@
    - STOP senza parametri come ultimo ordine;
    - host: all'avvio quello del lobby; con `PlayerRemoved` dell'host il successore è deterministico (stesso ally team, poi altri giocatori attivi, poi spettatori; vince il playerID più basso), `aiHostPlayer` viene aggiornato, `SendToUnsynced("shard_host", …)` parte, e la seq del team riparte (il primo messaggio del nuovo host con seq 1 passa).
    Verifica che i casi di sicurezza falliscano togliendo il controllo corrispondente (prova delle mutazioni, come in T4).
-3. Partita headless: deve solo confermare che il gadget si carica senza errori e si disattiva da solo (nessuna AI Shard nella partita di test). Un test con l'engine vero e un'AI che dà ordini arriva con T5b.
+3. Partita headless, con lo strumento del punto 0 (deve passare `test_ordercodec.lua` di T4): deve anche confermare che il gadget si carica senza errori e si disattiva da solo (nessuna AI Shard nella partita di test). Un test con l'engine vero e un'AI che dà ordini arriva con T5b.
 
 **Fuori dal compito**: il lato unsynced, `luaai.lua` (le voci di STAI e Shard servono in T5b), il problema del test runner trovato in T4.
 
 **Controlli**: StyLua, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, headless.
 
-**Commit**, in inglese: uno per il supporto `VFS` spostato (se tocca la spec di T4), uno per `ShardAILoader.lua` con la sua spec.
+**Commit**, in inglese: uno per lo strumento del punto 0, uno per il supporto `VFS` spostato (se tocca la spec di T4), uno per `ShardAILoader.lua` con la sua spec.
 
 **Nei risultati**: righe per file, casi di test e prova delle mutazioni, ogni punto in cui ti sei scostato dalla bozza e perché.
 
