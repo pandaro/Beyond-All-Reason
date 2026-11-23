@@ -429,7 +429,7 @@ Suite completa: `2611 successes / 0 failures / 0 errors / 1 pending` (T5a: 2595)
 - `debug.traceback` nel LuaRules unsynced: usato se c'è, altrimenti il solo messaggio. Da confermare in T5c leggendo una riga d'errore vera.
 - Il seme ha solo 65.521 valori possibili: basta per la casualità di un'AI; se serve di più, due hash con moduli diversi.
 
-### T5c (agente locale, 23-24 novembre 2026)
+### T5c (agente locale, 23-24 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 

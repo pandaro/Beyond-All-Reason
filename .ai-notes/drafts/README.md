@@ -347,7 +347,7 @@ Positions are tables `{ x = …, y = …, z = … }`.
 
 - Size and terrain: `MapDimensions()`, `MapName()`, `GetGroundHeight(x, z)`, `MaximumHeight()`, `MinimumHeight()`.
 - Wind and tide: `GetWind()`, `AverageWind()`, `MinimumWindSpeed()`, `MaximumWindSpeed()`, `TidalStrength()`.
-- Resources: `GetMetalSpots()`, `SpotCount()`, `GetSpot(i)`, `GetGeoSpots()`, `GeoCount()`, `GetGeo(i)`. Planned: metal spots will come from BAR's resource spot finder (game rules params `mex_count`, `mex_x<i>`…), and the framework will not compute its own. Today the list is empty.
+- Resources: `GetMetalSpots()`, `SpotCount()`, `GetSpot(i)`, `GetGeoSpots()`, `GeoCount()`, `GetGeo(i)`. Metal spots come from BAR's resource spot finder (game rules params `mex_count`, `mex_x<i>`, `mex_y<i>`, `mex_z<i>`), read the first time they are asked for; the framework does not compute its own. On a metal map there are none.
 - Building: `CanBuildHere(unittype, position)`, `FindClosestBuildSite(unittype, builderpos, searchradius, minimumdistance, validFunction)`.
 - Features: `GetMapFeatures()`, `GetMapFeaturesAt(position, radius)`.
 - Debug drawing: see [Logging and debugging](#logging-and-debugging).
