@@ -1,7 +1,7 @@
 ---@diagnostic disable: undefined-global
 
 -- Every call a module gets goes to SpecLog as { name, internalName, owner object, arguments... };
--- SpecHooks[name], when set by the spec, runs with the module and the arguments.
+-- SpecHooks[name], when set by the spec, runs with the module and the arguments; SpecQuiet turns both off.
 local EVENTS = {
 	"Init",
 	"Update",
@@ -30,6 +30,9 @@ local function recordingModule(className, internalName, scope)
 	end
 	for _, event in ipairs(EVENTS) do
 		moduleClass[event] = function(self, ...)
+			if SpecQuiet then
+				return
+			end
 			SpecLog[#SpecLog + 1] = { event, internalName, self.ai, ... }
 			local hook = SpecHooks[event]
 			if hook then

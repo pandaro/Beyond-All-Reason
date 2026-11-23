@@ -316,6 +316,8 @@ else
 	-- as 65520 * 31 + 255 does
 	local SEED_MODULUS = 65521 -- the largest prime below 2^16
 	local ERROR_REPORT_FRAMES = 900 -- the same error of an object in a call-in is written once per 30 s of game
+	-- a dead unit's ShardUnit stays for 30 s of game: the AIs still ask the game for units they saw die
+	local DEAD_UNIT_FRAMES = 900
 
 	local myPlayerID = spGetMyPlayerID()
 	local hosting = false -- this client runs at least one AI
@@ -513,6 +515,46 @@ else
 			thisAI.alliedUnitIds[unitID] = nil
 			thisAI.enemyUnitIds[unitID] = nil
 			thisAI.neutralUnitIds[unitID] = nil
+		end
+	end
+
+	-- dead units ------------------------------------------------------------------------------------
+	-- A ring of three parallel arrays (unit ID, ShardUnit, frame it leaves the cache), in the order the
+	-- units died; it grows by doubling when full and is never rebuilt otherwise.
+
+	local deadIDs, deadUnits, deadExpiry = {}, {}, {}
+	local deadCapacity, deadHead, deadCount = 0, 1, 0
+
+	local function GrowDeadRing()
+		local capacity = math.max(64, deadCapacity * 2)
+		local ids, units, expiry = {}, {}, {}
+		for k = 1, deadCount do
+			local i = (deadHead + k - 2) % deadCapacity + 1
+			ids[k], units[k], expiry[k] = deadIDs[i], deadUnits[i], deadExpiry[i]
+		end
+		deadIDs, deadUnits, deadExpiry = ids, units, expiry
+		deadCapacity, deadHead = capacity, 1
+	end
+
+	local function KeepDeadUnit(unitID, unit, frame)
+		if deadCount == deadCapacity then
+			GrowDeadRing()
+		end
+		local i = (deadHead + deadCount - 1) % deadCapacity + 1
+		deadIDs[i], deadUnits[i], deadExpiry[i] = unitID, unit, frame + DEAD_UNIT_FRAMES
+		deadCount = deadCount + 1
+	end
+
+	-- drops from the cache the dead units whose time is over, unless their ID already belongs to a new unit
+	local function ExpireDeadUnits(frame)
+		while deadCount > 0 and deadExpiry[deadHead] <= frame do
+			local unitID = deadIDs[deadHead]
+			if Shard.unitsByID[unitID] == deadUnits[deadHead] then
+				Shard:unshardify_unit(unitID)
+			end
+			deadUnits[deadHead] = nil
+			deadHead = deadHead % deadCapacity + 1
+			deadCount = deadCount - 1
 		end
 	end
 
@@ -926,6 +968,7 @@ else
 		for i = 1, #AIs do
 			AIs[i].outbox:Flush(n, spSendLuaRulesMsg)
 		end
+		ExpireDeadUnits(n)
 		if n % 300 == 0 then
 			memoryRecord = math.max(memoryRecord, gcinfo()) -- measured, never forced
 		end
@@ -936,6 +979,11 @@ else
 			return
 		end
 		AddToUnitTables(unitId, teamId)
+		-- the engine reuses unit IDs: a dead unit still kept under this ID gives way to the new one
+		local cached = Shard.unitsByID[unitId]
+		if cached ~= nil and cached.destroyed then
+			Shard:unshardify_unit(unitId)
+		end
 		local unit = Shard:shardify_unit(unitId)
 		DeliverToShared("UnitCreated", unit, unitDefId, teamId, builderId)
 		-- among the AIs only the owner, as the old loader did: STAI's modules take UnitCreated for a unit
@@ -958,10 +1006,12 @@ else
 		if not Ready() then
 			return
 		end
-		DeliverToAll("UnitDead", Shard:shardify_unit(unitId))
+		local unit = Shard:shardify_unit(unitId)
+		DeliverToAll("UnitDead", unit)
 		RemoveFromUnitTables(unitId)
-		-- the engine reuses unit IDs, and the old loader kept every dead unit in Shard.unitsByID
-		Shard:unshardify_unit(unitId)
+		-- kept a while, with its type and name, then dropped: the old loader kept every dead unit forever
+		unit.destroyed = true
+		KeepDeadUnit(unitId, unit, spGetGameFrame())
 	end
 
 	function gadget:UnitDamaged(

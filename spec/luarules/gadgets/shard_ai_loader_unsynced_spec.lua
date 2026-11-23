@@ -72,7 +72,7 @@ local function loadLoader(world)
 	end
 	env.VFS = vfs
 	env.Game = { maxUnits = 32000, gameShortName = "BAR", mapName = "Spec Map" }
-	env.UnitDefs = { [1] = { name = "specunit" } }
+	env.UnitDefs = { [1] = { name = "specunit" }, [2] = { name = "otherunit" } }
 	env.Script = { LuaUI = setmetatable({}, {
 		__call = function()
 			return false
@@ -139,8 +139,9 @@ local function loadLoader(world)
 			table.sort(list)
 			return list
 		end,
-		GetUnitDefID = function()
-			return 1
+		GetUnitDefID = function(unitID)
+			local unit = world.units[unitID]
+			return unit and (unit.defID or 1)
 		end,
 		GetUnitTeam = function(unitID)
 			return world.units[unitID] and world.units[unitID].team
@@ -353,7 +354,7 @@ describe("ShardAILoader unsynced side", function()
 		assert.same({ [100] = true }, o.team0.enemyUnitIds)
 		assert.same({ [100] = true }, o.team2.ownUnitIds)
 		assert.same({ [101] = true }, o.team2.enemyUnitIds)
-		assert.is_nil(loader.env.Shard.unitsByID[200])
+		assert.is_not_nil(loader.env.Shard.unitsByID[200])
 		assert.equal(12, #heard(loader, "UnitDead")) -- UnitTaken and UnitDestroyed, to all six objects
 	end)
 
@@ -579,6 +580,74 @@ describe("ShardAILoader unsynced side", function()
 
 			assert.is_nil(loader.env.Shard.AIsByTeamID[2])
 			assert.equal(1, echoesWith(loader, "[AI Loader] error loading BrokenAI for team 2: "))
+		end)
+	end)
+
+	describe("with dead units", function()
+		local function destroy(loader, unitID, frame)
+			loader.world.frame = frame
+			local teamID = loader.world.units[unitID].team
+			loader.world.units[unitID] = nil
+			loader.gadget:UnitDestroyed(unitID, 1, teamID)
+		end
+
+		local function frames(loader, from, to)
+			for n = from, to do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+		end
+
+		it("keeps the ShardUnit of a dead unit, with its name, for 900 frames", function()
+			local loader = started()
+			local Shard = loader.env.Shard
+			local game = Shard.AIsByTeamID[0].game
+			addUnit(loader, 100, 0)
+
+			destroy(loader, 100, 10)
+			assert.equal("specunit", game:GetUnitByID(100):Name())
+			frames(loader, 10, 909)
+			assert.equal("specunit", game:GetUnitByID(100):Name())
+			frames(loader, 910, 911)
+
+			assert.is_nil(Shard.unitsByID[100])
+		end)
+
+		it("hands a reused unit ID to the new unit, and the old expiry leaves it alone", function()
+			local loader = started()
+			local Shard = loader.env.Shard
+			addUnit(loader, 100, 0)
+			destroy(loader, 100, 10)
+
+			loader.world.frame = 20
+			loader.world.units[100] = { team = 2, defID = 2 }
+			loader.gadget:UnitCreated(100, 2, 2)
+			local reused = Shard.unitsByID[100]
+			frames(loader, 20, 1000)
+
+			assert.equal("otherunit", reused:Name())
+			assert.equal(reused, Shard.unitsByID[100])
+			assert.is_nil(reused.destroyed)
+		end)
+
+		it("allocates nothing in GameFrame with many dead units waiting", function()
+			local loader = started()
+			for unitID = 1000, 1299 do
+				addUnit(loader, unitID, 0)
+				destroy(loader, unitID, 5)
+			end
+			loader.env.SpecQuiet = true
+			frames(loader, 6, 50)
+
+			collectgarbage("collect")
+			collectgarbage("stop")
+			local before = collectgarbage("count")
+			frames(loader, 51, 1500)
+			local after = collectgarbage("count")
+			collectgarbage("restart")
+
+			assert.equal(before, after)
+			assert.is_nil(loader.env.Shard.unitsByID[1000])
 		end)
 	end)
 end)
