@@ -250,3 +250,62 @@ Niente in più: al caricamento usa solo `class`, `AIBase` e `setmetatable` (`Spr
 - StyLua pulito sui tre file toccati.
 - `lx --lua-version 5.1 test`: `2561 successes / 0 failures / 0 errors / 1 pending` (T3: 2559). `.emmyrc.json` rimesso com'era.
 - Headless come in T3: codice d'uscita 0, righe d'errore identiche a T3, `PASS: ai_stai_factory_rect.lua` ×2.
+
+### T4 (agente locale, 23 novembre 2026)
+
+**Commit** (messaggi in inglese, su richiesta dell'utente)
+
+1. `66cdb93a7f` «Shard: binary order encoding and per-AI outbox»: `shard_runtime/ordercodec.lua` (nuovo, 118 righe), `shard_runtime/spring_lua/outbox.lua` (nuovo, 296), `spring_lua/boot.lua` +1 (`"spring_lua/outbox"` in `runtime_includes`), `spec/luarules/gadgets/ai/shard_runtime/ordercodec_spec.lua` (nuovo, 499).
+2. `adda135d9e` «Shard and STAI: GiveOrder and SyncOrder go through the outbox»: `spring_lua/game.lua` +77 −6, `spring_lua/unit.lua` +2 −2, `STAI/tool.lua` +1 −2, spec +85 −1 (i casi di `game:GiveOrder`, che con il `game.lua` di prima falliscono: 7 errori su 20).
+3. `5f31cd0ccd` «Shard: headless test of the order encoding with the engine VFS»: `luaui/Tests/shard/test_ordercodec.lua` (nuovo, 67).
+
+**`ordercodec.lua`**: restituisce una tabella (`VFS.Include` dal synced in T5) con le costanti (`MAGIC`, `VERSION`, `HEADER_SIZE`, `ORDER_FIXED_SIZE`, `PARAM_SIZE`, `MAX_PARAMS`), `IsOrderMessage`, `PackHeader`, `PackOrder`, `UnpackHeader` (versione, team, seq, frame, count, posizione del primo ordine; `nil` sotto i 16 byte), `UnpackOrder` (unità, comando, opzioni, n, posizione dei parametri, posizione dell'ordine dopo; `nil` se l'ordine o i suoi parametri escono dal messaggio). Versione+team e opzioni+n si leggono come U16. Nessuna tabella creata, nessuna chiamata unsynced. I parametri li legge chi chiama, come nella bozza (`VFS.UnpackF32(msg, pos, n)`).
+
+**`outbox.lua`**: `ShardOutbox(teamID)` con array paralleli riusati (unità, comando, opzioni, n, gruppo) e una tabella di parametri per posizione della coda, riusata. `Queue` valida e accoda; `BeginGroup`/`EndGroup` tengono insieme gli ordini di una chiamata (se uno è scartato, cade tutto il gruppo); `Flush(frame, send)` prende i gruppi interi dalla testa finché stanno in 25 ordini (`MAX_ORDERS_PER_MESSAGE`; un gruppo più grande parte da solo), costruisce il messaggio con un buffer riusato e `table.concat`, sposta in testa il resto scambiando le tabelle dei parametri, poi chiama `send`. `Reset` svuota e riparte da seq 1. Le uniche tabelle nuove sono quelle dei parametri quando la coda cresce oltre il massimo raggiunto.
+- `params`: `nil`, numero, array (≤ 255, altrimenti `Warn` e scartato) o tabella posizione `{x, y, z}`, appiattita in `x, y, z` più `[1]` se c'è, come faceva `Tool:TableToString` (STAI passa posizioni così in decine di punti, es. `scoutbst.lua:106`, `ShardUnit:Patrol`). Posizione senza `y`: scartato, come l'avviso «incomplete position» di STAI.
+- `options`: maschera U8, oppure array di nomi (`"shift"`, `"alt"`, `"ctrl"`, `"meta"`, `"right"` → `CMD.OPT_*`, OR senza libreria di bit) e di maschere: `ShardUnit:Build` passa `{ 0 }` per default.
+
+**I quattro metodi** (forma del vecchio loader, `git show 3ad8f3fb^:luarules/gadgets/AILoader.lua`):
+
+| Metodo | Vecchio loader | Ora | Esempio da STAI |
+| --- | --- | --- | --- |
+| `'1-1'` | `GiveOrderToUnit(id, cmd, params, options)` | un ordine | `GiveOrder(self.id, CMD.GUARD, bossTarget, 0, "1-1")` (`buildersbst.lua:547`) |
+| `'2-1'` | `GiveOrderArrayToUnit(id, {{cmd[i], params[i], options[i]}…})` | un ordine per comando, stessa unità, un gruppo | `GiveOrder(self.id, unitList, unitParams, unitOptions, "2-1")`, ondata di costruzione di una fabbrica (`labsbst.lua:163`: comandi `-unitDefID`, parametri e opzioni `0`) |
+| `'1-2'` | `GiveOrderToUnitArray(ids, cmd, params, options)` | un ordine per unità, ognuno gruppo a sé | `GiveOrder(squad.cmdUnitId, CMD.MOVE, squad.path[squad.step], 0, "1-2")` (`attackhst.lua:250`) |
+| `'2-2'` | `GiveOrderArrayToUnitArray(ids, cmds, true)`: **pairwise**, all'unità `i` il comando `i`, fino al più corto dei due | un ordine per unità, `id[i]` ← `cmd[i]`, `params[i]`, `options[i]` | nessun uso in STAI |
+
+Nota su `'2-2'`: il compito lo descrive come «un array di comandi a un array di unità»; il vecchio loader passava `pairwise = true`, quindi ho seguito il vecchio loader (un comando per unità, non tutti a tutte).
+
+Forme sbagliate: `Warn` e niente in coda (`'2-1'` e `'2-2'` vogliono array di comandi e, se presenti, di parametri e opzioni; `'1-2'` vuole un array di unità e **un** comando; metodo sconosciuto). Senza `self.ai.outbox`: un solo `Warn` per oggetto `game`, poi `false`. Tolti `game:GiveOrder(message)` e `game:SendLuaRulesMessage` (nessun altro uso). `ShardUnit:SyncOrder` restituisce `game:GiveOrder(id, cmd, params, opts, "1-1")`; `Tool:GiveOrder` restituisce `game:GiveOrder(...)` dopo il controllo sugli argomenti che c'era già; `SerializeOrder`/`DeserializeOrder` restano.
+
+**Test**
+
+- Spec, 20 casi: il `VFS` finto (byte noti di F32 1 e −2, S32 −1, U16 258, `PackF32({})` nil, `UnpackU8` all'ultimo byte nil); codec (andata e ritorno con negativi, decimali, limiti U16 e S32; STOP in ultima posizione; header corto e ordine tagliato); outbox (opzioni, parametri e limiti, 60 ordini in tre `Flush` con seq 1-2-3 e frame, gruppo non spezzato, gruppo da 30 da solo, gruppo scartato intero, `Reset`, coda vuota); `game:GiveOrder` (i quattro metodi, `'1-2'` con array di comandi, metodo sconosciuto, nessun outbox).
+- Prova delle mutazioni: leggendo `n` come U8 senza ripiego falliscono 7 casi su 20; togliendo il vincolo dei gruppi falliscono 3.
+- `lx --lua-version 5.1 test`: `2581 successes / 0 failures / 0 errors / 1 pending` (T3b: 2561). `.emmyrc.json` rimesso com'era.
+
+**Test headless e byte order**: vedi il primo problema sotto. Il nuovo test risulta `PASS` nel runner ma il runner non lo esegue. L'ho quindi fatto girare con il `VFS` vero da un gadget temporaneo (non committato, tolto dopo ogni partita) che carica `luaui/Tests/shard/test_ordercodec.lua` e chiama `test()`, in synced e in unsynced, più una copia con un byte atteso sbagliato come controllo negativo. Risultato sulla versione committata: `synced test_ordercodec: ok`, `unsynced test_ordercodec: ok`, entrambe le copie sbagliate `FAILED … F32 1`. Il `VFS` vero scrive little-endian (F32 1 = `00 00 80 3F`, −2 = `00 00 00 C0`, S32 −1 = `FF FF FF FF`, U16 258 = `02 01`), `UnpackU8` all'ultimo byte restituisce nil, e codec e finto leggono gli stessi byte.
+
+**Controlli**
+
+- StyLua pulito su tutti i file toccati.
+- EmmyLua: nessun errore nuovo (l'unico errore nei file toccati è `team` non definito in `game.lua:65`, già presente). Warning: 0 nei file nuovi; `game.lua` da 10 a 2, grazie a `---@class ShardGame` con il campo `ai`; `unit.lua` e `tool.lua` invariati (2 e 6). `---@class ShardOutbox` con i campi; nella spec ho aggiunto alla riga `---@diagnostic disable` le categorie che nascono dal caricare le classi via `env`.
+- Headless finale: codice d'uscita 0, righe d'errore identiche a T3b.
+
+**Problemi trovati**
+
+1. **I test headless passano tutti senza girare.** Ogni test in `luaui/Tests/` risulta `PASS … [0 frames] [0 ms]` anche con un `error()` esplicito in `test()` (provato). Causa: `luaui/barwidgets.lua:1754-1758` (`widget.setfenv`, commit upstream #9658/#9660 «owned envs») rifiuta di cambiare l'ambiente se non è posseduto dal widget, scrive `setfenv: cannot change this environment` e restituisce la funzione invariata; `dbg_test_runner.lua:1079` e `:1100` usano proprio `setfenv` per mettere il file di test e `__runTestInternal` nell'ambiente del test, quindi `runTestInternal` non vede `test` e chiude con `PASS`. È l'errore «già presente» `setfenv ×16` che abbiamo ignorato da T1: i `PASS: ai_stai_factory_rect.lua` riportati in T1b–T3b non provano nulla. Non toccato (fuori compito, codice di BAR); probabilmente il runner dovrebbe costruire l'ambiente con `widget.newfenv()`. Da verificare se succede anche nel CI di BAR.
+2. **I numeri Lua dell'engine sono float a precisione singola**, in synced e unsynced (verificato in gioco: `2^24 + 1 == 2^24`, `2147483647 == 2^31`, `0.1` con `%.17g` = `0.100000001490116`). Conseguenze:
+   - interi esatti solo fino a 2^24: seq e frame di emissione restano esatti per 16.777.216 messaggi o frame, circa 155 ore a 30 frame al secondo con un messaggio per frame; oltre, `seq + 1 == seq` e il relay rifiuterebbe tutto;
+   - `2147483647` non esiste: il primo test headless con `seq = 4294967295` lo scriveva come 2^32 e lo rileggeva 0. Corretto prima del commit: i limiti dell'outbox sono potenze di due con estremo superiore escluso (`value < 2^31`), esatte anche in float; il test headless usa valori esatti in float (`2147483520`, `4294967040`, `16777216`);
+   - i parametri F32 non perdono precisione: sono già float;
+   - la spec gira in doppia precisione, quindi questi casi li copre solo il test con il `VFS` vero.
+3. **`attackhst.lua` righe 560, 583, 612, 631** chiamano `'1-2'` con array di comandi, parametri e opzioni (uno per unità): è la forma di `'2-2'`. Con il vecchio loader non funzionava (`GiveOrderToUnitArray` con una tabella come comando); ora danno un `Warn` e nessun ordine. Correzione proposta per il porting di STAI: `'1-2'` → `'2-2'` in quelle quattro righe.
+
+**Dubbi e proposte**
+
+- Gruppi oltre 25 ordini: `'2-1'` in `labsbst.lua:163` manda un'ondata di costruzione; le ondate fisse arrivano a 10, quelle calcolate (`engineerhst.engineerNeeded`) non hanno un limite nel codice. Un gruppo più grande di 25 parte da solo; uno oltre 4.000 ordini sarebbe rifiutato dal relay della bozza (`MAX_ORDERS_PER_MESSAGE`).
+- Il tetto di 64 KB del pacchetto non è controllato: 25 ordini restano sotto i 26 KB anche con 255 parametri ciascuno, ma un gruppo grande con molti parametri potrebbe superarlo.
+- Non implementati, perché non chiesti: l'accorpamento per unità della proposta (un ordine senza `shift` sostituisce quelli in coda per la stessa unità), le priorità della coda e i controlli locali (unità propria e viva).
+- `ShardUnit:SyncOrder` usa il `game` globale, cioè l'AI dell'ultimo `Prepare()`, non necessariamente la proprietaria dell'unità. Proposta, non applicata: risalire alla coda con `Shard.AIsByTeamID[Spring.GetUnitTeam(id)].outbox` (o un `ShardUnit.team` letto alla creazione), che dà sempre l'AI proprietaria.
+- Ho aggiunto `"spring_lua/outbox"` ai `runtime_includes` di `spring_lua/boot.lua`, perché la bozza del loader usa `ShardOutbox` come globale; il ramo `shard_null` non lo carica (lì `game:GiveOrder` è quello di `shard_null/game.lua`).
