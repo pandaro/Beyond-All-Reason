@@ -8,7 +8,6 @@ function shard_include( file )
 end
 
 -- load null objects
-require "shard_runtime/hooks"
 require "shard_runtime/class"
 require "shard_runtime/aibase"
 require "shard_runtime/module"
