@@ -40,6 +40,87 @@ function ShardAI:internalName()
 	return "shard"
 end
 
+function ShardAI:Scope()
+	return "team"
+end
+
+---@type table<string, integer>
+local SCOPE_RANKS = { team = 1, ally = 2, global = 3 }
+
+-- Module classes already warned about for their Scope(), so that every AI of a type warns once.
+local warnedScopes = setmetatable({}, { __mode = "k" })
+
+local function holdsModule(container, module)
+	for _, held in ipairs(container.modules or {}) do
+		if held == module then
+			return true
+		end
+	end
+	return false
+end
+
+--- Loads one module class of modules.lua according to its Scope()
+--
+-- A module of this object's scope gets an instance of its own, a module of a wider scope is the instance the
+-- ally or global object holds, a module of a narrower scope is skipped
+--
+-- @param moduleClass a module class, not yet instantiated
+function ShardAI:LoadModule(moduleClass)
+	local name = moduleClass:Name()
+	local scope = type(moduleClass.Scope) == "function" and moduleClass:Scope() or nil
+	local rank = scope and SCOPE_RANKS[scope] or nil
+	if rank == nil then
+		if not warnedScopes[moduleClass] then
+			warnedScopes[moduleClass] = true
+			self:Warn(
+				"Skipping the loading of "
+					.. name
+					.. ": its Scope() returns "
+					.. tostring(scope)
+					.. ', declare a Scope() function returning "team", "ally" or "global" on that module.'
+			)
+		end
+		return
+	end
+	local ownRank = SCOPE_RANKS[self:Scope()]
+	if rank < ownRank then
+		return
+	end
+	local internalname = moduleClass:internalName()
+	if internalname == "error" then
+		self:Warn(
+			"CRITICAL ERROR: The module with the name "
+				.. name
+				.. " has no internal name! Tis is necesssary and not optional, declare an internalName() function on that module immediatley."
+		)
+		self:Warn("Skipping the loading of " .. name)
+		return
+	end
+	if self[internalname] ~= nil then
+		self:Warn(
+			"CRITICAL ERROR: Shard tried to add a module with the internal name "
+				.. internalname
+				.. " but one already exists!! There cannot be duplicates! Shard will skip this module to avoid overwriting an existing module"
+		)
+		return
+	end
+	if rank > ownRank then
+		local container = scope == "global" and self.global or self.ally
+		local shared = container and container[internalname]
+		if shared == nil or not holdsModule(container, shared) then
+			self:Warn("Skipping the loading of " .. name .. ": no " .. scope .. " object holds it")
+			return
+		end
+		self[internalname] = shared
+		return
+	end
+	local newmodule = moduleClass()
+	self:Info("adding " .. name .. " module")
+	self[internalname] = newmodule
+	table.insert(self.modules, newmodule)
+	newmodule:SetAI(self)
+end
+
 function ShardAI:Init()
 	if self.loaded == true then
 		self:Warn(self:Name() .. " Init called multiple times")
@@ -56,36 +137,16 @@ function ShardAI:Init()
 	self.game:DrawDisplay(false)
 	self:Info(self.fullname .. " - playing: " .. self.game:GameName() .. " on: " .. self.map:MapName())
 
-	self.api.shard_include("behaviourfactory")
-	self.api.shard_include("unit")
+	if self:Scope() == "team" then
+		self.api.shard_include("behaviourfactory")
+		self.api.shard_include("unit")
+	end
 	local modules = self.api.shard_include("modules")
 	self.modules = {}
 
 	if next(modules) ~= nil then
 		for i, m in ipairs(modules) do
-			newmodule = m()
-			self:Info("adding " .. newmodule:Name() .. " module")
-			local internalname = newmodule:internalName()
-			if internalname == "error" then
-				self:Warn(
-					"CRITICAL ERROR: The module with the name "
-						.. newmodule:Name()
-						.. " has no internal name! Tis is necesssary and not optional, declare an internalName() function on that module immediatley."
-				)
-				self:Warn("Skipping the loading of " .. newmodule:Name())
-			else
-				if self[internalname] ~= nil then
-					self:Warn(
-						"CRITICAL ERROR: Shard tried to add a module with the internal name "
-							.. internalname
-							.. " but one already exists!! There cannot be duplicates! Shard will skip this module to avoid overwriting an existing module"
-					)
-				else
-					self[internalname] = newmodule
-					table.insert(self.modules, newmodule)
-					newmodule:SetAI(self)
-				end
-			end
+			self:LoadModule(m)
 		end
 		for i, m in ipairs(self.modules) do
 			if m == nil then
@@ -369,8 +430,14 @@ end
 -- by the AIs main Init, so changing this will
 -- not change how the modules are loaded at startup
 --
+-- Only modules of this object's scope are added
+--
 -- @param newmodule a module object to initialize and add
 function ShardAI:AddModule(newmodule)
+	if newmodule:Scope() ~= self:Scope() then
+		self:Warn("Skipping " .. newmodule:Name() .. ": only " .. self:Scope() .. " modules can be added here")
+		return
+	end
 	local internalname = newmodule:internalName()
 	if self[internalname] ~= nil then
 		self:Warn(

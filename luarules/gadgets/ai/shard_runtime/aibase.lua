@@ -69,17 +69,29 @@ function AIBase:SetAI(ai)
 	self.map = ai.map
 end
 
+-- Who a console line speaks for: the team ID, or "ally <allyId>" and "global" for the shared scopes, which have no team.
+function AIBase:ConsoleOwner()
+	local owner = self.ai or self
+	local scope = owner.Scope and owner:Scope()
+	if scope == "ally" then
+		return "ally " .. tostring(owner.allyId)
+	elseif scope == "global" then
+		return "global"
+	end
+	return self.game:GetTeamID()
+end
+
 function AIBase:Warn(...)
-	self.game:SendToConsole(self.game:GetTeamID(), self:Name(), "Warning: ", ...)
+	self.game:SendToConsole(self:ConsoleOwner(), self:Name(), "Warning: ", ...)
 end
 
 function AIBase:Info(...)
-	self.game:SendToConsole(self.game:GetTeamID(), self:Name(), "Info: ", ...)
+	self.game:SendToConsole(self:ConsoleOwner(), self:Name(), "Info: ", ...)
 end
 
 function AIBase:EchoDebug(...)
 	if self.DebugEnabled then
-		self.game:SendToConsole(self.game:GetTeamID(), self:Name(), "Debug: ", ...)
+		self.game:SendToConsole(self:ConsoleOwner(), self:Name(), "Debug: ", ...)
 	end
 end
 

@@ -91,6 +91,8 @@ local runtime_includes = {
 	"aibase",
 	"module",
 	"shardai",
+	"shardally",
+	"shardglobal",
 	"spring_lua/unit",
 	"spring_lua/unittype",
 	"spring_lua/damage",
