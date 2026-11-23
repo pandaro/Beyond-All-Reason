@@ -46,3 +46,5 @@ function test()
 	test_default_rect_for_non_factory()
 	test_nil_when_exit_side_known()
 end
+
+return { test = test }
