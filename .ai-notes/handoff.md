@@ -17,51 +17,53 @@
 
 ## Compito attuale
 
-### T5a: `ShardAILoader.lua`, lato synced (registro degli host e relay)
+### T5b: `ShardAILoader.lua`, lato unsynced (le AI tornano a girare)
 
-**Impegno: alto.** È il controllo di sicurezza del sistema: decide quale giocatore può dare ordini a quali unità. Un errore qui permette a un client di comandare unità non sue, o blocca tutte le AI. La logica c'è già nella bozza, quindi non serve progettare: serve portarla fedelmente sopra `ordercodec.lua` e provarla a fondo.
+**Impegno: extra.** È il compito che lega T2, T3, T4 e T5a: caricamento per tipo di AI, ambiti, eventi, ordini. Gli errori qui si vedono solo in partita e lontano dalla causa, e il codice tocca molte parti insieme. Dopo questo compito ne viene uno più corto (T5c: partita headless STAI contro SimpleAI con lo strumento, e la prova in gioco dell'utente).
 
-**Nome.** Il file nuovo è `luarules/gadgets/ShardAILoader.lua` (decisione dell'utente). La bozza è stata rinominata in `.ai-notes/drafts/ShardAILoader.lua`.
+**Obiettivo**: un loader completo e giocabile, con alcune parti **provvisorie dichiarate** (elencate sotto) che verranno sostituite da compiti successivi. Non progettare quelle parti definitive ora.
 
-**Prima di tutto** leggi la bozza intera, in `.ai-notes/proposta-architettura.md` le sezioni sul relay, sull'host per ally team e il paragrafo «Numeri a precisione singola», e i tuoi risultati di T4.
+**Prima di tutto** leggi: la bozza intera (`.ai-notes/drafts/ShardAILoader.lua`, lato unsynced dalla riga ~330); il lato unsynced del vecchio loader (`git show 3ad8f3fb^:luarules/gadgets/AILoader.lua`, righe 249–559), che per le parti provvisorie è il riferimento; i tuoi risultati di T3, T4 e T5a.
 
 **Lavoro**
 
-0. **Strumento per i test con l'engine vero** (il test runner di BAR oggi non esegue i test, vedi T4; l'utente deciderà se e quando segnalarlo, noi intanto lavoriamo così):
-   - salva in `.ai-notes/tools/` il gadget temporaneo che hai usato in T4 per eseguire `luaui/Tests/shard/*.lua` in synced e in unsynced, generalizzato: esegue tutti i file di `luaui/Tests/shard/` (o quelli indicati), scrive per ognuno `ok` o `FAILED` con il messaggio d'errore, e alla fine una riga di riepilogo facile da cercare nell'`infolog.txt`;
-   - accanto, uno script `.ai-notes/tools/run_engine_tests.sh` che copia il gadget in `luarules/gadgets/`, lancia la partita headless come in `CLAUDE.local.md`, lo toglie **sempre** alla fine (anche se la partita fallisce, con `trap`), e stampa il riepilogo;
-   - controllo negativo incluso: un test che deve fallire, per provare che lo strumento vede i fallimenti;
-   - commit con `git add -f`, come gli altri file di `.ai-notes/`. Il gadget non deve mai finire fuori da `.ai-notes/` in un commit;
-   - aggiungi una riga al protocollo di questo file: «Test con l'engine vero: `.ai-notes/tools/run_engine_tests.sh`; il `PASS` del test runner di BAR non conta».
-   Da qui in poi i compiti useranno questo strumento al posto del `PASS` del runner.
+1. **Relay, due rinforzi** (lato synced, dai dubbi di T5a; l'utente ha scelto la soluzione più semplice e sicura):
+   - il frame di emissione di un team non può scendere: `frame < lastFrame[teamID]` → `Reject("frame")`. Così frame alternati non aggirano il limite per frame, e un host onesto non lo incontra mai;
+   - il controllo sul numero di ordini va **prima** del contatore dei messaggi per frame, così un messaggio rifiutato non consuma il posto.
+   Spec: un caso per ciascuno, con prova della mutazione.
+2. **Lato unsynced di `ShardAILoader.lua`**, dalla bozza, con queste differenze:
+   - Gira solo se il giocatore locale è `aiHostPlayer` di almeno un team (team rules param); il runtime (`spring_lua/boot.lua`) si carica solo allora.
+   - Da prendere com'è: `LoadRuntime`, `NewAPI`, `LoadAIType`, `GetAlly`, `SetupAI`, `AddAI`, `StartObject`, `StartAIs`, `Ready`, `CatchUp`, `HostChanged`, `RelayRejected`, i call-in. Ordine di avvio: globale → ally → team.
+   - Senza `ShardScheduler` e senza `ShardPerception` (non esistono ancora): niente `Shard.scheduler`, `perception` resta `nil`.
+   - **Update** (provvisorio, come il vecchio loader): a ogni `GameFrame`, `Prepare()` e `Update()` di ogni oggetto, globali poi ally poi team; poi `outbox:Flush(n, Spring.SendLuaRulesMsg)` di ogni AI di team. Lo scheduler interno di STAI (`SchedulerHST`) continua a decidere chi lavora.
+   - **Eventi** (provvisorio): niente consegna mirata. Gli eventi di unità vanno a tutti gli oggetti (globali, ally, team), ognuno con `Prepare()` prima; `UnitEnteredLos`/`LeftLos`/`EnteredRadar`/`LeftRadar` vanno agli oggetti ally con quell'`allyTeam` e a tutte le AI di team, come faceva il vecchio loader. Togli dalla bozza `Wants`, `AllyTeamWants`, `Sees`, `DeliverToObservers`, o lasciale non usate con un commento: scegli la forma più pulita e motivala.
+   - **Tabelle di unità** (provvisorie, dal vecchio loader): `ownUnitIds`, `friendlyUnitIds`, `alliedUnitIds`, `enemyUnitIds`, `neutralUnitIds` per ogni AI di team, aggiornate in `UnitCreated`, `UnitDestroyed`, `UnitGiven`, `UnitTaken` come nel vecchio loader, così `game:GetUnits()`, `GetFriendlies()`, `GetEnemies()` funzionano come prima (onniscienti). Un commento le segna come provvisorie, senza nomi di compiti (`.github/agents.md`).
+   - **Errori contenuti**: ogni chiamata del loader a un oggetto (`Update`, eventi, `GameEnd`) passa da `xpcall` con traceback. Un errore si scrive con `Spring.Echo` una volta per coppia oggetto + call-in ogni 30 secondi di gioco (così il log non si riempie), e il loader continua con gli altri oggetti. La quarantena per singolo modulo arriverà più avanti.
+   - **Unità rimosse**: dopo aver consegnato `UnitDead`, `Shard:unshardify_unit(unitID)`, così la cache degli oggetti `ShardUnit` non cresce per tutta la partita (il vecchio loader non lo faceva).
+   - **Seme casuale**: l'hash di `GameID` della bozza, `(h * 31 + byte) % 2147483647`, non funziona con i numeri a 32 bit di Recoil. Riscrivilo restando sotto 2^24 in ogni passaggio (per esempio modulo un primo sotto 2^16, così `h * 31 + 255` resta sotto 2^24) e mettilo alla prova nel test con l'engine vero (T5c).
+   - **Cambio di host** (`shard_host`): se il giocatore locale diventa host di un team, carica e avvia quell'AI e chiama `CatchUp` solo per lei; se smette di esserlo, l'AI si ferma (non riceve più eventi né `Update`) e la sua outbox si svuota con `Reset()`.
+   - **Fine partita**: `GameOver` → `GameEnd()` su tutti gli oggetti.
+   - Il commento che oggi rimanda a «T5b» sparisce.
+3. **Ordini dell'unità giusta**: `ShardUnit:SyncOrder` usa la coda dell'AI proprietaria dell'unità (`Shard.AIsByTeamID[Spring.GetUnitTeam(id)]`, riempita dal loader), non il `game` globale. Se l'unità non è di un'AI ospitata qui: un `Warn` e niente.
+4. **STAI, `attackhst.lua` righe 560, 583, 612, 631**: `'1-2'` → `'2-2'` (forma già usata lì: un comando per unità). Nient'altro in STAI.
+5. **`luaai.lua`**: rimetti le voci di STAI e Shard com'erano a `3ad8f3fb^`, nella stessa posizione.
+6. **Test busted** in `spec/luarules/gadgets/shard_ai_loader_spec.lua` (o in una spec accanto per il lato unsynced, se più pulito), con un tipo di AI finto in `spec/` che ha un modulo per ambito:
+   - un client che non è host non carica niente;
+   - avvio: un `ShardGlobal` per tipo, un `ShardAlly` per ally team e tipo, un oggetto per team, `Init` in ordine globale → ally → team, e i moduli condivisi raggiungibili dai team;
+   - un evento di unità arriva una volta a ogni modulo; un evento LOS arriva all'ally giusto e non agli altri ally;
+   - le tabelle di unità di un'AI dopo `UnitCreated`, `UnitGiven`, `UnitTaken`, `UnitDestroyed`;
+   - un ordine dato in `Update` esce come messaggio in `SendLuaRulesMsg` nello stesso `GameFrame`, e un ordine dato da `ShardUnit` finisce nella coda dell'AI proprietaria;
+   - un modulo che va in errore in `Update`: l'errore è scritto una volta, gli altri oggetti girano lo stesso, e il frame dopo l'oggetto viene richiamato;
+   - cambio di host in entrambe le direzioni;
+   - `GameOver` → `GameEnd`;
+   - l'hash del seme: stesso `GameID` → stesso seme, e nessun passaggio intermedio supera 2^24.
+7. **Partita headless con lo strumento**: solo che tutto si carichi e che i test di `luaui/Tests/shard/` passino. La partita con STAI la fa T5c.
 
-1. `luarules/gadgets/ShardAILoader.lua`, nuovo, dalla bozza:
-   - `GetInfo` (nome «Shard AI Loader»), localizzazioni, rilevamento dei team con una Lua AI che ha `ai/<NomeAI>/boot.lua`, `return false` se non ce n'è nessuno, controllo di `Game.maxUnits` (gli unitID viaggiano come U16).
-   - Lato synced com'è nella bozza: `ChooseSuccessor`, `RegisterHosts`, `aiHostPlayer` come team rules param pubblico, `Initialize`, `GameStart`, `PlayerRemoved`, `RecvLuaMsg`, `AddOrder`, `GiveOrders`, `Reject`, i contatori e `Shutdown`.
-   - La lettura del messaggio passa da `ordercodec.lua` (incluso con `VFS.Include`): `IsOrderMessage`, `UnpackHeader`, `UnpackOrder`, e i parametri con `VFS.UnpackF32` come nella bozza. Nessuna costante del formato duplicata nel loader.
-   - I controlli restano tutti, nello stesso ordine: magic, dimensione, versione, mittente uguale ad `aiHostPlayer` del team, seq crescente, frame di emissione non nel futuro e non più vecchio di `MAX_FRAME_AGE`, al massimo `MAX_MESSAGES_PER_FRAME` messaggi per frame di emissione, numero di ordini, ordini troncati, e per ogni unità `ValidUnitID` e team uguale a quello del messaggio. Un messaggio con il magic giusto è sempre «nostro» (`return true`) anche se rifiutato.
-   - Ordini consecutivi della stessa unità diventano una sola `GiveOrderArrayToUnit`; l'array riusato si svuota con `nil` su ogni posizione (l'engine lo legge con `next()`).
-   - Il synced resta deterministico: niente timer, niente dati unsynced, niente `math.random`.
-   - Lato unsynced: per ora solo lo scheletro (`else` con un commento che rimanda a T5b), senza call-in. Il caricamento delle AI arriva in T5b.
-2. Test busted del relay in `spec/luarules/gadgets/` (accanto alle spec degli altri gadget, nel loro stile), che caricano il lato synced di `ShardAILoader.lua` con un `gadget`, un `gadgetHandler` e uno `Spring` finti. Il `VFS` finto fedele ai byte di T4 va spostato in un file di supporto condiviso dalle due spec, non copiato. Casi:
-   - messaggio valido dell'host: gli ordini arrivano all'engine finto con unità, comando, parametri e opzioni giusti; ordini consecutivi della stessa unità in una sola `GiveOrderArrayToUnit`, e l'array è vuoto dopo la chiamata;
-   - mittente diverso dall'host: rifiutato, nessun ordine;
-   - unità di un altro team o non valida dentro un messaggio valido: scartata solo quell'unità, le altre passano; il conteggio dei rifiutati arriva a `SendToUnsynced("shard_relay_rejected", …)`;
-   - seq uguale o minore dell'ultima: rifiutato; frame nel futuro e troppo vecchio: rifiutato; terzo messaggio con lo stesso frame di emissione: rifiutato, ma un messaggio con un frame di emissione nuovo arrivato nello stesso frame di gioco passa;
-   - versione sbagliata, intestazione corta, ordine troncato, numero di ordini oltre il limite;
-   - messaggio senza magic: `RecvLuaMsg` restituisce `false`;
-   - STOP senza parametri come ultimo ordine;
-   - host: all'avvio quello del lobby; con `PlayerRemoved` dell'host il successore è deterministico (stesso ally team, poi altri giocatori attivi, poi spettatori; vince il playerID più basso), `aiHostPlayer` viene aggiornato, `SendToUnsynced("shard_host", …)` parte, e la seq del team riparte (il primo messaggio del nuovo host con seq 1 passa).
-   Verifica che i casi di sicurezza falliscano togliendo il controllo corrispondente (prova delle mutazioni, come in T4).
-3. Partita headless, con lo strumento del punto 0 (deve passare `test_ordercodec.lua` di T4): deve anche confermare che il gadget si carica senza errori e si disattiva da solo (nessuna AI Shard nella partita di test). Un test con l'engine vero e un'AI che dà ordini arriva con T5b.
+**Controlli**: StyLua, EmmyLua senza errori nuovi (fuori da `.ai-notes/`), `lx --lua-version 5.1 test`, lo strumento.
 
-**Fuori dal compito**: il lato unsynced, `luaai.lua` (le voci di STAI e Shard servono in T5b), il problema del test runner trovato in T4.
+**Commit**, in inglese: uno per il punto 1, uno per i punti 2–3 con le spec, uno per i punti 4–5.
 
-**Controlli**: StyLua, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, headless.
-
-**Commit**, in inglese: uno per lo strumento del punto 0, uno per il supporto `VFS` spostato (se tocca la spec di T4), uno per `ShardAILoader.lua` con la sua spec.
-
-**Nei risultati**: righe per file, casi di test e prova delle mutazioni, ogni punto in cui ti sei scostato dalla bozza e perché.
+**Nei risultati**: righe per file, test e mutazioni dei casi di sicurezza, ogni scostamento dalla bozza o dal vecchio loader e perché, le parti provvisorie esattamente come le hai lasciate (così il compito che le sostituisce sa dove mettere le mani), dubbi.
 
 ## Risultati
 
@@ -304,7 +306,7 @@ Forme sbagliate: `Warn` e niente in coda (`'2-1'` e `'2-2'` vogliono array di co
 - `ShardUnit:SyncOrder` usa il `game` globale, cioè l'AI dell'ultimo `Prepare()`, non necessariamente la proprietaria dell'unità. Proposta, non applicata: risalire alla coda con `Shard.AIsByTeamID[Spring.GetUnitTeam(id)].outbox` (o un `ShardUnit.team` letto alla creazione), che dà sempre l'AI proprietaria.
 - Ho aggiunto `"spring_lua/outbox"` ai `runtime_includes` di `spring_lua/boot.lua`, perché la bozza del loader usa `ShardOutbox` come globale; il ramo `shard_null` non lo carica (lì `game:GiveOrder` è quello di `shard_null/game.lua`).
 
-### T5a (agente locale, 23 novembre 2026)
+### T5a (agente locale, 23 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
