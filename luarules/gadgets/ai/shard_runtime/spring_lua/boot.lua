@@ -56,7 +56,10 @@ function shard_generate_include_func(runtime_path, ai_path, env)
 		for index, file in ipairs(candidates) do
 			if VFS.FileExists(file) then
 				if not cache then
-					return VFS.Include(file)
+					-- not a tail call: VFS.Include runs the file in its caller's environment, and in the global one
+					-- when the caller is gone after a tail call
+					local result = VFS.Include(file)
+					return result
 				end
 				return cachedInclude(cache, file, env)
 			end
@@ -76,7 +79,9 @@ function shard_include(file)
 	end
 	local runtime_file = "luarules/gadgets/ai/shard_runtime/" .. file .. ".lua"
 	if VFS.FileExists(runtime_file) then
-		return VFS.Include(runtime_file)
+		-- not a tail call, as above: the runtime files must run in this file's environment
+		local result = VFS.Include(runtime_file)
+		return result
 	end
 	Spring.Echo("Failed to load " .. runtime_file)
 	return
