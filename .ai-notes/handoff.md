@@ -21,9 +21,9 @@
 
 1. File: tutti quelli recuperati in T1 e ancora presenti (`luarules/gadgets/ai/shard_runtime/`, `STAI/`, `Shard/`, `luaui/Widgets/shard_help_draw.lua`, `common/stai_factory_rect.lua`, `luaui/Tests/ai_stai_factory_rect.lua`). Non `.ai-notes/`.
 2. Comando: StyLua 2.5.2 con la configurazione del repository (`.stylua.toml`, `--respect-ignores`). Nient'altro: nessun nome, commento o riga cambiati a mano.
-3. Prova che cambia solo la forma: per ogni file, compila prima e dopo con il `luac` 5.1 che hai già (`luac -s -o`, senza informazioni di riga) e confronta i due bytecode. Devono essere identici. Se un file differisce, non includerlo nel commit e scrivi quale e perché. Attenzione a `sort_requires`: se riordina dei `require` (l'ordine di `shard_null/boot.lua` conta), quel file differirà e va escluso.
+3. Prova che cambia solo la forma: per ogni file, compila prima e dopo con `luac5.1 -s -o` (il `luac` di sistema, ora installato con `lua5.1`; `-s` toglie le informazioni di riga) e confronta i due bytecode. Devono essere identici. Se un file differisce, non includerlo nel commit e scrivi quale e perché. Attenzione a `sort_requires`: se riordina dei `require` (l'ordine di `shard_null/boot.lua` conta), quel file differirà e va escluso.
 4. Fine riga: restano CRLF, come da `.gitattributes`.
-5. Test: suite busted e partita headless come in T2, con gli stessi risultati di T2.
+5. Test: `lx --lua-version 5.1 test` (ora funziona sulla macchina: Lua 5.1 di sistema e lux 0.54.0 in `/usr/local/bin`, come nel CI; non serve più il Lua compilato a mano) e partita headless come in T2, con gli stessi risultati di T2. Se `lx` riscrive `.emmyrc.json`, riportalo com'era.
 6. Commit:
    - uno solo con la formattazione, messaggio nello stile di BAR: `gen(stylua): formattazione di Shard e STAI recuperati`;
    - uno che aggiunge quel hash a `.git-blame-ignore-revs`, nello stesso formato delle righe che ci sono già.
