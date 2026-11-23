@@ -3,7 +3,7 @@
 if ShardSpringLua then
 	-- VFS.Include( "luarules/gadgets/ai/shard_runtime/spring_lua/boot.lua" )
 else
-	require "shard_runtime/shard_null/boot"
+	require("shard_runtime/shard_null/boot")
 end
 
 -- create and use an AI

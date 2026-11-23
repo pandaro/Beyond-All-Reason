@@ -75,7 +75,6 @@ function ShardUnitType:ExtractorEfficiency()
 	return self.def.extractsMetal
 end
 
-
 function ShardUnitType:CanAttack()
 	return self.def.canAttack
 end

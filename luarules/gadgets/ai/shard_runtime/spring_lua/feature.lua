@@ -1,10 +1,9 @@
 
 ShardSpringFeature = class(function(a)
-   --
+	--
 end)
 
-
-function ShardSpringFeature:Init( id )
+function ShardSpringFeature:Init(id)
 	self.id = id
 	self.defID = Spring.GetFeatureDefID(id)
 	self.def = FeatureDefs[self.defID]
@@ -21,5 +20,5 @@ end
 
 function ShardSpringFeature:GetPosition()
 	local x, y, z = Spring.GetFeaturePosition(self.id)
-	return {x=x, y=y, z=z}
+	return { x = x, y = y, z = z }
 end

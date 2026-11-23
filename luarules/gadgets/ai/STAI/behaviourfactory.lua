@@ -1,19 +1,24 @@
-shard_include( "behaviour" )
+shard_include("behaviour")
 BehaviourFactory = class(AIBase)
 
 function BehaviourFactory:Init()
-	self.behaviours = shard_include( "behaviours" )
+	self.behaviours = shard_include("behaviours")
 	self.scoutslist = {}
 	self.DebugEnabled = false
 end
 
 function BehaviourFactory:AddBehaviours(unit)
 	if unit == nil then
-		self.game:SendToConsole("Warning: Shard BehaviourFactory:AddBehaviours was asked to provide behaviours to a nil unit")
+		self.game:SendToConsole(
+			"Warning: Shard BehaviourFactory:AddBehaviours was asked to provide behaviours to a nil unit"
+		)
 		return
 	end
 	if not unit:Internal():IsMine(self.game:GetTeamID()) then
-		self.game:SendToConsole('caution BehaviourFactory:AddBehaviours was asked to provide behaviour to not my unit',unit:Internal():Name())
+		self.game:SendToConsole(
+			"caution BehaviourFactory:AddBehaviours was asked to provide behaviour to not my unit",
+			unit:Internal():Name()
+		)
 	end
 	-- add behaviours here
 	-- unit:AddBehaviour(behaviour)
@@ -21,7 +26,7 @@ function BehaviourFactory:AddBehaviours(unit)
 	if b == nil then
 		b = self:defaultBehaviours(unit)
 	end
-	for i,behaviour in ipairs(b) do
+	for i, behaviour in ipairs(b) do
 		local t = behaviour()
 		t:SetAI(self.ai)
 		t:SetUnit(unit)
@@ -42,13 +47,13 @@ function BehaviourFactory:defaultBehaviours(unit)
 
 	if army.commanderList[un] then
 		table.insert(b, CommanderBST)
-		table.insert(b,BuildersBST)
+		table.insert(b, BuildersBST)
 	end
 	if army.techs[un] then
-		table.insert(b,BuildersBST)
+		table.insert(b, BuildersBST)
 	end
 	if army.engineers[un] then
-		table.insert(b,EngineerBST)
+		table.insert(b, EngineerBST)
 	end
 	if army.rezs[un] then
 		--self:EchoDebug()
@@ -58,19 +63,19 @@ function BehaviourFactory:defaultBehaviours(unit)
 			table.insert(b, AttackerBST)
 		end
 	end
--- 	if army.engineers[un] then
--- 		if math.random() > 0.5 then
--- 			table.insert(b, ReclaimBST)
--- 		else
--- 			table.insert(b, AttackerBST)
--- 		end
--- 	end
+	-- 	if army.engineers[un] then
+	-- 		if math.random() > 0.5 then
+	-- 			table.insert(b, ReclaimBST)
+	-- 		else
+	-- 			table.insert(b, AttackerBST)
+	-- 		end
+	-- 	end
 	if army.wartechs[un] then
 		--self:EchoDebug()
-		table.insert(b,BuildersBST)
+		table.insert(b, BuildersBST)
 	end
 	if army.amptechs[un] then
-		table.insert(b,BuildersBST)
+		table.insert(b, BuildersBST)
 		--self:EchoDebug()
 	end
 	if army.jammers[un] then
@@ -87,7 +92,7 @@ function BehaviourFactory:defaultBehaviours(unit)
 	end
 	if army.raiders[un] then
 		table.insert(b, RaidBST)
- 		table.insert(b, ScoutBST)
+		table.insert(b, ScoutBST)
 		--self:EchoDebug()
 	end
 	if army.breaks[un] then
@@ -164,8 +169,6 @@ function BehaviourFactory:defaultBehaviours(unit)
 		table.insert(b, CleanerBST)
 	end
 
-
-
 	if self.ai.armyhst.unitTable[un].isBuilding then
 		--table.insert(b, WardBST) --tells defending units to rush to threatened buildings
 		if self.ai.armyhst._silo_[un] then
@@ -175,7 +178,7 @@ function BehaviourFactory:defaultBehaviours(unit)
 		--elseif self.ai.armyhst.bigPlasmaList[un] then
 		--	table.insert(b, BombardBST)
 		elseif self.ai.armyhst.unitTable[un].isStaticBuilder then
-			table.insert(b,LabsBST)
+			table.insert(b, LabsBST)
 		end
 	end
 
