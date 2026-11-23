@@ -15,20 +15,55 @@
 
 ## Compito attuale
 
-### T2b: formattazione con StyLua dei file recuperati
+### T3: gli ambiti nel runtime (`Scope()`, `ShardAlly`, `ShardGlobal`)
 
-**Impegno: basso.** È un'operazione meccanica e il controllo è automatico (bytecode identico). Serve perché in una PR verso BAR tutte le righe recuperate risultano scritte dalla PR, e `format_check.yml` le boccerebbe tutte. Così i diff dei compiti successivi mostrano solo le modifiche vere.
+**Impegno: alto.** Cambia come `ShardAI:Init` carica i moduli e introduce due classi nuove; da qui dipendono il loader, lo scheduler e la consegna dei callback. Gli errori possibili (un modulo istanziato due volte, un evento ricevuto due volte, una dipendenza verso il basso) non si vedono in partita finché non c'è il loader: li devono prendere i test.
 
-1. File: tutti quelli recuperati in T1 e ancora presenti (`luarules/gadgets/ai/shard_runtime/`, `STAI/`, `Shard/`, `luaui/Widgets/shard_help_draw.lua`, `common/stai_factory_rect.lua`, `luaui/Tests/ai_stai_factory_rect.lua`). Non `.ai-notes/`.
-2. Comando: StyLua 2.5.2 con la configurazione del repository (`.stylua.toml`, `--respect-ignores`). Nient'altro: nessun nome, commento o riga cambiati a mano.
-3. Prova che cambia solo la forma: per ogni file, compila prima e dopo con `luac5.1 -s -o` (il `luac` di sistema, ora installato con `lua5.1`; `-s` toglie le informazioni di riga) e confronta i due bytecode. Devono essere identici. Se un file differisce, non includerlo nel commit e scrivi quale e perché. Attenzione a `sort_requires`: se riordina dei `require` (l'ordine di `shard_null/boot.lua` conta), quel file differirà e va escluso.
-4. Fine riga: restano CRLF, come da `.gitattributes`.
-5. Test: `lx --lua-version 5.1 test` (ora funziona sulla macchina: Lua 5.1 di sistema e lux 0.54.0 in `/usr/local/bin`, come nel CI; non serve più il Lua compilato a mano) e partita headless come in T2, con gli stessi risultati di T2. Se `lx` riscrive `.emmyrc.json`, riportalo com'era.
-6. Commit:
-   - uno solo con la formattazione, messaggio nello stile di BAR: `gen(stylua): formattazione di Shard e STAI recuperati`;
-   - uno che aggiunge quel hash a `.git-blame-ignore-revs`, nello stesso formato delle righe che ci sono già.
+**Prima di tutto** leggi in `.ai-notes/proposta-architettura.md` i paragrafi «Tre ambiti: globale, ally team, team» e «Gli oggetti di ogni ambito», e in `.ai-notes/drafts/AILoader.lua` le funzioni `LoadAIType`, `GetAlly`, `SetupAI` e `StartAIs`: mostrano chi crea gli oggetti, con quali campi e in che ordine (globale → ally → team).
 
-Nei risultati: numero di file formattati, file esclusi e perché, esito del confronto del bytecode, test e headless.
+**Decisioni già prese dall'utente**
+
+- `Scope()` è obbligatorio, senza default.
+- Anche i contenitori dichiarano il proprio ambito con lo stesso metodo `Scope()` (non con un campo).
+- In questo compito **tutti i moduli esistenti dichiarano `"team"`**, MapHST e LosHST comprese: oggi usano `self.ai.id`, `game:GetTeamID()` e `self.ai.schedulerhst`, quindi cambiano ambito solo quando verranno adattate, nella fase di porting di STAI. Il comportamento in partita resta identico.
+
+**Lavoro**
+
+1. `shard_runtime/module.lua`: `Module:Scope()` che restituisce `"error"`, con un commento `---` nello stile di `internalName()` («overriding this is *mandatory*»), che elenca i tre valori validi e cosa significano.
+2. `shard_runtime/shardai.lua`:
+   - `ShardAI:Scope()` restituisce `"team"`.
+   - `ShardAI:Init` scorre `modules.lua` come oggi. Per ogni classe di modulo legge `Scope()` (sulla classe, prima di creare l'istanza) e:
+     - ambito uguale a quello del contenitore: crea l'istanza, `SetAI`, la mette in `self[internalName]` e in `self.modules`, poi `Init` come oggi;
+     - ambito più largo (`"ally"` o `"global"` visti dal team, `"global"` visto dall'ally): mette in `self[internalName]` l'istanza che sta in `self.ally` o `self.global`, **senza** aggiungerla a `self.modules`; se il contenitore di sopra manca, o non ha quel modulo, il modulo non si carica e c'è un `Warn`;
+     - ambito più stretto (un modulo `"team"` visto da `ShardAlly` o `ShardGlobal`): lo salta senza avvisi;
+     - valore mancante o sconosciuto: non si carica, con un `Warn` che dice il nome del modulo e i valori validi. L'avviso esce una volta per classe di modulo, non una volta per contenitore o per AI.
+   - Restano i controlli di oggi su `internalName` `"error"` e sui nomi duplicati.
+   - `AddModule` accetta solo moduli dell'ambito del contenitore; altrimenti `Warn` e niente.
+   - Difetto da correggere: `newmodule = m()` crea una variabile globale; diventa `local`.
+   - I callback (`Update`, `UnitCreated`, `UnitBuilt`, …, `GameEnd`) continuano a scorrere solo `self.modules`: così un modulo condiviso riceve un evento una volta sola, dal suo contenitore. Non cambiare ora chi riceve cosa: la consegna mirata è un compito successivo.
+3. `shard_runtime/shardally.lua` e `shard_runtime/shardglobal.lua`, nuovi, nello stile di `shardai.lua`:
+   - `ShardAlly = class(ShardAI)`, `Scope()` `"ally"`, campi `allyId`, `AIs`, `global`; `ShardGlobal = class(ShardAI)`, `Scope()` `"global"`, campo `AIs`. Li riempie il loader (come nella bozza); un commento `---` in testa a ogni file elenca i campi e chi li imposta.
+   - Non caricano behaviour né `behaviourfactory`: i behaviour sono sempre di team.
+   - `Name()` e `internalName()` come in `ShardAI`.
+   - Aggiungili ai file del runtime caricati all'avvio, subito dopo `shardai`, sia in `spring_lua/boot.lua` sia dove li carica `shard_null`.
+4. `Warn`, `Info`, `EchoDebug` di `AIBase` e `Module` non devono andare in errore in un modulo condiviso, dove `game:GetTeamID()` non ha un team: al posto del team mostrano l'ambito (`ally <allyId>` o `global`). Scegli tu dove farlo con la modifica più piccola; motiva la scelta nei risultati.
+5. `Scope()` che restituisce `"team"` in tutti i moduli di STAI e Shard (le classi con `class(Module)`: 21 in `STAI/`, 6 in `Shard/`, comprese le `nullmodule.lua`), subito dopo `internalName()`, senza toccare altro.
+6. Test busted in `spec/luarules/gadgets/ai/shard_runtime/` (stessa impostazione della spec di T2), con classi di modulo finte e contenitori costruiti a mano come fa la bozza del loader:
+   - modulo senza `Scope()` e modulo con valore sconosciuto: non caricati, un solo `Warn` per classe anche con più AI;
+   - due AI nello stesso ally team condividono la stessa istanza del modulo `"ally"`; AI di ally team diversi hanno istanze diverse; tutte condividono l'istanza del modulo `"global"`; ogni AI ha la propria istanza del modulo `"team"`;
+   - da un team `self.ai.<internalName>` raggiunge i moduli dei tre ambiti; da un modulo `"ally"` non si raggiungono moduli `"team"`; da un modulo `"global"` non si raggiungono moduli `"ally"` né `"team"`;
+   - `Init` di ogni modulo condiviso gira una volta sola; un evento passato a team, ally e global arriva una volta a ogni modulo;
+   - senza `ally` e `global` (come nel ramo `shard_null`), un'AI con soli moduli `"team"` si comporta come prima; un modulo `"ally"` non si carica, con `Warn`;
+   - `Warn` da un modulo `"ally"` e da uno `"global"` non va in errore e mostra l'ambito.
+
+**Commit**, in quest'ordine, così nessuno lascia il branch rotto:
+
+1. punto 5 (`Scope()` `"team"` in tutti i moduli): da solo non cambia nulla;
+2. punti 1–4 e 6 (runtime e test).
+
+**Controlli**: StyLua sui file toccati, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, partita headless come in T2 (in partita il codice nuovo non gira ancora: serve solo a vedere che non si rompa nulla).
+
+**Nei risultati**: righe toccate per file, output dei test, dove hai messo la gestione del punto 4 e perché, qualunque punto in cui il codice di Shard ti ha costretto a scostarti da questo compito, dubbi.
 
 ## Risultati
 
@@ -112,7 +147,7 @@ Nei risultati: numero di file formattati, file esclusi e perché, esito del conf
 - `lx --lua-version 5.1 test` su questa macchina non parte: l'interprete Lua che lux compila non esporta i simboli `lua_*`, e penlight si ferma su `pl.path requires LuaFileSystem` (`lfs.so: undefined symbol: lua_gettop`). Ho eseguito lo stesso busted di `.lux/` con un Lua 5.1.5 compilato nello scratchpad con `-Wl,-E` (sorgente ufficiale, sha256 `2640fc56…5333`) e gli stessi percorsi delle dipendenze. Il CI, che usa il suo lx, non dovrebbe esserne toccato.
 - `lx` riscrive anche `.emmyrc.json` (percorsi `lib/` delle dipendenze compilate): l'ho riportato com'era, non è nei commit.
 
-### T2b (agente locale, 23 novembre 2026)
+### T2b (agente locale, 23 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
