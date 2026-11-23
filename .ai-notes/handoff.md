@@ -303,3 +303,60 @@ Forme sbagliate: `Warn` e niente in coda (`'2-1'` e `'2-2'` vogliono array di co
 - Non implementati, perché non chiesti: l'accorpamento per unità della proposta (un ordine senza `shift` sostituisce quelli in coda per la stessa unità), le priorità della coda e i controlli locali (unità propria e viva).
 - `ShardUnit:SyncOrder` usa il `game` globale, cioè l'AI dell'ultimo `Prepare()`, non necessariamente la proprietaria dell'unità. Proposta, non applicata: risalire alla coda con `Shard.AIsByTeamID[Spring.GetUnitTeam(id)].outbox` (o un `ShardUnit.team` letto alla creazione), che dà sempre l'AI proprietaria.
 - Ho aggiunto `"spring_lua/outbox"` ai `runtime_includes` di `spring_lua/boot.lua`, perché la bozza del loader usa `ShardOutbox` come globale; il ramo `shard_null` non lo carica (lì `game:GiveOrder` è quello di `shard_null/game.lua`).
+
+### T5a (agente locale, 23 novembre 2026)
+
+**Commit**
+
+1. `31f7694763` «Notes: engine test tool for luaui/Tests/shard, synced and unsynced»: `.ai-notes/tools/engine_tests_gadget.lua` (114 righe), `.ai-notes/tools/run_engine_tests.sh` (69), una riga nel protocollo di questo file.
+2. `609e15ad1b` «Shard: move the byte-faithful fake VFS into spec/support»: `spec/support/fake_vfs.lua` (nuovo, 174; restituisce `newVFS(env)`), `ordercodec_spec.lua` +1 −166 (`require("spec/support/fake_vfs")`).
+3. `4f122f12b1` «Shard: ShardAILoader synced side, host registry and order relay»: `luarules/gadgets/ShardAILoader.lua` (nuovo, 294), `spec/luarules/gadgets/shard_ai_loader_spec.lua` (nuovo, 367).
+
+**Strumento (punto 0)**
+
+- `run_engine_tests.sh [file…]` copia il gadget in `luarules/gadgets/dbg_shard_engine_tests.lua` (se ci sono file indicati, li scrive nella copia al posto di `REQUESTED_FILES`), lancia `spring-headless` con `tools/headless_testing/startscript.txt`, toglie il gadget con `trap … EXIT INT TERM` e anche subito dopo la partita, stampa le righe `[SHARD-ENGINE-TESTS]` e chiude con `RESULT: ok` (uscita 0) o `RESULT: FAILED` (uscita 1). Se il gadget c'è già, si ferma senza toccarlo.
+- Il gadget esegue ogni file (`skip`, `setup`, `test`, `cleanup` come il runner di BAR) in synced e in unsynced, scrive `ok`, `skipped` o `FAILED <file>: <errore>`, poi un controllo negativo (un test che chiama `error`) e la riga `SUMMARY <lato>: N ok, M failed, K skipped; negative control detected`. Restituisce `false`, quindi non resta caricato.
+- Provato: senza argomenti `test_ordercodec.lua` passa nei due lati (`RESULT: ok`); con un file inesistente fra quelli indicati, `FAILED … file not found` nei due lati e `RESULT: FAILED`, uscita 1; dopo entrambe le esecuzioni il gadget non c'è più in `luarules/gadgets/`.
+- Scostamento: per default lo script **non** usa `~/.spring` come cartella dati ma `${TMPDIR:-/tmp}/shard-engine-tests`, con link a `games`, `maps`, `packages`, `pool`, `rapid` di `~/.spring` e una copia di `tools/headless_testing/springsettings.cfg`. Altrimenti riscriverebbe `~/.spring/infolog.txt` mentre l'utente gioca. `WRITE_DIR=~/.spring` lo fa girare come in `CLAUDE.local.md`; `ENGINE_DIR` sceglie l'engine (default: il più recente in `~/.spring/engine`).
+
+**`ShardAILoader.lua`**
+
+- Dalla bozza: `GetInfo`, localizzazioni, rilevamento dei team con `ai/<NomeAI>/boot.lua`, `return false` senza AI Shard o con `Game.maxUnits > 65536`; lato synced con `IsActive`, `ChooseSuccessor`, `RegisterHosts`, `AddOrder`, `GiveOrders`, `Reject`, `Initialize`, `GameStart`, `PlayerRemoved`, `RecvLuaMsg`, `Shutdown` e gli stessi limiti (`MAX_ORDERS_PER_MESSAGE` 4000, `MAX_MESSAGES_PER_FRAME` 2, `MAX_FRAME_AGE` 900). Lato unsynced: `else` vuoto con un commento che rimanda a T5b.
+- Controlli nello stesso ordine della bozza: magic (`false` se manca), dimensione dell'intestazione, versione, mittente, seq, frame di emissione, messaggi per frame di emissione, numero di ordini; poi ordini troncati e, per ogni cambio d'unità, `ValidUnitID` e team. Ogni rifiuto restituisce `true`.
+
+**Scostamenti dalla bozza**
+
+1. Lettura con `ordercodec.lua` (`IsOrderMessage`, `UnpackHeader`, `UnpackOrder`, `OrderCodec.VERSION`): spariti dal loader `ORDER_MAGIC`, `ORDER_VERSION`, `HEADER_SIZE`, gli offset e i `VFS.Unpack*` dell'intestazione. Restano solo i limiti del relay, che non sono del formato. Un'intestazione corta è `UnpackHeader` → `nil` → `Reject("size")`; un ordine troncato è `UnpackOrder` → `nil`, contato come prima (quell'ordine e i seguenti).
+2. `params.n = nil` sulla tabella di `VFS.UnpackF32(msg, pos, n)`: l'engine aggiunge il campo `n` (anche il `VFS` finto, come l'engine), e la bozza stessa dice che l'engine legge le tabelle degli ordini con `next()`; tolto, nella tabella restano solo i valori. Senza questa riga due casi della spec falliscono.
+3. `spGetPlayerList(-1, true) or {}` al posto di `spGetPlayerList(true)`: la firma documentata è `(teamID, active)`. L'uso con `true` come primo argomento c'è anche in `game_replace_afk_players.lua`, quindi l'engine lo accetta; ho scritto la forma documentata. `ChooseSuccessor` filtra comunque gli attivi da sé.
+4. Il lungo commento «DRAFT …» in testa è diventato tre righe che descrivono il file com'è.
+5. Annotazioni per EmmyLua (`---@type` su `lastSeq`, `lastFrame`, `cmdArray`, `cmdPool`, `host`; due cast), nessun cambio di logica.
+
+**Test busted** (`shard_ai_loader_spec.lua`, 14 casi; engine finto con team 0 e 1 di STAI nell'ally team 0, team 2 di STAI nell'ally team 1, team 3 umano; host del lobby: giocatore 0 per i team 0 e 1, giocatore 1 per il team 2)
+
+- relay: ordini dell'host con unità, comando, parametri e opzioni giusti; ordini consecutivi della stessa unità in una `GiveOrderArrayToUnit`, con l'array vuoto dopo la chiamata (`next(array) == nil`), e un ordine singolo con `GiveOrderToUnit`; STOP senza parametri in fondo; mittente che non è l'host, host di un altro ally team, team umano; unità di un altro team e unità non valida scartate da sole, con `SendToUnsynced("shard_relay_rejected", 0, 3)`; seq uguale e minore; frame nel futuro e più vecchio di 900, con il limite esatto (900) accettato; terzo messaggio con lo stesso frame di emissione rifiutato, e uno con un frame nuovo nello stesso frame di gioco accettato; versione sbagliata, intestazione di 15 byte, 4001 ordini; ordine troncato (passa quello prima, 2 rifiutati riportati); messaggio senza magic → `false`. I motivi dei rifiuti si leggono dalle righe di `Shutdown`.
+- host: all'avvio `aiHostPlayer` pubblico = host del lobby per ogni ally team, nessun `shard_host`; con `PlayerRemoved` dell'host passa al giocatore attivo più basso dello stesso ally team, con `SendToUnsynced("shard_host", …)` per ogni team, il vecchio host viene rifiutato e il nuovo passa con seq 1; senza giocatori dell'ally team passa al giocatore attivo più basso di un altro ally team, e senza giocatori attivi allo spettatore più basso.
+- avvio: senza AI Shard il file restituisce `false`.
+- Suite completa: `2595 successes / 0 failures / 0 errors / 1 pending` (T4: 2581).
+
+**Prova delle mutazioni** (un controllo tolto alla volta, spec del loader):
+
+| Mutazione | Esito |
+| --- | --- |
+| mittente, seq, frame nel futuro, frame troppo vecchio, limite per frame di emissione, team dell'unità, numero di ordini, versione, intestazione corta, svuotamento dell'array, campo `n`, `return true` dei rifiuti, `shard_relay_rejected`, `shard_host`, rango del successore, ID più basso | 1 o 2 casi falliscono |
+| seq che riparte con il nuovo host | 1 caso in errore |
+| `ValidUnitID` tolto (resta il controllo del team) | **nessun caso fallisce** |
+
+L'ultima è una mutazione equivalente: per un'unità che non esiste `GetUnitTeam` restituisce `nil`, nell'engine come nel finto, quindi il controllo del team la scarta comunque. Per farla fallire servirebbe un finto in cui un'unità non valida ha un team, cosa che l'engine non fa; non l'ho aggiunto.
+
+**Controlli**
+
+- StyLua pulito sui file toccati.
+- EmmyLua: 0 warning e 0 errori nei file nuovi e in `fake_vfs.lua` (per la spec e per `fake_vfs.lua` ho aggiunto le categorie alla riga `---@diagnostic disable`, come nelle altre spec). Totale invariato: 22 errori. Nota: l'analisi include anche `.ai-notes/drafts/ShardAILoader.lua` (2 errori, 21 warning: `ShardScheduler` e `ShardPerception` non definiti), che non va in una PR.
+- Headless con lo strumento: `RESULT: ok` (`test_ordercodec.lua` ok in synced e unsynced, controllo negativo visto); `[AI Loader] ShardLua bot Deactivated!` due volte (synced e unsynced), nessun errore che citi il loader; righe d'errore identiche a T4.
+
+**Dubbi**
+
+- Il commento del lato unsynced rimanda a «T5b», come chiesto; `.github/agents.md` vieta nei commenti i riferimenti ai compiti, quindi va riscritto entro T5b, comunque prima di una PR.
+- Dalla bozza, non cambiato: un messaggio rifiutato per numero di ordini consuma lo stesso il posto nel limite per frame di emissione (il contatore sale prima del controllo `count`); e il contatore riparte a ogni cambio di frame di emissione, quindi frame che si alternano (999, 1000, 999…) non incontrano mai il limite. Solo l'host può farlo, e la seq deve comunque crescere; da decidere se basta.
+- Il lato synced non verifica che il messaggio arrivi con un frame di emissione non più vecchio di quello del messaggio precedente: un host potrebbe mandare frame decrescenti entro la finestra di 900. Anche questo dalla bozza.
