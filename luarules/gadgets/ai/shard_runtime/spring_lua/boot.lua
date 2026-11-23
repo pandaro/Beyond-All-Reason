@@ -1,5 +1,25 @@
 -- initial setup of things
 
+-- Stands in an include cache for a file that returned nil, which a plain lookup cannot tell from a file never run.
+local CACHED_NIL = {}
+
+-- Runs `file` in `env` the first time and keeps what it returned under its lowercased path: VFS paths ignore case.
+local function cachedInclude(cache, file, env)
+	local key = string.lower(file)
+	local cached = cache[key]
+	if cached == nil then
+		cached = VFS.Include(file, env)
+		if cached == nil then
+			cached = CACHED_NIL
+		end
+		cache[key] = cached
+	end
+	if cached == CACHED_NIL then
+		return nil
+	end
+	return cached
+end
+
 --- Generates a per AI shard_include function
 --
 -- Returns a function that can be used for shard_include
@@ -13,11 +33,16 @@
 --
 -- The returned function will also check for a folder with that file name
 --
+-- With an environment, the AI type's files run in it and each runs once: later includes of the same file get
+-- the value its first run returned, so the classes it defines are defined once for every AI of the type
+--
 -- @param runtime_path the location of the Shard runtime
 -- @param ai_path the location of the AI itself
+-- @param env optional environment of the AI type; without it the files run in the caller's, every time
 --
 -- @return function a shard_include function
-function shard_generate_include_func( runtime_path, ai_path )
+function shard_generate_include_func(runtime_path, ai_path, env)
+	local cache = env and {}
 	return function( file )
 		if type(file) ~= 'string' then
 			return nil
@@ -30,7 +55,10 @@ function shard_generate_include_func( runtime_path, ai_path )
 		}
 		for index, file in ipairs( candidates ) do
 			if VFS.FileExists(file) then
-				return VFS.Include(file)
+				if not cache then
+					return VFS.Include(file)
+				end
+				return cachedInclude(cache, file, env)
 			end
 		end
 		Spring.Echo( "Failed to load " .. file .. " we attempted to load the first of the following:" )
