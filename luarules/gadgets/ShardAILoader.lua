@@ -336,9 +336,11 @@ else
 	local memoryRecord = 0
 	local failedTypes = {} -- AI name -> the error that stopped the type from loading
 	local runtimeFailure = nil -- the error that stopped the runtime from loading
-	local newAllies = nil -- while an AI loads, the ShardAlly objects created for it
+	local newAllies = nil ---@type table[]? while an AI loads, the ShardAlly objects created for it
 	local memoryStats = spGetConfigInt("ShardMemStats", 0) == 1
-	local memorySum, memoryMax, memoryFrames = 0, 0, 0
+	local memorySum = 0 ---@type number
+	local memoryMax = 0 ---@type number
+	local memoryFrames = 0
 
 	-- the runtime is loaded only by a client that hosts an AI
 	local function LoadRuntime()
