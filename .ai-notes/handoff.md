@@ -15,55 +15,17 @@
 
 ## Compito attuale
 
-### T3: gli ambiti nel runtime (`Scope()`, `ShardAlly`, `ShardGlobal`)
+### T3b: due difetti vecchi del runtime
 
-**Impegno: alto.** Cambia come `ShardAI:Init` carica i moduli e introduce due classi nuove; da qui dipendono il loader, lo scheduler e la consegna dei callback. Gli errori possibili (un modulo istanziato due volte, un evento ricevuto due volte, una dipendenza verso il basso) non si vedono in partita finché non c'è il loader: li devono prendere i test.
+**Impegno: basso.** Due correzioni piccole, già individuate in T3; nessuna decisione da prendere.
 
-**Prima di tutto** leggi in `.ai-notes/proposta-architettura.md` i paragrafi «Tre ambiti: globale, ally team, team» e «Gli oggetti di ogni ambito», e in `.ai-notes/drafts/AILoader.lua` le funzioni `LoadAIType`, `GetAlly`, `SetupAI` e `StartAIs`: mostrano chi crea gli oggetti, con quali campi e in che ordine (globale → ally → team).
+1. `shard_runtime/behaviour.lua`, riga 7: `function Module:internalName()` diventa `function Behaviour:internalName()`, stesso valore restituito. Oggi, quando il file viene incluso, cambia il default di tutti i moduli da `"error"` a `"unknown behaviour"`, e il controllo di `ShardAI:LoadModule` sui moduli senza `internalName()` non scatta mai.
+   - Test in `shardai_spec.lua` (o in una spec accanto, se più pulito): con `behaviour.lua` caricato, un modulo senza `internalName()` non si carica e produce il `Warn` «has no internal name»; e `Module.internalName` resta `"error"` dopo il caricamento di `behaviour.lua`. Verifica che il test fallisca sul codice di prima.
+2. `shard_runtime/shard_null/boot.lua`: carica anche `shardai`, `shardally` e `shardglobal`, nello stesso modo e nello stesso ordine dei file che carica già (dopo `module`), così il ramo `shard_null` ha le classi che `STAI/boot.lua` e `Shard/boot.lua` usano. Se per caricare `shardai.lua` in quel ramo serve altro (globali o file mancanti), non inventarlo: fermati e scrivilo nei risultati.
 
-**Decisioni già prese dall'utente**
+Controlli: StyLua sui file toccati, `lx --lua-version 5.1 test`, partita headless come in T3.
 
-- `Scope()` è obbligatorio, senza default.
-- Anche i contenitori dichiarano il proprio ambito con lo stesso metodo `Scope()` (non con un campo).
-- In questo compito **tutti i moduli esistenti dichiarano `"team"`**, MapHST e LosHST comprese: oggi usano `self.ai.id`, `game:GetTeamID()` e `self.ai.schedulerhst`, quindi cambiano ambito solo quando verranno adattate, nella fase di porting di STAI. Il comportamento in partita resta identico.
-
-**Lavoro**
-
-1. `shard_runtime/module.lua`: `Module:Scope()` che restituisce `"error"`, con un commento `---` nello stile di `internalName()` («overriding this is *mandatory*»), che elenca i tre valori validi e cosa significano.
-2. `shard_runtime/shardai.lua`:
-   - `ShardAI:Scope()` restituisce `"team"`.
-   - `ShardAI:Init` scorre `modules.lua` come oggi. Per ogni classe di modulo legge `Scope()` (sulla classe, prima di creare l'istanza) e:
-     - ambito uguale a quello del contenitore: crea l'istanza, `SetAI`, la mette in `self[internalName]` e in `self.modules`, poi `Init` come oggi;
-     - ambito più largo (`"ally"` o `"global"` visti dal team, `"global"` visto dall'ally): mette in `self[internalName]` l'istanza che sta in `self.ally` o `self.global`, **senza** aggiungerla a `self.modules`; se il contenitore di sopra manca, o non ha quel modulo, il modulo non si carica e c'è un `Warn`;
-     - ambito più stretto (un modulo `"team"` visto da `ShardAlly` o `ShardGlobal`): lo salta senza avvisi;
-     - valore mancante o sconosciuto: non si carica, con un `Warn` che dice il nome del modulo e i valori validi. L'avviso esce una volta per classe di modulo, non una volta per contenitore o per AI.
-   - Restano i controlli di oggi su `internalName` `"error"` e sui nomi duplicati.
-   - `AddModule` accetta solo moduli dell'ambito del contenitore; altrimenti `Warn` e niente.
-   - Difetto da correggere: `newmodule = m()` crea una variabile globale; diventa `local`.
-   - I callback (`Update`, `UnitCreated`, `UnitBuilt`, …, `GameEnd`) continuano a scorrere solo `self.modules`: così un modulo condiviso riceve un evento una volta sola, dal suo contenitore. Non cambiare ora chi riceve cosa: la consegna mirata è un compito successivo.
-3. `shard_runtime/shardally.lua` e `shard_runtime/shardglobal.lua`, nuovi, nello stile di `shardai.lua`:
-   - `ShardAlly = class(ShardAI)`, `Scope()` `"ally"`, campi `allyId`, `AIs`, `global`; `ShardGlobal = class(ShardAI)`, `Scope()` `"global"`, campo `AIs`. Li riempie il loader (come nella bozza); un commento `---` in testa a ogni file elenca i campi e chi li imposta.
-   - Non caricano behaviour né `behaviourfactory`: i behaviour sono sempre di team.
-   - `Name()` e `internalName()` come in `ShardAI`.
-   - Aggiungili ai file del runtime caricati all'avvio, subito dopo `shardai`, sia in `spring_lua/boot.lua` sia dove li carica `shard_null`.
-4. `Warn`, `Info`, `EchoDebug` di `AIBase` e `Module` non devono andare in errore in un modulo condiviso, dove `game:GetTeamID()` non ha un team: al posto del team mostrano l'ambito (`ally <allyId>` o `global`). Scegli tu dove farlo con la modifica più piccola; motiva la scelta nei risultati.
-5. `Scope()` che restituisce `"team"` in tutti i moduli di STAI e Shard (le classi con `class(Module)`: 21 in `STAI/`, 6 in `Shard/`, comprese le `nullmodule.lua`), subito dopo `internalName()`, senza toccare altro.
-6. Test busted in `spec/luarules/gadgets/ai/shard_runtime/` (stessa impostazione della spec di T2), con classi di modulo finte e contenitori costruiti a mano come fa la bozza del loader:
-   - modulo senza `Scope()` e modulo con valore sconosciuto: non caricati, un solo `Warn` per classe anche con più AI;
-   - due AI nello stesso ally team condividono la stessa istanza del modulo `"ally"`; AI di ally team diversi hanno istanze diverse; tutte condividono l'istanza del modulo `"global"`; ogni AI ha la propria istanza del modulo `"team"`;
-   - da un team `self.ai.<internalName>` raggiunge i moduli dei tre ambiti; da un modulo `"ally"` non si raggiungono moduli `"team"`; da un modulo `"global"` non si raggiungono moduli `"ally"` né `"team"`;
-   - `Init` di ogni modulo condiviso gira una volta sola; un evento passato a team, ally e global arriva una volta a ogni modulo;
-   - senza `ally` e `global` (come nel ramo `shard_null`), un'AI con soli moduli `"team"` si comporta come prima; un modulo `"ally"` non si carica, con `Warn`;
-   - `Warn` da un modulo `"ally"` e da uno `"global"` non va in errore e mostra l'ambito.
-
-**Commit**, in quest'ordine, così nessuno lascia il branch rotto:
-
-1. punto 5 (`Scope()` `"team"` in tutti i moduli): da solo non cambia nulla;
-2. punti 1–4 e 6 (runtime e test).
-
-**Controlli**: StyLua sui file toccati, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, partita headless come in T2 (in partita il codice nuovo non gira ancora: serve solo a vedere che non si rompa nulla).
-
-**Nei risultati**: righe toccate per file, output dei test, dove hai messo la gestione del punto 4 e perché, qualunque punto in cui il codice di Shard ti ha costretto a scostarti da questo compito, dubbi.
+Commit: uno per punto. Nei risultati: righe toccate, output dei test, eventuali problemi del punto 2.
 
 ## Risultati
 
