@@ -297,8 +297,15 @@ if gadgetHandler:IsSyncedCode() then
 	end
 else
 	-- UNSYNCED CODE: the AIs, only on the client that hosts them
+	--
+	-- Option ShardMemStats (springsettings.cfg, or /set ShardMemStats 1 in game, read again every minute):
+	-- once a minute of game "[AI Loader] memory per frame: avg <KB> max <KB> over <N> frames, heap <MB>", the
+	-- Lua memory the loader and the AIs allocate in GameFrame. A step of the incremental garbage collector in
+	-- the middle of a frame lowers that frame's figure, even below zero. Off, it costs one check per frame.
 
 	local spGetMyPlayerID = Spring.GetMyPlayerID
+	local spGetConfigInt = Spring.GetConfigInt
+	local collectGarbage = collectgarbage
 	local spGetTeamRulesParam = Spring.GetTeamRulesParam
 	local spGetTeamStartPosition = Spring.GetTeamStartPosition
 	local spAreTeamsAllied = Spring.AreTeamsAllied
@@ -316,6 +323,7 @@ else
 	-- as 65520 * 31 + 255 does
 	local SEED_MODULUS = 65521 -- the largest prime below 2^16
 	local ERROR_REPORT_FRAMES = 900 -- the same error of an object in a call-in is written once per 30 s of game
+	local MEMORY_REPORT_FRAMES = 1800
 	-- a dead unit's ShardUnit stays for 30 s of game: the AIs still ask the game for units they saw die
 	local DEAD_UNIT_FRAMES = 900
 
@@ -329,6 +337,8 @@ else
 	local failedTypes = {} -- AI name -> the error that stopped the type from loading
 	local runtimeFailure = nil -- the error that stopped the runtime from loading
 	local newAllies = nil -- while an AI loads, the ShardAlly objects created for it
+	local memoryStats = spGetConfigInt("ShardMemStats", 0) == 1
+	local memorySum, memoryMax, memoryFrames = 0, 0, 0
 
 	-- the runtime is loaded only by a client that hosts an AI
 	local function LoadRuntime()
@@ -949,6 +959,7 @@ else
 		if not Ready() then
 			return
 		end
+		local memoryBefore = memoryStats and collectGarbage("count")
 		-- Provisional, as the old loader did: every object runs Update() every frame, global -> ally
 		-- team -> team; STAI's own SchedulerHST picks the module that works in each frame.
 		local globals = Shard.globals
@@ -969,6 +980,30 @@ else
 			AIs[i].outbox:Flush(n, spSendLuaRulesMsg)
 		end
 		ExpireDeadUnits(n)
+		if memoryBefore then
+			local allocated = collectGarbage("count") - memoryBefore
+			memorySum = memorySum + allocated
+			memoryFrames = memoryFrames + 1
+			if memoryFrames == 1 or allocated > memoryMax then
+				memoryMax = allocated
+			end
+		end
+		if n > 0 and n % MEMORY_REPORT_FRAMES == 0 then
+			if memoryFrames > 0 then
+				spEcho(
+					string.format(
+						"[AI Loader] memory per frame: avg %.2f KB max %.2f KB over %d frames, heap %.1f MB",
+						memorySum / memoryFrames,
+						memoryMax,
+						memoryFrames,
+						collectGarbage("count") / 1024
+					)
+				)
+			end
+			memorySum, memoryMax, memoryFrames = 0, 0, 0
+			memoryStats = spGetConfigInt("ShardMemStats", 0) == 1
+		end
+		-- the peak heap at the end of the game, also when ShardMemStats is off
 		if n % 300 == 0 then
 			memoryRecord = math.max(memoryRecord, gcinfo()) -- measured, never forced
 		end

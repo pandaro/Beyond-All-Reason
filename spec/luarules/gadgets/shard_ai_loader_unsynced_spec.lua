@@ -71,6 +71,16 @@ local function loadLoader(world)
 		return fileExists(realPath(path))
 	end
 	env.VFS = vfs
+	world.config = world.config or {}
+	world.countCalls = 0
+	-- collectgarbage("count") reads world.heap when the spec sets it, in KB
+	env.collectgarbage = function(option, ...)
+		if option == "count" and world.heap ~= nil then
+			world.countCalls = world.countCalls + 1
+			return world.heap
+		end
+		return collectgarbage(option, ...)
+	end
 	env.Game = { maxUnits = 32000, gameShortName = "BAR", mapName = "Spec Map" }
 	env.UnitDefs = { [1] = { name = "specunit" }, [2] = { name = "otherunit" } }
 	env.Script = { LuaUI = setmetatable({}, {
@@ -99,6 +109,9 @@ local function loadLoader(world)
 		end,
 		GetMyPlayerID = function()
 			return world.me
+		end,
+		GetConfigInt = function(name, default)
+			return world.config[name] or default
 		end,
 		GetTeamRulesParam = function(teamID, name)
 			assert(name == "aiHostPlayer")
@@ -648,6 +661,87 @@ describe("ShardAILoader unsynced side", function()
 
 			assert.equal(before, after)
 			assert.is_nil(loader.env.Shard.unitsByID[1000])
+		end)
+	end)
+
+	describe("with ShardMemStats", function()
+		local function frames(loader, from, to)
+			for n = from, to do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+		end
+
+		-- team 0's module allocates `kb(frame)` KB in its Update
+		local function allocating(kb)
+			return {
+				Update = function(module)
+					local world = module.ai.specWorld
+					if module.ai.id == 0 and module:Scope() == "team" and world then
+						world.heap = world.heap + kb(world.frame)
+					end
+				end,
+			}
+		end
+
+		local function startedWith(config, kb)
+			local world = defaultWorld()
+			world.config = config
+			world.heap = 1000
+			local loader = started(world, allocating(kb))
+			loader.env.Shard.AIsByTeamID[0].specWorld = world
+			return loader, world
+		end
+
+		it("writes the average and the largest allocation of the frames of each minute", function()
+			local loader = startedWith({ ShardMemStats = 1 }, function(frame)
+				if frame > 1800 then
+					return 10
+				end
+				return frame % 2 == 1 and 6 or 2
+			end)
+
+			frames(loader, 0, 3600)
+
+			assert.equal(2, echoesWith(loader, "memory per frame"))
+			assert.equal(
+				1,
+				echoesWith(
+					loader,
+					"[AI Loader] memory per frame: avg 4.00 KB max 6.00 KB over 1801 frames, heap 8.0 MB"
+				)
+			)
+			assert.equal(
+				1,
+				echoesWith(
+					loader,
+					"[AI Loader] memory per frame: avg 10.00 KB max 10.00 KB over 1800 frames, heap 25.6 MB"
+				)
+			)
+		end)
+
+		it("measures nothing and writes nothing when it is off", function()
+			local loader, world = startedWith({}, function()
+				return 4
+			end)
+
+			frames(loader, 1, 3600)
+
+			assert.equal(0, echoesWith(loader, "memory per frame"))
+			assert.equal(0, world.countCalls)
+		end)
+
+		it("starts measuring in the minute after it is turned on", function()
+			local loader, world = startedWith({}, function()
+				return 3
+			end)
+
+			frames(loader, 1, 1000)
+			world.config.ShardMemStats = 1
+			frames(loader, 1001, 3600)
+
+			assert.equal(1, echoesWith(loader, "memory per frame"))
+			assert.equal(1, echoesWith(loader, "avg 3.00 KB max 3.00 KB over 1800 frames"))
 		end)
 	end)
 end)
