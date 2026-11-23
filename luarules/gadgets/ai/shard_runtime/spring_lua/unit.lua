@@ -557,7 +557,13 @@ function ShardUnit:SyncOrder(
 	params,
 	opts --[[,timeout]]
 )
-	return game:GiveOrder(id, cmd, params, opts, "1-1")
+	-- the queue of the AI that owns the unit, which is not always the AI whose game is the global one
+	local owner = Shard.AIsByTeamID and Shard.AIsByTeamID[Spring.GetUnitTeam(id)]
+	if owner == nil then
+		Spring.Echo("Shard Warning: unit " .. tostring(id) .. " is not of an AI hosted here, order dropped")
+		return false
+	end
+	return owner.game:GiveOrder(id, cmd, params, opts, "1-1")
 end
 
 --- Issue an arbitrary command to the spring engine

@@ -1,0 +1,1 @@
+-- The spec AI has no behaviours.
