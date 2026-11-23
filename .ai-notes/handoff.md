@@ -169,7 +169,7 @@
 - `lx --lua-version 5.1 test` (lux e Lua 5.1 di sistema): `2550 successes / 0 failures / 0 errors / 1 pending`, come T2. `lx` ha riscritto `.emmyrc.json`: rimesso com'era, non nei commit.
 - Headless come in T2: codice d'uscita 0, insieme delle righe d'errore identico a T2, `PASS: ai_stai_factory_rect.lua` (2 volte).
 
-### T3 (agente locale, 23 novembre 2026)
+### T3 (agente locale, 23 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
