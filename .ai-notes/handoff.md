@@ -27,7 +27,7 @@
 
 **Lavoro**
 
-1. **Relay, due rinforzi** (lato synced, dai dubbi di T5a; l'utente ha scelto la soluzione più semplice e sicura):
+1. **Relay, due rinforzi** (lato synced, dai dubbi di T5a; scelta del coordinatore, che ha carta bianca dall'utente su questi dettagli):
    - il frame di emissione di un team non può scendere: `frame < lastFrame[teamID]` → `Reject("frame")`. Così frame alternati non aggirano il limite per frame, e un host onesto non lo incontra mai;
    - il controllo sul numero di ordini va **prima** del contatore dei messaggi per frame, così un messaggio rifiutato non consuma il posto.
    Spec: un caso per ciascuno, con prova della mutazione.
