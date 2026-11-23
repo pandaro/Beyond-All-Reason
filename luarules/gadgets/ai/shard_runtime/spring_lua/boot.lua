@@ -59,7 +59,6 @@ api = shard_include( "spring_lua/fakeapi" )
 
 local runtime_includes = {
 	"spring_lua/shard",
-	"hooks",
 	"class",
 	"aibase",
 	"module",

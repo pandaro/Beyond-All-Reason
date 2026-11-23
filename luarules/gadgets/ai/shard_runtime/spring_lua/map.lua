@@ -1,5 +1,6 @@
 local map = {}
-map.metalSpots = shard_include("spring_lua/metal")
+-- metal spots will come from the game rules params of BAR (api_resource_spot_finder: mex_count, mex_x<i>...)
+map.metalSpots = {}
 map.geoSpots = shard_include("spring_lua/geo")
 
 local math_cos = math.cos
