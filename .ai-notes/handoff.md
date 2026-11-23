@@ -12,62 +12,47 @@
 - `.ai-notes/` è escluso da git sulla macchina locale: per questi file usa `git add -f` (`.ai-notes/handoff.md`, e altri file di `.ai-notes/` solo se il compito lo dice). Prima di `git add -A` o `git commit -a` segui la skill `submodule-pointer`.
 - `.ai-notes/proposta-architettura.md` è l'export aggiornato della proposta: la aggiorna il coordinatore, non modificarla.
 - Prima di una PR verso BAR, `.ai-notes/` va tolta dal branch.
+- Tutto ciò che va nel repository è in inglese: messaggi di commit (anche «Handoff: …»), commenti, nomi, messaggi di log, test. Solo `.ai-notes/` resta in italiano.
 
 ## Compito attuale
 
-### T4: codifica degli ordini e outbox
+### T5a: `ShardAILoader.lua`, lato synced (registro degli host e relay)
 
-**Impegno: alto.** È il formato che attraversa il confine fra unsynced e synced: un byte fuori posto fa dare ordini sbagliati o li fa scartare tutti, e il relay synced (T5) si fiderà di queste funzioni. In partita non si vede ancora niente, perché il loader arriva con T5: tutto va provato con i test.
+**Impegno: alto.** È il controllo di sicurezza del sistema: decide quale giocatore può dare ordini a quali unità. Un errore qui permette a un client di comandare unità non sue, o blocca tutte le AI. La logica c'è già nella bozza, quindi non serve progettare: serve portarla fedelmente sopra `ordercodec.lua` e provarla a fondo.
 
-**Prima di tutto** leggi:
-- in `.ai-notes/proposta-architettura.md` le sezioni sugli ordini, sul formato del messaggio e «Lettura dei byte»;
-- in `.ai-notes/drafts/AILoader.lua` il lato synced (righe 84–330 circa): costanti del formato v1, `RecvLuaMsg`, `AddOrder`, `GiveOrders`. È il decodificatore che il tuo codificatore deve soddisfare;
-- `git show 3ad8f3fb^:luarules/gadgets/AILoader.lua` (righe 150–250 circa) e `STAI/tool.lua` (`Tool:GiveOrder`, `SerializeOrder`): cosa significano i metodi `'1-1'`, `'2-1'`, `'1-2'`, `'2-2'` e come STAI passa `params` e `options`.
+**Nome.** Il file nuovo è `luarules/gadgets/ShardAILoader.lua` (decisione dell'utente). La bozza è stata rinominata in `.ai-notes/drafts/ShardAILoader.lua`.
 
-**Formato v1** (già deciso, non cambiarlo):
-- intestazione, 16 byte: magic `"AIFw"`, versione U8 (= 1), teamID U8, seq U32, frame di emissione U32, numero di ordini U16;
-- ogni ordine, 8 + 4n byte: unitID U16, cmdID S32, options U8, n U8, poi n parametri F32.
+**Prima di tutto** leggi la bozza intera, in `.ai-notes/proposta-architettura.md` le sezioni sul relay, sull'host per ally team e il paragrafo «Numeri a precisione singola», e i tuoi risultati di T4.
 
 **Lavoro**
 
-1. `shard_runtime/ordercodec.lua`, nuovo: l'unica definizione del formato, usata da entrambi i lati (l'outbox ora, il relay in T5), così codifica e decodifica non possono divergere.
-   - Costanti: magic, versione, dimensione dell'intestazione e della parte fissa di un ordine.
-   - Scrittura: intestazione e ordine con `VFS.Pack*`.
-   - Lettura: intestazione e un ordine alla volta con `VFS.Unpack*`, restituendo i campi e la posizione successiva, senza creare tabelle (i parametri restano da leggere a chi chiama, come nella bozza). Rispetta il vincolo già scoperto: `VFS.Unpack*` non restituisce nulla se la posizione è uguale a `#msg`, quindi le coppie di U8 si leggono come un U16, come fa la bozza.
-   - Il file non usa nulla di unsynced (niente timer, niente `Spring.GetMyPlayerID`…): in T5 lo includerà anche il synced, che deve restare deterministico.
-2. `shard_runtime/spring_lua/outbox.lua`, nuovo: `ShardOutbox(teamID)`, una coda per AI.
-   - `Queue(unitID, cmdID, params, options)`: aggiunge un ordine. `params` può essere `nil`, un numero o una tabella (al massimo 255 valori, altrimenti `Warn` e ordine scartato). `options` può essere un numero o una tabella di nomi (`"shift"`, `"alt"`, `"ctrl"`, `"meta"`, `"right"`), da convertire nella maschera di bit di `CMD.OPT_*`; il risultato deve stare in un U8.
-   - `Flush(frame, send)`: se la coda non è vuota, costruisce **un** messaggio con al massimo 25 ordini (costante in cima al file, è una soglia della fase 0), seq crescente da 1, frame di emissione `frame`, e lo passa a `send(msg)`. Gli ordini in più restano in coda, nello stesso ordine, per i frame seguenti.
-   - Gli ordini nati da una stessa chiamata (un array di comandi per un'unità) non si spezzano fra due messaggi: se non ci stanno, aspettano il frame dopo. Una sola chiamata con più di 25 ordini parte da sola in un messaggio suo; scrivilo nei risultati se lo trovi usato da STAI.
-   - Nessuna tabella creata a ogni frame: la coda riusa le sue strutture, e i pezzi del messaggio si uniscono con un buffer riusato e `table.concat`.
-   - `Reset()`: svuota la coda e riparte da seq 1 (servirà in T5 quando cambia l'host).
-3. `spring_lua/game.lua`: `game:GiveOrder(id, cmd, params, options, method)` con i codici di STAI, che mette gli ordini nell'outbox dell'AI (`self.ai.outbox`):
-   - `'1-1'`: un comando a un'unità;
-   - `'2-1'`: un array di comandi a un'unità, ordini consecutivi della stessa unità;
-   - `'1-2'`: un comando a un array di unità, un ordine per unità;
-   - `'2-2'`: un array di comandi a un array di unità.
-   Segui esattamente la forma degli argomenti che usava il vecchio loader per ciascun metodo. Se `self.ai.outbox` non esiste (nessun loader, `shard_null`), un solo `Warn` e niente. Togli il vecchio `game:GiveOrder(message)` a stringhe e `game:SendLuaRulesMessage`, se non li usa più nessuno.
-4. `spring_lua/unit.lua`: `ShardUnit:SyncOrder(id, cmd, params, opts)` smette di dare solo l'avviso e passa da `game:GiveOrder(id, cmd, params, opts, "1-1")`, così `Move`, `Build`, `Attack` e gli altri metodi d'ordine funzionano di nuovo. Usa il `game` globale, come già fa `ShardUnit:Build` con `game:GetTypeByName`; se trovi un modo più diretto e sicuro per arrivare all'AI dell'unità, proponilo nei risultati senza applicarlo.
-5. `STAI/tool.lua`: `Tool:GiveOrder` chiama direttamente `game:GiveOrder(id, cmd, parameters, options, method)`, senza `SerializeOrder`. Non togliere `SerializeOrder` e `DeserializeOrder`: si puliranno nel porting di STAI.
+1. `luarules/gadgets/ShardAILoader.lua`, nuovo, dalla bozza:
+   - `GetInfo` (nome «Shard AI Loader»), localizzazioni, rilevamento dei team con una Lua AI che ha `ai/<NomeAI>/boot.lua`, `return false` se non ce n'è nessuno, controllo di `Game.maxUnits` (gli unitID viaggiano come U16).
+   - Lato synced com'è nella bozza: `ChooseSuccessor`, `RegisterHosts`, `aiHostPlayer` come team rules param pubblico, `Initialize`, `GameStart`, `PlayerRemoved`, `RecvLuaMsg`, `AddOrder`, `GiveOrders`, `Reject`, i contatori e `Shutdown`.
+   - La lettura del messaggio passa da `ordercodec.lua` (incluso con `VFS.Include`): `IsOrderMessage`, `UnpackHeader`, `UnpackOrder`, e i parametri con `VFS.UnpackF32` come nella bozza. Nessuna costante del formato duplicata nel loader.
+   - I controlli restano tutti, nello stesso ordine: magic, dimensione, versione, mittente uguale ad `aiHostPlayer` del team, seq crescente, frame di emissione non nel futuro e non più vecchio di `MAX_FRAME_AGE`, al massimo `MAX_MESSAGES_PER_FRAME` messaggi per frame di emissione, numero di ordini, ordini troncati, e per ogni unità `ValidUnitID` e team uguale a quello del messaggio. Un messaggio con il magic giusto è sempre «nostro» (`return true`) anche se rifiutato.
+   - Ordini consecutivi della stessa unità diventano una sola `GiveOrderArrayToUnit`; l'array riusato si svuota con `nil` su ogni posizione (l'engine lo legge con `next()`).
+   - Il synced resta deterministico: niente timer, niente dati unsynced, niente `math.random`.
+   - Lato unsynced: per ora solo lo scheletro (`else` con un commento che rimanda a T5b), senza call-in. Il caricamento delle AI arriva in T5b.
+2. Test busted del relay in `spec/luarules/gadgets/` (accanto alle spec degli altri gadget, nel loro stile), che caricano il lato synced di `ShardAILoader.lua` con un `gadget`, un `gadgetHandler` e uno `Spring` finti. Il `VFS` finto fedele ai byte di T4 va spostato in un file di supporto condiviso dalle due spec, non copiato. Casi:
+   - messaggio valido dell'host: gli ordini arrivano all'engine finto con unità, comando, parametri e opzioni giusti; ordini consecutivi della stessa unità in una sola `GiveOrderArrayToUnit`, e l'array è vuoto dopo la chiamata;
+   - mittente diverso dall'host: rifiutato, nessun ordine;
+   - unità di un altro team o non valida dentro un messaggio valido: scartata solo quell'unità, le altre passano; il conteggio dei rifiutati arriva a `SendToUnsynced("shard_relay_rejected", …)`;
+   - seq uguale o minore dell'ultima: rifiutato; frame nel futuro e troppo vecchio: rifiutato; terzo messaggio con lo stesso frame di emissione: rifiutato, ma un messaggio con un frame di emissione nuovo arrivato nello stesso frame di gioco passa;
+   - versione sbagliata, intestazione corta, ordine troncato, numero di ordini oltre il limite;
+   - messaggio senza magic: `RecvLuaMsg` restituisce `false`;
+   - STOP senza parametri come ultimo ordine;
+   - host: all'avvio quello del lobby; con `PlayerRemoved` dell'host il successore è deterministico (stesso ally team, poi altri giocatori attivi, poi spettatori; vince il playerID più basso), `aiHostPlayer` viene aggiornato, `SendToUnsynced("shard_host", …)` parte, e la seq del team riparte (il primo messaggio del nuovo host con seq 1 passa).
+   Verifica che i casi di sicurezza falliscano togliendo il controllo corrispondente (prova delle mutazioni, come in T4).
+3. Partita headless: deve solo confermare che il gadget si carica senza errori e si disattiva da solo (nessuna AI Shard nella partita di test). Un test con l'engine vero e un'AI che dà ordini arriva con T5b.
 
-**Test**
+**Fuori dal compito**: il lato unsynced, `luaai.lua` (le voci di STAI e Shard servono in T5b), il problema del test runner trovato in T4.
 
-- Busted, in `spec/luarules/gadgets/ai/shard_runtime/` (stessa impostazione delle spec di T2 e T3), con un `VFS.Pack*`/`Unpack*` finto **fedele ai byte** (little-endian, F32 vero via `math.frexp`), compreso il caso in cui `Unpack` a posizione `#msg` non restituisce nulla:
-  - andata e ritorno: ogni ordine codificato si rilegge uguale (unitID, cmdID, options, parametri, anche negativi e con decimali entro la precisione di F32);
-  - un ordine senza parametri (STOP) in ultima posizione nel messaggio;
-  - i quattro metodi producono gli ordini attesi, nell'ordine atteso;
-  - `options` come numero e come tabella di nomi;
-  - tetto di 25: con 60 ordini escono tre messaggi in tre `Flush`, con seq 1, 2, 3, nessun ordine perso o duplicato, ordine conservato;
-  - un array di comandi di un'unità non viene spezzato fra due messaggi;
-  - `Reset()` riparte da seq 1;
-  - nessun messaggio se la coda è vuota.
-- Test d'integrazione headless in `luaui/Tests/shard/` con il `VFS` vero: andata e ritorno di un messaggio con alcuni ordini, per confermare che il finto e il vero leggono gli stessi byte. Usa il formato del test runner (`return { test = test }`).
+**Controlli**: StyLua, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, headless.
 
-**Controlli**: StyLua sui file toccati, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, partita headless (deve passare anche il nuovo test).
+**Commit**, in inglese: uno per il supporto `VFS` spostato (se tocca la spec di T4), uno per `ShardAILoader.lua` con la sua spec.
 
-**Commit**: uno per `ordercodec` + outbox + spec, uno per `game.lua` + `unit.lua` + `tool.lua`, uno per il test headless.
-
-**Nei risultati**: righe per file, output dei test, come hai trattato i quattro metodi (con un esempio di argomenti per ciascuno, preso da STAI), byte order verificato col test headless, dubbi.
+**Nei risultati**: righe per file, casi di test e prova delle mutazioni, ogni punto in cui ti sei scostato dalla bozza e perché.
 
 ## Risultati
 
@@ -251,7 +236,7 @@ Niente in più: al caricamento usa solo `class`, `AIBase` e `setmetatable` (`Spr
 - `lx --lua-version 5.1 test`: `2561 successes / 0 failures / 0 errors / 1 pending` (T3: 2559). `.emmyrc.json` rimesso com'era.
 - Headless come in T3: codice d'uscita 0, righe d'errore identiche a T3, `PASS: ai_stai_factory_rect.lua` ×2.
 
-### T4 (agente locale, 23 novembre 2026)
+### T4 (agente locale, 23 novembre 2026) — verificato dal coordinatore
 
 **Commit** (messaggi in inglese, su richiesta dell'utente)
 

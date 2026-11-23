@@ -222,7 +222,7 @@ Le dipendenze vanno in una sola direzione: moduli e behaviour usano `self.game`,
 **Struttura dei file**, quella di Shard (i file nuovi sono segnati):
 
 ```
-luarules/gadgets/AILoader.lua                               -- gadget: unsynced solo sull'host; synced con relay e registro dell'host
+luarules/gadgets/ShardAILoader.lua                               -- gadget: unsynced solo sull'host; synced con relay e registro dell'host
 luarules/gadgets/ai/shard_runtime/                          -- class, aibase, module, behaviour, unit, shardai, api: come prima
 luarules/gadgets/ai/shard_runtime/shardally.lua             -- nuovo: contenitore dei moduli con Scope() "ally"
 luarules/gadgets/ai/shard_runtime/shardglobal.lua           -- nuovo: contenitore dei moduli con Scope() "global"
@@ -238,6 +238,8 @@ luaui/Widgets/shard_help_draw.lua                           -- disegno di debug,
 spec/shard_runtime/                                         -- test busted senza engine
 luaui/Tests/shard/                                          -- test d'integrazione headless
 ```
+
+**Nome del loader (23 nov 2026).** Il nuovo loader si chiama `ShardAILoader.lua`. Nel resto del documento `AILoader.lua` indica il loader di Shard rimosso da BAR oppure, nelle parti scritte prima di questa decisione, il nuovo loader con il vecchio nome.
 
 ## Caricamento delle AI e ciclo di vita
 
@@ -558,6 +560,13 @@ I quattro `method` diventano record per unità: `'1-2'` e `'2-2'` si espandono i
 
 **Lettura dei byte.** In Recoil `VFS.Unpack*` non restituisce nulla se la posizione chiesta è uguale alla lunghezza del messaggio. Un ordine senza parametri in fondo al messaggio, come uno `STOP`, finisce con i due U8 `options` e `n`: il relay li legge insieme come un U16, e fa lo stesso con `versione` e `teamID`. Letto come U8, l'ultimo `n` andrebbe perso.
 
+**Numeri a precisione singola (misurato in T4, 23 nov 2026).** In Recoil i numeri Lua sono float a 32 bit, sia nel synced sia nell'unsynced: `2^24 + 1 == 2^24`, e `2147483647` non esiste. Conseguenze:
+
+- `seq` e frame di emissione sono esatti fino a 2^24, cioè circa 155 ore a 30 frame al secondo con un messaggio per frame: abbastanza per una partita.
+- I limiti dei campi si scrivono come potenze di due con l'estremo superiore escluso (`value < 2^31`), che sono esatte anche in float.
+- Ogni calcolo di interi grandi va rivisto: per esempio l'hash del seme casuale della bozza del loader, `(h * 31 + byte) % 2147483647`, perde cifre e va riscritto sotto 2^24.
+- I test busted girano in doppia precisione: questi casi li copre solo un test con l'engine vero.
+
 Il decoder del gadget di prova leggeva `n` come U8 e aveva questo difetto. La misura `STOP` non ne è stata toccata: in quei messaggi c'era un byte di riempimento, e nessun ordine è stato rifiutato. Le varianti dirette non passano dal decoder. Ora il gadget legge `options` e `n` come un U16, senza riempimento, con il formato di questa proposta.
 
 ### Relay synced
@@ -739,7 +748,7 @@ Nella tabella `shard_runtime/`, `ai/Shard/` e `ai/STAI/` stanno sotto `luarules/
 | Classi del runtime | `shard_runtime/class.lua`, `aibase.lua`, `module.lua`, `behaviour.lua`, `unit.lua`, `shardai.lua`, `api.lua` | **recuperare** e correggere | sono la struttura da mantenere; correzioni: elezione, consegna mirata, `Module:internalName` ridefinito per errore in `behaviour.lua` |
 | API su Recoil | `shard_runtime/spring_lua/` (`game`, `map`, `unit`, `unittype`, `feature`, `damage`, `shard`, `boot`) | **recuperare** e correggere | `ShardUnit` torna a dare ordini, `game:GetEnemies()` rispetta la percezione, `shard_include` carica nell'ambiente dell'AI |
 | Backend finto | `shard_runtime/shard_null/` | **recuperare** | base dei test busted senza engine |
-| Loader | `luarules/gadgets/AILoader.lua` | **riscrivere** tenendo nome e struttura | host per ally team, relay binario autenticato, consegna mirata, niente GC forzata |
+| Loader | `luarules/gadgets/ShardAILoader.lua` | **riscrivere** tenendo la struttura, con il nome nuovo | host per ally team, relay binario autenticato, consegna mirata, niente GC forzata |
 | Scheduler di STAI | `ai/STAI/schedulerHST.lua` | **portare nel runtime** | stessi turni, una copia per client, budget |
 | Gestore delle unità | `ai/STAI/unithst.lua`, `ai/Shard/unithandler.lua` | **portare nel runtime** come `UnitHandler` | consegna per ID, attivazioni in attesa |
 | Sleep | `ai/Shard/sleep.lua`, `ai/STAI/sleepst.lua` | **portare nel runtime**, stessa API | sotto il timer dello scheduler; oggi alloca una tabella a ogni frame |
@@ -753,7 +762,7 @@ Nella tabella `shard_runtime/`, `ai/Shard/` e `ai/STAI/` stanno sotto `luarules/
 | Metal spot | `shard_runtime/spring_lua/metal.lua` | **scartare** | BAR li pubblica già; l'algoritmo aveva l'errore `x`/`ix` |
 | Protocollo STGO | `AILoader.lua`, `ai/STAI/tool.lua` | **scartare** | sostituito dalla coda binaria; `Tool:GiveOrder` resta come facciata di `game:GiveOrder` |
 | Backend nativo e registro degli hook | `shard_runtime/spring_cpp/`, `hooks.lua` | **scartare** | niente backend nativo; registro mai usato |
-| GC forzata adattiva | `luarules/gadgets/AILoader.lua` | **scartare** | provoca scatti; la memoria si controlla evitando allocazioni |
+| GC forzata adattiva | `luarules/gadgets/AILoader.lua` | **aperto** | da riparlarne: per l'utente è una sicurezza contro il crash per perdita di memoria; la `collect` provoca scatti (appunto in «Risultati: garbage collection») |
 | Logica di gioco di STAI | `luarules/gadgets/ai/STAI/` | **portare** come prima AI | verifica la compatibilità con Shard e dà subito un'AI completa |
 
 ## Piano di misura delle prestazioni
@@ -923,6 +932,11 @@ Non servono pool di tabelle in generale: basta non allocare nei percorsi eseguit
 2. *`collectgarbage("step", 0)` non aiuta:* i nostri tempi restano uguali e la GC dell'engine sale.
 3. *La `collect` di STAI è il costo peggiore misurato finora:* circa 65–70 ms su 136 MB di heap, cioè due frame persi ogni 4 secondi. Cresce con tutto l'heap della LuaRules, non solo con i dati dell'AI (18 ms a 74 MB, 84 ms a 208 MB, 133 ms a 531 MB). Resta vietata, compresa quella in fondo a `MapHST:Init`.
 4. *Il p99 sotto 0,3 ms è raggiungibile* con un'allocazione realistica: con circa 100 tabelle per frame il p99 è 0,05 ms, con 1.000 sale a 0,45 ms. La GC dell'engine, con un p99 di circa 1,4 ms anche senza di noi, viene da tutto il Lua unsynced ed è fuori dal budget del runtime.
+
+**Appunto del 23 nov 2026: le due difese di memoria di STAI.**
+
+- *Il guardiano del vecchio `AILoader.lua`.* Ogni 121 frame, sulla prima AI, leggeva `gcinfo()`. Se superava il limite (200 MB all'inizio, poi 50 MB in più per ogni AI), chiamava `collectgarbage("collect")` e alzava il limite a memoria viva + 200 MB + 50 MB per AI, fino a 1 GB. Come rete di sicurezza l'idea era sensata, ma non regge ai numeri. `gcinfo()` misura tutto il Lua della LuaRules, non solo Shard. La `collect` costa 65–70 ms a 136 MB. Libera solo la spazzatura, che la GC incrementale dell'engine raccoglierebbe comunque, mentre una perdita vera (dati ancora raggiungibili) resta e fa solo alzare il limite. **Aperto, da riparlarne: per l'utente è una sicurezza contro il crash del gioco in caso di perdita. Proposta del coordinatore: si tiene la parte di misura e si toglie la `collect`:** campionamento periodico di `gcinfo()`, picco nel log e un `Warn` se la memoria viva cresce di continuo, cioè il segno di una perdita da cercare.
+- *I pool di celle di `LosHST`.* Le celle delle griglie `ENEMY` e `OWN` non si distruggono a ogni aggiornamento: tornano in una griglia di riserva e si svuotano quando si riprendono. Da valutare con l'utente. È la tecnica giusta in Lua 5.1 per un punto caldo che rifà migliaia di tabelle a ogni giro, e coincide con la conclusione delle misure qui sopra: pool solo dove servono. Si tiene, con tre ritocchi da fare durante il porting di `LosHST`. (1) Una griglia unica con un contatore di giro al posto dello spostamento fra griglia e riserva: una cella con il giro vecchio vale vuota e si azzera quando si usa, così sparisce il passaggio con `pairs` su tutte le celle a ogni aggiornamento. (2) Niente `"pool" .. nome` a ogni chiamata. (3) Un difetto latente: `Update` libera `"ALLY"`, mentre le griglie sono `ALLY` e `ALLIES` e il pool è `poolALLIES`; nessuna delle due viene mai riempita, quindi il controllo su `loshst.ALLY` in `ScoutHST` non scatta mai. Con `LosHST` d'ally team i pool si allocano una volta per alleanza invece che una volta per AI.
 
 ### Scenario standard
 

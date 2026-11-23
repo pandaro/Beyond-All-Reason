@@ -31,7 +31,7 @@ The design behind these choices is in the architecture proposal. This guide only
 **Stable.**
 
 ```
-luarules/gadgets/AILoader.lua               -- the gadget that finds AI teams and drives them (planned)
+luarules/gadgets/ShardAILoader.lua          -- the gadget that finds AI teams, runs them and relays their orders (in progress)
 luarules/gadgets/ai/shard_runtime/          -- the framework: classes, API, test doubles
     class.lua                               -- class()
     aibase.lua                              -- AIBase: the base of every Shard object
@@ -41,7 +41,9 @@ luarules/gadgets/ai/shard_runtime/          -- the framework: classes, API, test
     behaviour.lua                           -- Behaviour
     unit.lua                                -- Unit: the per-unit mini AI that holds behaviours
     api.lua                                 -- builds the game and map objects
+    ordercodec.lua                          -- the binary format of order messages
     spring_lua/                             -- the real API on top of the engine
+        outbox.lua                          -- ShardOutbox: the per-AI order queue
     shard_null/                             -- a fake API for tests without the engine
 luarules/gadgets/ai/<AIName>/               -- one folder per AI type
     boot.lua                                -- returns the first instance of the AI
@@ -357,10 +359,34 @@ Positions are tables `{ x = …, y = …, z = … }`.
 
 **`ShardUnitType`** (`unit:Type()`, `game:GetTypeByName(name)`): read-only data from the unit definition: `Name()`, `ID()`, `IsBuilder()`, `IsFactory()`, `CanBuild(type)`, `CanMove()`, `CanFly()`, `Extractor()`, `BuildCostMetal()`, `BuildCostEnergy()`, `BuildTime()`, `Health()`, `LosRadius()`, and more in `spring_lua/unittype.lua`.
 
+**Orders** (**Stable** in the framework; **Planned**: the loader's relay that delivers them, see below):
+
+```lua
+self.game:GiveOrder(unitID, CMD.MOVE, { x = 100, y = 0, z = 200 }, 0, "1-1")
+self.game:GiveOrder(factoryID, { -defA, -defB }, { 0, 0 }, { 0, 0 }, "2-1")
+self.game:GiveOrder({ id1, id2 }, CMD.STOP, nil, 0, "1-2")
+unit:Move({ x = 100, y = 0, z = 200 })
+```
+
+| `method` | Meaning | `id` | `cmd` | `params`, `options` |
+| --- | --- | --- | --- | --- |
+| `"1-1"` | one command to one unit | a unit ID | a command | one value each |
+| `"2-1"` | several commands to one unit, in order | a unit ID | an array of commands | arrays, one entry per command |
+| `"1-2"` | one command to several units | an array of unit IDs | a command | one value each, the same for every unit |
+| `"2-2"` | one command per unit, paired by index | an array of unit IDs | an array of commands | arrays, one entry per unit |
+
+- `params` is `nil`, a number, an array of numbers (at most 255), or a position `{ x, y, z }`.
+- `options` is a `CMD.OPT_*` bit mask, or an array of names: `"shift"`, `"alt"`, `"ctrl"`, `"meta"`, `"right"`.
+- A call with the wrong shape is dropped with a warning; no order of it is queued.
+- The order methods of `ShardUnit` (`Move`, `Build`, `Attack`…) go through the same path as `"1-1"`.
+
+Orders are not given at once: they go to the AI's queue (`ShardOutbox`). Once per frame the queue sends one compact binary message with at most 25 orders; the rest waits for the next frames, in order. The orders of one call are never split across two messages. The synced side of the loader checks that the message comes from the player hosting the AI and that every unit belongs to the AI's team, then gives the orders to the engine.
+
 Planned changes to the API:
 
-- **Orders**: every order goes through one queue per AI and reaches the engine through the synced relay of `AILoader.lua`, in a compact binary message, at most one message per frame and a capped number of orders per frame. `game:GiveOrder(id, cmd, params, options, method)` replaces today's string-based `game:GiveOrder(message)`; `ShardUnit` order methods keep their names.
 - **Perception**: in the default `fair` mode, `game` and the unit objects show enemies only as the ally team can see them (line of sight and radar). An AI can declare `Perception()` returning `"omniscient"` for difficulty levels that cheat.
+
+**Numbers.** Lua numbers in Recoil are 32-bit floats: integers are exact only up to 2^24 (16,777,216). Keep counters and IDs below that, and avoid arithmetic on large integers such as hashes.
 
 ## Logging and debugging
 
