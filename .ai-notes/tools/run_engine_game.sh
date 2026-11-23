@@ -4,7 +4,8 @@
 #
 # Usage: .ai-notes/tools/run_engine_game.sh <startscript> <minutes>
 #   The startscript (see .ai-notes/tools/startscripts/) has @QUIT_FRAME@ where the game must end, in debugcommands.
-# Environment: ENGINE_DIR, WRITE_DIR as in run_engine_tests.sh (default write dir: ${TMPDIR:-/tmp}/shard-engine-game).
+# Environment: ENGINE_DIR, WRITE_DIR as in run_engine_tests.sh (default write dir: ${TMPDIR:-/tmp}/shard-engine-game);
+#   SHARD_MEM_STATS=1 for the loader's memory lines.
 set -u
 
 if [ "$#" -ne 2 ]; then
@@ -22,7 +23,9 @@ GADGET="$REPO/luarules/gadgets/dbg_shard_engine_game.lua"
 END_FRAME=$((MINUTES * 1800))
 QUIT_FRAME=$((END_FRAME + 30))
 
+TEMP_WRITE_DIR=0
 if [ -z "${WRITE_DIR:-}" ]; then
+	TEMP_WRITE_DIR=1
 	WRITE_DIR="${TMPDIR:-/tmp}/shard-engine-game"
 	mkdir -p "$WRITE_DIR"
 	for link in games maps packages pool rapid; do
@@ -32,6 +35,14 @@ if [ -z "${WRITE_DIR:-}" ]; then
 	done
 	if [ ! -e "$WRITE_DIR/springsettings.cfg" ]; then
 		cp "$REPO/tools/headless_testing/springsettings.cfg" "$WRITE_DIR/springsettings.cfg"
+	fi
+fi
+
+# SHARD_MEM_STATS=1 turns on the loader's memory lines (ShardMemStats), only in the temporary write dir
+if [ "$TEMP_WRITE_DIR" = "1" ]; then
+	sed -i '/^ShardMemStats/d' "$WRITE_DIR/springsettings.cfg"
+	if [ "${SHARD_MEM_STATS:-0}" = "1" ]; then
+		echo "ShardMemStats = 1" >> "$WRITE_DIR/springsettings.cfg"
 	fi
 fi
 
