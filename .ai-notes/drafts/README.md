@@ -409,6 +409,8 @@ unit:Move({ x = 100, y = 0, z = 200 })
 
 Orders are not given at once: they go to the AI's queue (`ShardOutbox`). Once per frame the queue sends one compact binary message with at most 25 orders; the rest waits for the next frames, in order. The orders of one call are never split across two messages. The synced side of the loader checks that the message comes from the player hosting the AI and that every unit belongs to the AI's team, then gives the orders to the engine.
 
+At most 20 orders go in one message (`MAX_ORDERS_PER_MESSAGE` in `ordercodec.lua`). The orders of one call are never split, so a call with more than 20 orders (one order to 21 or more units, or 21 or more queued commands to one unit) is refused whole and lost. For many units, one command to all of them at once (`GiveOrderArrayToUnitArray`) is the way to go.
+
 **Perception** is up to the AI. `game` does not filter: `GetEnemies()` returns every enemy unit. An AI that should see only what its ally team sees keeps track of it from the line of sight and radar events. The framework offers a small module for this, `PerceptionHandler` (see [Units known to an AI](#how-an-ai-runs-in-a-game)); an AI can use it, write its own, or cheat. The example AI uses it: `AttackHandler` attacks only enemies in line of sight.
 
 **Numbers.** Lua numbers in Recoil are 32-bit floats: integers are exact only up to 2^24 (16,777,216). Keep counters and IDs below that, and avoid arithmetic on large integers such as hashes.

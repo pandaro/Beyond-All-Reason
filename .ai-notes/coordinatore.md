@@ -121,7 +121,7 @@ Claude-Session: <link della sessione>
 - Griglia di `LosHST`: **non va più bene così**; se ne parla al porting. Idea dell'utente: **una griglia unica** per tutto, ogni cella una tabella con i dati, più **liste delle celle «vere»** per tema (celle con nemici, con metallo, con unità mie, ecc.).
 - T15 scritto: `collect` d'avvio rimessa, ordini per messaggio a 10 (costante unica), `shard_runtime/tablepool.lua`.
 - T15 verificato. T16 scritto: `maxInstances` per partita, deterministico (primi N team AI per ID), con il relay che rifiuta i team esclusi.
-- Aperto da T15: un gruppo di ordini con più di 10 ordini (un `GiveOrder` a 11+ unità, o 11+ comandi in coda) va da solo e il relay lo **rifiuta intero**. Decisione dell'utente: niente spezzatura, limite alzato a 20 (extra di T16).
+- Aperto da T15: un gruppo di ordini con più di 10 ordini (un `GiveOrder` a 11+ unità, o 11+ comandi in coda) va da solo e il relay lo **rifiuta intero**. Decisione dell'utente: niente spezzatura, limite alzato a 20 (extra di T16). **Nota**: gli ordini troppo grandi (gruppi oltre 20) possono essere persi; in teoria per quei casi si può usare `GiveOrderArrayToUnitArray` (un solo comando per molte unità).
 - Dopo il via dell'utente: documento «Nuovo STAI» per il porting.
 
 **In sospeso per scelta dell'utente**
