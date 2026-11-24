@@ -104,11 +104,12 @@ Claude-Session: <link della sessione>
 | T9 | scheduler di base (EmmyLua e StyLua 2.5.2 da rifare: in T11) |
 | T11 | strumenti fissati in `~/.local/bin`, elezione dei behaviour (solo priorità > 0) con `legacyElection` per STAI, turni dei behaviour (`BScheduler`) |
 | T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
+| **T13** | **in corso**: `shard_null` crea anche gli oggetti d'alleanza e globale |
 
 **Prossimi passi** (ordine proposto all'utente)
 
 1. Fatto: guida aggiornata con elezione, `BScheduler` e percezione.
-2. Decisioni aperte da T12: `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`); `shard_null` non crea oggetti ally, quindi sotto `shard_null` i moduli `"ally"` non si caricano.
+2. Verificare T13 (`shard_null` con oggetti ally e global). Rinviato per scelta dell'utente: `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
 3. **Latenza in multiplayer**: partita vera con due client, da organizzare con l'utente; poi la scelta synced/unsynced come modalità predefinita.
 4. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`, branch pulito senza `.ai-notes/` e con commit riordinati, prove di partita per `AI_POLICY.md`.
 

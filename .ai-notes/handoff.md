@@ -18,40 +18,34 @@
 
 ## Compito attuale
 
-### T12: percezione come modulo del framework, usato da Shard
+### T13: oggetti d'alleanza e globale sotto `shard_null`
 
-**Impegno: medio.** Poco codice e niente regole nuove; l'attenzione va al caso dell'avvio e del cambio di host (le unità già in vista) e alla prova che Shard non legge nemici fuori da LOS.
+**Impegno: basso.** Un cambio piccolo e isolato in `shard_null/boot.lua`, senza toccare il loader né l'engine.
 
-**Decisione dell'utente (24 novembre 2026)**, che sostituisce «`game` e `map` filtrano i nemici secondo la percezione dell'ally team, `fair` per default»: **il framework non filtra niente.** Consegna gli eventi di visibilità (lo fa già: `DeliverSight`, e il catch-up in `lifecycle.lua`) e offre un modulo di percezione elementare in `shard_runtime/`. Ogni AI sceglie: lo include, se ne scrive uno suo (un file con lo stesso nome nella cartella dell'AI ha la precedenza, per come funziona `shard_include`), o non ne usa nessuno e legge tutto (AI che bara). `game:GetEnemies()` resta com'è: tutti i nemici.
+**Problema** (da T12): `ShardNull.Start` crea solo l'AI di team. Sotto `shard_null` i moduli con `Scope()` `"ally"` o `"global"` non si caricano («Skipping the loading of PerceptionHandler: no ally object holds it») e `self.ai.perceptionhandler` è `nil`. Così questi moduli non si possono provare senza engine.
 
 **Lavoro**
 
-1. **`shard_runtime/perceptionhandler.lua`**, classe `PerceptionHandler` (`Module`), nello stile dei moduli di Shard:
-   - `Name()` `"PerceptionHandler"`, `internalName()` `"perceptionhandler"`, `Scope()` `"ally"` (uno per ally team, condiviso dalle sue AI);
-   - `Init`: due tabelle, `self.los` e `self.radar`, `[unitID] = true`;
-   - `UnitEnteredLos`/`UnitLeftLos`/`UnitEnteredRadar`/`UnitLeftRadar`: mettono e tolgono l'ID; `UnitDead`: lo toglie da tutte e due;
-   - due funzioni: `Sees(unitID)` e `OnRadar(unitID)`;
-   - un commento in testa di poche righe: cosa tiene, che è un punto di partenza, che un'AI può sostituirlo o farne a meno.
-   - Niente altro: niente ultima posizione nota, niente griglie, niente liste allocate. Se una cosa ti sembra indispensabile, scrivila nei risultati invece di aggiungerla.
-   - Verifica che gli eventi arrivino al modulo d'ally team una volta sola anche con due AI Shard nello stesso ally team, e che dopo il catch-up (avvio e cambio di host) le unità già in vista siano nelle tabelle.
-2. **Togli dal framework la percezione vecchia**: `Perception()` e il campo `omniscient` in `loader/types.lua` (e dove altro compaiono); il commento «Provisional» in testa a `unitregistry.lua` diventa definitivo: le tabelle sono di tutte le unità, senza filtro, e la percezione è compito dell'AI.
-3. **Shard la usa**: `shard_include("perceptionhandler")` in `Shard/modules.lua` e nella lista restituita. `AttackHandler` sceglie il bersaglio solo fra i nemici che l'ally team **vede** (LOS): scorre `self.ai.perceptionhandler.los` invece di `self.game:GetEnemies()` (oppure filtra con `Sees`: scegli la forma più semplice e motivala). Le unità solo su radar restano fuori, perché `ScoreUnit` legge il tipo. Commento breve sul perché. STAI non si tocca.
-4. **Guida**: niente, la aggiorna il coordinatore.
+1. `ShardNull.Start(ai, name)` crea anche **un `ShardGlobal` e un `ShardAlly`** (ally team 0), con gli stessi campi che dà loro il loader (`loader/types.lua`: `LoadAIType`, `GetAlly`, `SetupAI`): `loaded`, `fullname`, `api`, `allyId`, `AIs`, i collegamenti `ai.global`, `ai.ally`, `ally.global`, e l'AI dentro `AIs` di tutti e due. Poi `Prepare()` nello stesso ordine del loader: **global, ally, team**. Le parti che servono al solo loader (scheduler condiviso, host, outbox) restano fuori, salvo che senza di loro qualcosa non funzioni: in quel caso scrivi cosa e perché.
+2. I due oggetti si raggiungono come `ai.global` e `ai.ally`. **Niente funzioni nuove** per consegnare eventi o fare `Update`: chi scrive un test chiama gli oggetti nell'ordine global → ally → team. Se ti sembra indispensabile un aiuto, scrivilo nei risultati invece di aggiungerlo.
+3. Funzioni piccole in `boot.lua` (per esempio una che crea il globale, una l'ally), composte in `Start`, che si legge come passi. Commento breve in testa a `Start`: cosa crea e in che ordine.
+4. Shard e STAI non si toccano. `Shard/boot.lua` resta uguale.
 
-**Test busted**
+**Test busted** (`shard_null_spec.lua`)
 
-- Modulo: entra/esce da LOS e radar; `UnitDead` pulisce tutte e due; un'unità in LOS e radar che esce da LOS resta su radar; `Sees`/`OnRadar` su ID mai visti → `false`.
-- Loader: due AI Shard nello stesso ally team → un solo `PerceptionHandler`, ogni evento lo raggiunge una volta; il catch-up riempie le tabelle; ally team diversi non si vedono a vicenda.
-- Shard sotto `shard_null` o con fixture: `AttackHandler` non considera un nemico che non è in `los`, considera quello che c'è.
-- Prova delle mutazioni.
+- Shard sotto `shard_null`: `ai.perceptionhandler` esiste ed è lo stesso oggetto di `ai.ally.perceptionhandler`; nessun avviso «Skipping the loading»; `ai.modules` resta di 5 moduli di team; l'ally ha il suo modulo.
+- Ordine di `Init`: global, poi ally, poi team.
+- Un evento di vista dato a `ai.ally` (`UnitEnteredLos`, poi `UnitLeftLos`) cambia `Sees` come atteso.
+- I test che c'erano passano senza modifiche.
+- Prova delle mutazioni (per esempio: ally non creato, ordine di `Prepare` invertito, `ai.ally` non collegato, AI non in `AIs`).
 
-**Partite** (`SHARD_MEM_STATS=1`, 15 minuti): D (Shard contro SimpleAI), confronto con T11; una partita A (STAI contro SimpleAI) di controllo, perché il cambio in `types.lua` tocca tutti i tipi. Nella partita D, se è semplice, conta quante volte `AttackHandler` trova bersagli (per esempio un contatore stampato a fine partita, poi tolto o lasciato dietro `DebugEnabled`).
+**Partite**: nessuna (il codice dell'engine non cambia).
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: modulo e spec; percezione vecchia tolta; Shard lo usa.
+**Commit**, in inglese: uno solo, `shard_null` e spec.
 
-**Nei risultati**: righe per file, test e mutazioni, le righe chiave delle partite confrontate con T11, cosa cambia nel gioco di Shard ora che non vede tutto.
+**Nei risultati**: righe per file, test e mutazioni, cosa hai lasciato fuori dal loader e perché.
 
 ## Risultati
 
