@@ -29,6 +29,11 @@ Messaggio d'avvio per la chat:
 4. L'utente dà all'esecutore `/clear`, l'impegno, e «esegui»: l'esecutore sa cosa leggere (le sue istruzioni locali vanno aggiornate perché puntino a `.ai-notes/stai/handoff.md`; lo fa l'esecutore nel primo compito).
 5. L'utente dice «fatto»; il coordinatore fa `git pull`, legge i risultati, controlla a campione i diff, segna `— verificato dal coordinatore` (commit e push), riassume e propone il passo dopo.
 
+**Formule fisse (richiesta dell'utente, 24 novembre 2026)**: a ogni compito il coordinatore dice sempre, con queste parole:
+- quando il compito è scritto e pushato: «S<n> pronto, assegna impegno <x>»;
+- quando i risultati sono verificati: «concluso»;
+- quando propone il compito successivo: «go next».
+
 **Commit del coordinatore**: messaggio in inglese, chiuso dalle righe di attribuzione che il sistema indica nella chat. Push con `git -c push.negotiate=true push origin stai/porting`. Mai push su master, niente PR, niente force push.
 
 ## 3. Regole in più per il porting
