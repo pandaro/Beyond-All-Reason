@@ -629,7 +629,7 @@ Sono gli ID vecchi di STAI annotati in T6 (`game:GetUnitByID(id)` su unità mort
 - Lo scratchpad era stato svuotato fra i compiti: StyLua 2.5.2 ed EmmyLua 0.24.0 riscaricati dalle release di GitHub.
 - Con 1671 ripetizioni in mezz'ora, l'errore di `bomberhst` ora costa una concatenazione di stringhe (la chiave) a ogni ripetizione: accettabile perché gli errori sono rari, ma STAI che sbaglia a ogni frame lo rende un costo per frame.
 
-### T7 (agente locale, 24 novembre 2026)
+### T7 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit** (suite verde dopo ognuno)
 
