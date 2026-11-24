@@ -18,7 +18,6 @@ end
 -- only from the host of a team and only for units of that team.
 
 local spEcho = Spring.Echo
-local spGetTeamInfo = Spring.GetTeamInfo
 local spGetTeamLuaAI = Spring.GetTeamLuaAI
 local spGetGameFrame = Spring.GetGameFrame
 local teamList = Spring.GetTeamList()

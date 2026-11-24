@@ -39,7 +39,10 @@ local aiTeams ---@type table<integer, string> teamID -> AI name, for the teams w
 local teamList ---@type integer[]
 local AI_PATH ---@type string
 local RUNTIME_PATH ---@type string
-local Call, WithTraceback, SetCatchUpTargets, NewUnitTables
+local Call ---@type fun(target: table, name: string, ...): boolean
+local WithTraceback ---@type fun(err: any): string
+local SetCatchUpTargets ---@type fun(targets: table?)
+local NewUnitTables ---@type fun(thisAI: table)
 
 --- The loader's parts: context = { gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry }
 local function Setup(context)
