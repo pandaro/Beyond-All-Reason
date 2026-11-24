@@ -720,7 +720,7 @@ Simili a T6b (medie 0,17–0,53 KB contro 0,18–0,82; heap 13–15 MB). Il mass
 - `SetGameID` è in `lifecycle.lua` perché dipende da `hosting`; chiama `Types.SetGameHash` (sempre) e `Types.SeedAIs` (solo se ospita), come prima;
 - `RemoveValue` e `RemoveAlly` stanno in `types.lua` (li usa la pulizia dei fallimenti) e sono esportati per `StopAI` e `DropFailed`;
 - `DropFailed` segna un tipo fallito con `Types.MarkTypeFailed`, perché `failedTypes` è di `types.lua`.
-Gadget: `Types.Setup(...)` e `Lifecycle.Setup(...)` al posto di `Loader.Setup`; i call-in usano `Lifecycle.*`. Spec: `HashGameID` preso da `loader/types.lua`; il test «nessuna funzione del loader visibile» scorre `types` e `lifecycle` al posto di `loader`, e controlla anche i nomi `Types`, `Lifecycle`, `LoadAI`. Righe: `types.lua` 305, `lifecycle.lua` 245.
+Gadget: `Types.Setup(...)` e `Lifecycle.Setup(...)` al posto di `Loader.Setup`; i call-in usano `Lifecycle.*`. Spec: `HashGameID` preso da `loader/types.lua`; il test «nessuna funzione del loader visibile» scorre `types` e `lifecycle` al posto di `loader`, e controlla anche i nomi `Types`, `Lifecycle`, `LoadAI`. Righe: `types.lua` 294, `lifecycle.lua` 270; il gadget 294.
 
 **Punto 3**: `EndGameAll` passa da `EndGameObject`, che controlla `HasModules`. Test: un ally con `modules` vuoto e `GameEnd` sostituito non viene chiamato a `GameOver`, l'altro ally sì; fallisce sul codice di prima.
 
