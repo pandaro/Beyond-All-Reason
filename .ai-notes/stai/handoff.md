@@ -19,39 +19,33 @@
 
 ## Compito attuale
 
-### S3: pulizia di `MapHST`
+### S4a: `GridHST`, la geometria
 
-**Impegno: alto** (deciso dall'utente: gioco identico e stile di STAI). Primo passo dei «fondamenti» (`nuovo-stai.md` §5 n. 3, punto 2). `MapHST` resta `"team"`; **il gioco non deve cambiare**: si toglie solo codice che nessuno chiama e si spostano due funzioni che non sono di mappa. I difetti trovati (punto 15) **non** si correggono qui.
+**Impegno: alto.** Nasce `GridHST` (`nuovo-stai.md` punto 5, §5 n. 4). Qui **solo la geometria**: le griglie di oggi restano `[X][Z]`, cambia solo chi fa i conti. **Il gioco non deve cambiare.** Gli strati sono S4b. **Stile**: `nuovo-stai.md` §7.
 
-**1. Codice morto da togliere da `maphst.lua`** (il coordinatore ha controllato con grep che nessuno li chiama; ricontrolla prima di togliere ciascuno, anche nei file fuori da `STAI/`)
+**1. File nuovo `STAI/gridhst.lua`**
 
-- funzioni: `PosToHeightMap`, `HeightMapToPos`, `PosToNodeIndex`, `NodeIndexToGrid`, `NormalizeHeighMapIndex`, `NodeIndexToPos`, `NodeIndexToHeighMap`, `InitPathCost` (e la sua chiamata commentata in `Init`), `SetStartLocation`, `GuessStartLocations`, `MergePositions`, `GetPathGraph` (con `local pathGraphs` e `local mCeil`; in `attackhst.lua` r. 110 e `raidhst.lua` r. 112 ci sono solo chiamate commentate: togli anche quelle righe), `ClosestFreeGeo`, `MobilitynetworkSizeHere`, `AccessibleMetalSpotsHere`, `AccessibleGeoSpotsHere`, `IsUnderWater`;
-- campi mai letti: `waterMetals`, `groundMetals` (con il ramo `map:CanBuildHere` in `metalScan` che li riempie e l'assegnazione `self.ai.armyhst.UWMetalSpotCheckUnitType` in `Init`, usata solo lì), `startLocations`;
-- il controllo `map_loaded` in `Init` (ogni istanza è nuova: non scatta mai);
-- blocchi commentati: l'`Update` (r. 101–121), `gridThePathBackup` in fondo al file, la vecchia versione commentata dentro `ClosestFreeMex`;
-- in `damagehst.lua` le righe commentate che citano funzioni tolte (r. 101–108 circa).
+- `GridHST = class(Module)`, `Name` `"GridHST"`, `internalName` `"gridhst"`, `Scope` `"team"` (diventa `"global"` con `MapHST` più avanti). In `modules.lua` incluso e messo nella lista **prima di `MapHST`**.
+- `Init` come macro, prima riga `self.DebugEnabled = false`, poi i passi (nomi indicativi, nel tuo stile): `self:basicGridInfo()`, `self:createCells()`.
+- `basicGridInfo`: misure della mappa in elmo prese da `map:MapDimensions()` (come `MapHST:basicMapInfo`) e **`self.gridSize = 256`, l'unico punto in tutto STAI dove sta la misura della cella** (commento a fine riga che lo dice), poi `gridSizeHalf`, `gridSizeDouble`, `gridSideX`, `gridSideZ`, `gridArea` con le stesse formule di oggi.
+- `createCells`: **`self.CELLS[i]`** per tutte le celle, una volta sola, cicli `X` 1..`gridSideX`, dentro `Z` 1..`gridSideZ`; ogni cella `INDEX`, `X`, `Z`, `POS` (`POS` calcolato come oggi in `MapHST:NewCell`: centro della cella, `y` con `GetGroundHeight`), campo per campo.
+- Indice: `i = (X - 1) * gridSideZ + Z`. Funzioni nuove: `GridToIndex(X, Z)`, `PosToIndex(pos)`, `RawPosToIndex(x, z)`; all'indietro si legge `self.CELLS[i].X` / `.Z` (niente funzione).
 
-**Restano** (servono a qualcuno): `GridToNodeIndex` (la usa `DamageHST`; la sostituirà l'indice di `GridHST`), `isInMap`, `RawPosIsInMap`, `GridToRawPos`, `getPath`, `gridThePath`, `topology`, `TopologyFooded`, tutte le funzioni di griglia, `MobilityNetworkHere`, `MobilityOfUnit`, `UnitCanGoHere`, `UnitCanGetToUnit`, `AccessibleSpotsHere`, `DrawDebug`, `basicMapInfo` com'è. `astarclass.lua` e `UWMetalSpotCheckUnit` in `armyhst.lua` restano anche se dopo questo compito nessuno li usa: scrivilo nei risultati.
+**2. Da `MapHST` passano in `GridHST`**, con lo **stesso nome, stessa firma, stesso corpo, stesso commento**: `PosToGrid`, `RawPosToGrid`, `GridToPos`, `GridToRawPos`, `IsCellInGrid`, `areaCells`, `GetCell`, `getCellsFields`, e `isInMap`, `RawPosIsInMap` (servono a `GridToPos` / `GridToRawPos`; senza di loro `GridHST` dipenderebbe da `MapHST`, che dipende da `GridHST`).
+- `PosToGrid` e `RawPosToGrid` oggi controllano `self.GRID[X][Z]` di `MapHST` solo per un `EchoDebug`: in `GridHST` usa `IsCellInGrid` (stessa condizione: `GRID` è pieno).
+- **Tolti** da `MapHST`: le funzioni sopra, i campi della griglia in `basicMapInfo` (`gridSize` … `gridArea`) e `GridToNodeIndex`. `MapHST` tiene le sue misure in elmo (`elmoMapSizeX`, `elmoMapCenter`, …), usate da altri. Dentro `MapHST` (`createGrid`, `NewCell`, `TopologyFooded`, `SimplifyMetalSpots(self.gridSize * 2)`, `DrawDebug`, `metalScan`, `geoScan`, `MobilityNetworkHere`…) i conti passano a `self.ai.gridhst`. `NewCell` prende `POS` dalla cella di `GridHST` (`self.ai.gridhst.CELLS[i].POS`, stessa tabella) invece di ricalcolarlo.
+- **Chiamanti da aggiornare** (`self.ai.maphst:` / `.` → `self.ai.gridhst:` / `.`), contati dal coordinatore: `attackhst`, `buildingshst`, `commanderbst`, `damagehst`, `labsbst`, `labshst`, `loshst`, `nukebst`, `raidhst`, `scoutbst`, `scouthst`, `targethst`. Ricontrolla con grep: alla fine nessun `maphst` per questi nomi.
+- `DamageHST`: `nodeCostIndex = self.ai.maphst:GridToNodeIndex(X, Z)` → `self.ai.gridhst:GridToIndex(X, Z)` (usato solo nel testo di `Draw`).
 
-**2. Funzioni che passano in `BuildingsHST`** (decisione dell'utente)
+**3. Test busted** di `GridHST`, se si riesce a caricarla da sola con un `map` finto (o con `shard_null`): andata e ritorno indice ↔ `X`, `Z` su una griglia **non quadrata**; prima e ultima cella; `PosToIndex` sul bordo di una cella; `IsCellInGrid` fuori dai bordi. Mutazioni (per esempio `gridSideX` al posto di `gridSideZ` nella formula). Se non si riesce senza toccare il framework, scrivi perché e non toccarlo.
 
-- `ClosestFreeMex` → `BuildingsHST:ClosestFreeMex`, stessa firma e stesso corpo; le chiamate a `self:MobilityOfUnit`, `self:GetCell`, `self:UnitCanGoHere` diventano `self.ai.maphst:…`, `self.ai.buildingshst:PlansOverlap` diventa `self:PlansOverlap`. Chiamante: `buildersbst.lua` r. 295.
-- `UnitMexMoveTest` → `BuildingsHST:UnitMexMoveTest`; chiamante: `commanderbst.lua` r. 14. Il valore `trampled` **esce dalle celle di `MapHST`** (via `cell.trampled = 0` da `NewCell`, via le righe di `trampled` da `MapHST:DrawDebug`) e va in una tabella di `BuildingsHST`, **`self.TRAMPLED[X][Z]`** (maiuscolo, come le griglie di STAI), con 0 in ogni cella prima del conteggio. Per non cambiare niente:
-  - scorri le celle **nello stesso ordine** di oggi: `X` da 1 a `gridSideX`, dentro `Z` da 1 a `gridSideZ` (oggi `pairs` su tabelle-array, che va in quest'ordine);
-  - `self.trampledCells` si crea **in `BuildingsHST:Init`** (`{}`) e `UnitMexMoveTest` ci **aggiunge** le posizioni (`self.ai.maphst.GRID[X][Z].POS`) senza sostituire la tabella: `TasksHST` ne tiene il riferimento (`taskshst.lua` r. 653, 1094, 1104, da cambiare in `self.ai.buildingshst.trampledCells`). Controlla che `BuildingsHST:Init` giri prima del punto in cui `TasksHST` legge il riferimento;
-  - stesse formule, stessa soglia (`average * 1.5`), stesso `nil` sulle celle sotto soglia; `self.ttt` può diventare locale.
+**4. Prova che il gioco non cambia**: come in S3, `Echo` temporanei **non committati** (le righe `[S3-PROOF]` di S3, più in fondo a `GridHST:Init` `gridSideX`, `gridSideZ`, numero di `CELLS`, somma di tutti gli `INDEX`), partita `c_stai_vs_stai.txt` di 2 minuti col codice di partenza e col codice nuovo: le righe `[S3-PROOF]` identiche (quella di `GridHST` c'è solo nel nuovo; la somma degli `INDEX` deve essere `n·(n+1)/2`). Se cambiano, **fermati**.
 
-**Stile**: `nuovo-stai.md` §7. Le funzioni spostate tengono nome, firma e commento di fine riga di oggi; il codice nuovo (il ciclo numerico, `TRAMPLED`) si scrive nella stessa forma, con commenti brevi a fine riga.
+**Partite**: oltre alla prova, una partita C di 15 minuti (unità e mex di tutte e due le STAI, errori).
 
-**3. Prova che il gioco non cambia** (modifica temporanea, **non committata**)
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (nessun errore nuovo), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-Aggiungi in fondo a `UnitMexMoveTest` un `Spring.Echo` con: numero di `trampledCells`, somma delle `x` e delle `z` delle posizioni, `average`; e in fondo a `MapHST:Init` uno con `#self.METALS`, `#self.GEOS`, `#self.hotSpots` e il numero di zone per ogni `layer` di `self.networks`. Fai **una partita A col codice di prima** (`git stash` o il commit di partenza) e **una col codice nuovo**, stessa partita: le righe devono essere identiche. Riporta le righe nei risultati, poi togli gli `Echo`.
-
-**Partite**: oltre alle due della prova, una partita C (`c_stai_vs_stai.txt`): unità e mex di tutte e due le STAI, righe `[AI Loader] error`. Le tre partite A non servono (il gioco non cambia); se la prova del punto 3 dà righe diverse, **fermati** e scrivi cosa cambia.
-
-**Controlli**: `grep` finale dei nomi tolti in tutto il repository (solo `.ai-notes/` può citarli); `lx --lua-version 5.1 test`, `run_engine_tests.sh`; StyLua 2.5.2 ed EmmyLua 0.24.0 sui file toccati (nessun errore nuovo). `.emmyrc.json` ripristinato.
-
-**Commit**, in inglese: uno per il codice morto («STAI MapHST: remove unused code»), uno per lo spostamento in `BuildingsHST`, uno per i risultati. Righe tolte e aggiunte per file nei risultati.
+**Commit**, in inglese: uno per `GridHST` e lo spostamento, uno per i test (se ci sono), uno per i risultati. Righe per file nei risultati.
 
 ## Risultati
 
