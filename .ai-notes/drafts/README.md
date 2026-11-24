@@ -456,7 +456,7 @@ Each order is then given only if its unit exists and belongs to the AI's team; o
 
 **Units known to an AI.** *Provisional*: the loader keeps, for every team AI, the sets `ownUnitIds`, `friendlyUnitIds`, `alliedUnitIds`, `enemyUnitIds`, `neutralUnitIds` (Gaia's units are neutral). `game:GetUnits()`, `GetFriendlies()` and `GetEnemies()` read them, and they see every unit on the map. Planned: the ally team's perception will replace them, so an AI sees only what its ally team sees.
 
-**Errors.** Every call from the loader to an object runs protected. An error is printed with its traceback, at most once every 30 seconds for the same object and event, and the other AIs keep running. Planned: a module that keeps failing is put in quarantine on its own.
+**Errors.** Every call from the loader to an object runs protected. An error while loading an AI or in `Init()` stops that AI (and, for a shared object, the AIs that use it); the game goes on. An error during the game is printed with its traceback the first time it happens and only counted afterwards; the AI keeps running. Errors are told apart by object, event and message, and at the end of the game the log lists each of them with how many times and in which frames it happened.
 
 **End of the game.** `GameEnd()` is called on every object.
 
