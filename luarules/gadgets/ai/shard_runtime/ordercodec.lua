@@ -27,7 +27,7 @@ local OrderCodec = {
 	MAX_ORDERS = 65535,
 	-- the outbox writes at most this many orders a message and the relay rejects a message with more; each order
 	-- costs the engine about 4.2 us on every client (phase 0)
-	MAX_ORDERS_PER_MESSAGE = 10,
+	MAX_ORDERS_PER_MESSAGE = 20,
 }
 
 local MAGIC = OrderCodec.MAGIC
