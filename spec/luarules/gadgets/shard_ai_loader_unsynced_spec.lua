@@ -434,7 +434,114 @@ describe("ShardAILoader unsynced side", function()
 
 		loader.world.frame = 910
 		loader.gadget:GameFrame(910)
-		assert.equal(2, echoesWith(loader, "[AI Loader] error in SpecAI team 1, Update"))
+		assert.equal(1, echoesWith(loader, "[AI Loader] error in SpecAI team 1, Update"))
+	end)
+
+	describe("error list", function()
+		local function failing(messages)
+			return {
+				Update = function(module)
+					local message = module.ai.id ~= nil and messages[module.ai.id]
+					local text = message and message(module.ai.specFrame())
+					if text then
+						error(text)
+					end
+				end,
+			}
+		end
+
+		local function run(loader, from, to)
+			for n = from, to do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+		end
+
+		local function erroring(messages)
+			local loader = started(nil, failing(messages))
+			for _, thisAI in ipairs(loader.env.Shard.AIs) do
+				thisAI.specFrame = function()
+					return loader.world.frame
+				end
+			end
+			return loader
+		end
+
+		it("writes two different errors of one call-in a few frames apart, each with its traceback", function()
+			local loader = erroring({
+				[1] = function(frame)
+					return frame < 12 and "first failure" or "second failure"
+				end,
+			})
+
+			run(loader, 10, 14)
+
+			assert.equal(1, echoesWith(loader, "first failure\nstack traceback"))
+			assert.equal(1, echoesWith(loader, "second failure\nstack traceback"))
+		end)
+
+		it("writes an error that comes back 50 times once and lists it with its count once", function()
+			local loader = erroring({
+				[1] = function()
+					return "same failure"
+				end,
+			})
+
+			run(loader, 1, 50)
+			loader.gadget:GameOver({ 0 })
+			loader.gadget:Shutdown()
+
+			assert.equal(1, echoesWith(loader, "same failure\nstack traceback"))
+			assert.equal(1, echoesWith(loader, "[AI Loader] errors in this game, 1 different:"))
+			assert.equal(1, echoesWith(loader, "[AI Loader] SpecAI team 1, Update: 50 times, frames 1 to 50: "))
+		end)
+
+		it("lists the errors in the order they first happened", function()
+			local loader = erroring({
+				[2] = function(frame)
+					return frame >= 5 and "late failure" or nil
+				end,
+				[0] = function()
+					return "early failure"
+				end,
+			})
+
+			run(loader, 1, 6)
+			loader.gadget:Shutdown()
+
+			local listed = {}
+			for _, line in ipairs(loader.echoes) do
+				local label = string.match(line, "^%[AI Loader%] (SpecAI team %d), Update: %d+ times")
+				if label then
+					listed[#listed + 1] = label
+				end
+			end
+			assert.same({ "SpecAI team 0", "SpecAI team 2" }, listed)
+			assert.equal(1, echoesWith(loader, "SpecAI team 2, Update: 2 times, frames 5 to 6"))
+		end)
+
+		it("lists the errors at GameOver, before Shutdown", function()
+			local loader = erroring({
+				[1] = function()
+					return "over failure"
+				end,
+			})
+
+			run(loader, 1, 2)
+			loader.gadget:GameOver({ 0 })
+
+			assert.equal(1, echoesWith(loader, "[AI Loader] SpecAI team 1, Update: 2 times, frames 1 to 2: "))
+		end)
+
+		it("lists nothing when there was no error", function()
+			local loader = started()
+
+			run(loader, 1, 3)
+			loader.gadget:GameOver({ 0 })
+			loader.gadget:Shutdown()
+
+			assert.equal(0, echoesWith(loader, "errors in this game"))
+		end)
 	end)
 
 	it("takes over a team whose host moved here, with only the new objects hearing the existing units", function()

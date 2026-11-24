@@ -322,7 +322,6 @@ else
 	-- Lua numbers are single precision floats in the engine: seeds stay below 2^24 at every step,
 	-- as 65520 * 31 + 255 does
 	local SEED_MODULUS = 65521 -- the largest prime below 2^16
-	local ERROR_REPORT_FRAMES = 900 -- the same error of an object in a call-in is written once per 30 s of game
 	local MEMORY_REPORT_FRAMES = 1800
 	-- a dead unit's ShardUnit stays for 30 s of game: the AIs still ask the game for units they saw die
 	local DEAD_UNIT_FRAMES = 900
@@ -384,7 +383,11 @@ else
 
 	-- calls into the objects ---------------------------------------------------------------------------
 
-	local reportedErrors = setmetatable({}, { __mode = "k" }) -- object -> call-in -> game frame of the last report
+	-- Errors are told apart by object, call-in and message (the first line, with file and line): the first
+	-- time with its traceback, then only counted; GameOver or Shutdown lists them all once.
+	local errorsByKey = {} -- "<object>|<call-in>|<message>" -> error record
+	local errorList = {} -- error records, in the order they first happened
+	local errorSummaryWritten = false
 
 	local function ObjectLabel(target)
 		local scope = target:Scope()
@@ -397,18 +400,46 @@ else
 	end
 
 	local function ReportError(target, name, err)
-		local byName = reportedErrors[target]
-		if byName == nil then
-			byName = {}
-			reportedErrors[target] = byName
-		end
+		local text = tostring(err)
+		local label = ObjectLabel(target)
+		local message = string.match(text, "^[^\n]*")
+		local key = label .. "|" .. name .. "|" .. message
 		local frame = spGetGameFrame()
-		local last = byName[name]
-		if last ~= nil and frame - last < ERROR_REPORT_FRAMES then
+		local record = errorsByKey[key]
+		if record ~= nil then
+			record.count = record.count + 1
+			record.last = frame
 			return
 		end
-		byName[name] = frame
-		spEcho("[AI Loader] error in " .. ObjectLabel(target) .. ", " .. name .. ": " .. tostring(err))
+		record = { label = label, callIn = name, message = message, count = 1, first = frame, last = frame }
+		errorsByKey[key] = record
+		errorList[#errorList + 1] = record
+		spEcho("[AI Loader] error in " .. label .. ", " .. name .. ": " .. text)
+	end
+
+	local function WriteErrorSummary()
+		if errorSummaryWritten then
+			return
+		end
+		errorSummaryWritten = true
+		if errorList[1] == nil then
+			return
+		end
+		spEcho("[AI Loader] errors in this game, " .. #errorList .. " different:")
+		for i = 1, #errorList do
+			local record = errorList[i]
+			spEcho(
+				string.format(
+					"[AI Loader] %s, %s: %d times, frames %d to %d: %s",
+					record.label,
+					record.callIn,
+					record.count,
+					record.first,
+					record.last,
+					record.message
+				)
+			)
+		end
 	end
 
 	local function WithTraceback(err)
@@ -1142,6 +1173,7 @@ else
 		for _, global in ipairs(Shard.globals) do
 			Call(global, "GameEnd")
 		end
+		WriteErrorSummary()
 	end
 
 	function gadget:GameID(gameID)
@@ -1160,6 +1192,7 @@ else
 	function gadget:Shutdown()
 		spEcho("Shard AI unsync gadget shutdown")
 		spEcho("Shard memory record:", memoryRecord)
+		WriteErrorSummary()
 		gadgetHandler:RemoveSyncAction("shard_host")
 		gadgetHandler:RemoveSyncAction("shard_relay_rejected")
 	end
