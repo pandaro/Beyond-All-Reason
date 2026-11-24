@@ -17,54 +17,21 @@
 
 ## Compito attuale
 
-### T7: riordino di `ShardAILoader.lua` in più file, senza cambiare il comportamento
+### T7b: nomi e due difetti piccoli del loader
 
-**Impegno: alto.** Tocca tutto il loader e il risultato deve fare esattamente quello che fa oggi; la difficoltà è tenere ogni dettaglio (ordine delle chiamate, chi riceve cosa, errori contenuti, nessuna allocazione per frame) mentre si sposta il codice. È anche un compito di stile: l'utente vuole il codice ordinato, non solo funzionante.
+**Impegno: basso.** Spostamenti e rinomine già decisi, più due correzioni piccole; i test di T7 fanno da rete.
 
-**Prima di tutto** leggi `.ai-notes/drafts/mappa-shardailoader.md`: la mappa del file com'è, i sette punti di disordine e le decisioni (sezione «Decisioni» in fondo).
+1. **`loader/loader.lua` diviso in due file** (scelta del coordinatore, coerente con la divisione per compiti voluta dall'utente):
+   - `loader/types.lua`: runtime, tipi di AI e loro ambiente, creazione degli oggetti (`NewAPI`, `GetAlly`, `SetupAI`), seme, fallimenti del caricamento;
+   - `loader/lifecycle.lua`: avvio (`StartAIsOnce`, `StartAIs`), arresto (`StopAI`), catch-up, cambio di host, `AddHostedAIs`, `FlushOrders`.
+   Stesso stile di T7: tabelle restituite, nessun globale, dipendenze passate con `Setup`, ordine delle sezioni uguale agli altri file, commento in testa. Se una funzione non ha un posto chiaro, mettila dove la usa di più e scrivilo nei risultati. Aggiorna il test «nessuna funzione del loader visibile» con i file nuovi.
+2. **`KeepDeadUnit` → `UnitDied`** (in `unitregistry.lua`, nel gadget e nelle spec).
+3. **`GameEnd` solo agli oggetti con moduli**: `EndGameAll` passa da `HasModules` come `UpdateAll` e `Deliver`. Test: un oggetto senza moduli non riceve `GameEnd`.
+4. **Catch-up mirato**: in un cambio di host, la rigenerazione degli eventi delle unità esistenti aggiorna le tabelle di unità solo delle AI nuove (`catchUpTargets`), non di tutte. Test: con un'AI già attiva e una nuova, dopo il catch-up le tabelle dell'AI già attiva non sono state riscritte (per esempio contando le chiamate o con una tabella strumentata).
 
-**Decisioni**
+**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test` (nessuna asserzione tolta), `run_engine_tests.sh`, partita A di T5c breve (5 minuti) senza righe `[AI Loader] error`.
 
-- Si divide in più file, uno per compito (utente). **Non si riscrive da capo**: si sposta e si riordina il codice che c'è.
-- Stile dell'utente: funzioni piccole e riutilizzabili, con nomi che dicono cosa fanno, composte in funzioni più grandi («macro») che si leggono come una sequenza di passi.
-- I file stanno in `luarules/gadgets/ai/shard_runtime/loader/`. Ognuno **restituisce una tabella** con le sue funzioni (`local Relay = VFS.Include(LOADER_PATH .. "relay.lua")`); **nessun globale**: l'ambiente delle AI ricade sul gadget, quindi un globale del loader sarebbe visibile a STAI.
-- Dentro i file solo `local function`; `gadget:Metodo` solo per i call-in dell'engine. I metodi di oggi che non sono call-in (`NewAPI`, `LoadAIType`, `GetAlly`, `SetupAI`, `AddAI`, `StartAIs`, `CatchUp`, `HashGameID`) diventano funzioni dei file; se le spec li chiamano come `gadget:…`, aggiorna solo il modo di raggiungerli nelle spec e scrivilo nei risultati.
-- I file synced non includono niente di unsynced e restano deterministici.
-
-**File** (nomi proposti; se uno non torna, proponi un nome migliore nei risultati, non cambiarlo da solo):
-
-| File | Lato | Contenuto |
-| --- | --- | --- |
-| `ShardAILoader.lua` | entrambi | ricerca dei team AI, controlli iniziali, i call-in dell'engine: ognuno una macro di poche righe |
-| `loader/hosts.lua` | synced | `IsActive`, `ChooseSuccessor`, `RegisterHosts`, `aiHostPlayer` |
-| `loader/relay.lua` | synced | stato e controlli del relay, `AddOrder`, `GiveOrders`, `Reject`, contatori, riga di `Shutdown` |
-| `loader/loader.lua` | unsynced | runtime, tipi, oggetti, seme, fallimenti del caricamento, avvio (`StartAIs`), arresto (`StopAI`), `CatchUp`, cambio di host |
-| `loader/delivery.lua` | unsynced | `Call`, errori (`ReportError`, elenco e riepilogo), consegna degli eventi |
-| `loader/unitregistry.lua` | unsynced | tabelle di unità per AI e anello delle unità morte |
-| `loader/memstats.lua` | unsynced | misura della memoria per frame e picco di `gcinfo()` |
-
-**Ordine dentro ogni file**: un commento in testa (scopo del file, lato, cosa è provvisorio), costanti, stato, funzioni piccole, funzioni composte, la tabella restituita. Stesso ordine nei due lati.
-
-**Punti precisi**
-
-1. `GameFrame` si deve leggere come una sequenza di passi, per esempio: avvio la prima volta, `Update` di tutti, invio degli ordini, scadenza delle unità morte, misura della memoria.
-2. `Ready()` oggi fa due cose (controlla e avvia le AI): separale, con un nome per ciascuna, e chiamale esplicitamente dove serve.
-3. Le parti provvisorie (eventi a tutti, tabelle di unità onniscienti, `Update` a ogni frame) stanno in `delivery.lua` e `unitregistry.lua` e sono elencate nel commento in testa a quei file, senza nomi di compiti.
-4. Lo stato sparso (le variabili della memoria, dell'anello dei morti, dei fallimenti) va nel file del suo compito.
-5. Nessuna allocazione nuova nei percorsi per frame: passare per una tabella di funzioni (`Delivery.Call`) è ammesso, ma metti in `local` all'inizio del file le funzioni usate a ogni frame, come fa oggi il loader con le funzioni `Spring.*`.
-
-**Rete di sicurezza**
-
-- **Tutte le spec di oggi devono passare.** Si cambiano solo dove raggiungono funzioni che prima erano `gadget:…` o dove caricano file nuovi; ogni modifica alle spec va elencata e motivata. Nessuna asserzione tolta o allentata.
-- Un test nuovo: dopo il caricamento, nessuna funzione del loader è visibile nell'ambiente di un tipo di AI né in `_G` (controlla i nomi delle funzioni dei file nuovi).
-- Un commit per file estratto, nell'ordine che preferisci, con la suite verde a ogni commit (`lx --lua-version 5.1 test`).
-- Alla fine: `run_engine_tests.sh` e la partita A di T5c con `SHARD_MEM_STATS=1`, nessuna riga `[AI Loader] error`, righe della memoria simili a quelle di T6b.
-
-**Fuori dal compito**: qualunque cambio di comportamento, anche piccolo e anche se migliora qualcosa. Annotalo e basta. Non toccare STAI.
-
-**Commit**, in inglese: uno per file estratto, poi uno per il riordino finale del gadget se serve.
-
-**Nei risultati**: righe per file prima e dopo, l'elenco delle modifiche alle spec con il motivo, `GameFrame` e un call-in di unità come sono ora (incollati), i nomi che cambieresti, ogni punto dove spostare il codice ti ha fatto vedere un difetto (annotato, non corretto).
+**Commit**, in inglese: uno per punto.
 
 ## Risultati
 
