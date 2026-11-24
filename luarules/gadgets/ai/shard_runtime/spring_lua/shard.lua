@@ -25,13 +25,14 @@ function Shard:shardify_unit(unitID)
 	if not unitID then
 		return
 	end
-	local unit = self.unitsByID[unitID]
+	local unit = self.unitsByID[unitID] ---@type table?
 	if unit ~= nil and not unit.destroyed then
 		return unit
 	end
 	if not Spring.ValidUnitID(unitID) then
 		return unit
 	end
+	---@diagnostic disable-next-line: call-non-callable
 	unit = ShardUnit(unitID)
 	self.unitsByID[unitID] = unit
 	return unit

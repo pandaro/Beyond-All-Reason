@@ -386,7 +386,7 @@ else
 	-- Errors are told apart by object, call-in and message (the first line, with file and line): the first
 	-- time with its traceback, then only counted; GameOver or Shutdown lists them all once.
 	local errorsByKey = {} -- "<object>|<call-in>|<message>" -> error record
-	local errorList = {} -- error records, in the order they first happened
+	local errorList = {} ---@type table[] error records, in the order they first happened
 	local errorSummaryWritten = false
 
 	local function ObjectLabel(target)
@@ -427,7 +427,7 @@ else
 		end
 		spEcho("[AI Loader] errors in this game, " .. #errorList .. " different:")
 		for i = 1, #errorList do
-			local record = errorList[i]
+			local record = errorList[i] --[[@as table]]
 			spEcho(
 				string.format(
 					"[AI Loader] %s, %s: %d times, frames %d to %d: %s",
