@@ -305,6 +305,12 @@ else
 	local RemoveFromUnitTables = UnitRegistry.RemoveFromUnitTables
 	local KeepDeadUnit = UnitRegistry.KeepDeadUnit
 	local ExpireDeadUnits = UnitRegistry.ExpireDeadUnits
+	local Delivery = VFS.Include(LOADER_PATH .. "delivery.lua")
+	local Call = Delivery.Call
+	local Deliver = Delivery.Deliver
+	local DeliverToShared = Delivery.DeliverToShared
+	local DeliverToAll = Delivery.DeliverToAll
+	local DeliverSight = Delivery.DeliverSight
 
 	local spGetMyPlayerID = Spring.GetMyPlayerID
 	local spGetTeamRulesParam = Spring.GetTeamRulesParam
@@ -317,7 +323,6 @@ else
 	local spGetUnitAllyTeam = Spring.GetUnitAllyTeam
 	local spGetUnitHealth = Spring.GetUnitHealth
 	local spGetUnitLosState = Spring.GetUnitLosState
-	local traceback = debug and debug.traceback
 
 	-- Lua numbers are single precision floats in the engine: seeds stay below 2^24 at every step,
 	-- as 65520 * 31 + 255 does
@@ -326,7 +331,6 @@ else
 	local myPlayerID = spGetMyPlayerID()
 	local hosting = false -- this client runs at least one AI
 	local started = false -- the AIs have been initialised
-	local catchUpTargets = nil -- while catching up, only these objects hear the events
 	local runtimeInclude = nil -- boot.lua's shard_include: runtime files only
 	local gameHash = nil
 	local failedTypes = {} -- AI name -> the error that stopped the type from loading
@@ -371,154 +375,6 @@ else
 		local seed = (hash * 31 + teamID + 1) % SEED_MODULUS
 		spEcho("[AI Loader] AI team " .. teamID .. " random seed " .. seed)
 		return seed
-	end
-
-	-- calls into the objects ---------------------------------------------------------------------------
-
-	-- Errors are told apart by object, call-in and message (the first line, with file and line): the first
-	-- time with its traceback, then only counted; GameOver or Shutdown lists them all once.
-	local errorsByKey = {} -- "<object>|<call-in>|<message>" -> error record
-	local errorList = {} ---@type table[] error records, in the order they first happened
-	local errorSummaryWritten = false
-
-	local function ObjectLabel(target)
-		local scope = target:Scope()
-		if scope == "ally" then
-			return tostring(target.fullname) .. " ally team " .. tostring(target.allyId)
-		elseif scope == "global" then
-			return tostring(target.fullname) .. " global"
-		end
-		return tostring(target.fullname) .. " team " .. tostring(target.id)
-	end
-
-	local function ReportError(target, name, err)
-		local text = tostring(err)
-		local label = ObjectLabel(target)
-		local message = string.match(text, "^[^\n]*")
-		local key = label .. "|" .. name .. "|" .. message
-		local frame = spGetGameFrame()
-		local record = errorsByKey[key]
-		if record ~= nil then
-			record.count = record.count + 1
-			record.last = frame
-			return
-		end
-		record = { label = label, callIn = name, message = message, count = 1, first = frame, last = frame }
-		errorsByKey[key] = record
-		errorList[#errorList + 1] = record
-		spEcho("[AI Loader] error in " .. label .. ", " .. name .. ": " .. text)
-	end
-
-	local function WriteErrorSummary()
-		if errorSummaryWritten then
-			return
-		end
-		errorSummaryWritten = true
-		if errorList[1] == nil then
-			return
-		end
-		spEcho("[AI Loader] errors in this game, " .. #errorList .. " different:")
-		for i = 1, #errorList do
-			local record = errorList[i] --[[@as table]]
-			spEcho(
-				string.format(
-					"[AI Loader] %s, %s: %d times, frames %d to %d: %s",
-					record.label,
-					record.callIn,
-					record.count,
-					record.first,
-					record.last,
-					record.message
-				)
-			)
-		end
-	end
-
-	local function WithTraceback(err)
-		---@diagnostic disable-next-line: unnecessary-if
-		if traceback then
-			return traceback(tostring(err), 2)
-		end
-		return tostring(err)
-	end
-
-	-- the call being made, in upvalues rather than a closure so that a call allocates nothing
-	local callTarget ---@type any
-	local callName ---@type any
-	local callA, callB, callC, callD
-
-	local function ProtectedCall()
-		callTarget:Prepare()
-		if callName ~= "Prepare" then
-			callTarget[callName](callTarget, callA, callB, callC, callD)
-		end
-	end
-
-	-- Prepare() and then target[name](...): an error is written and stops only this call
-	local function Call(target, name, a, b, c, d)
-		local savedTarget, savedName, savedA, savedB, savedC, savedD = callTarget, callName, callA, callB, callC, callD
-		callTarget, callName, callA, callB, callC, callD = target, name, a, b, c, d
-		local ok, err = xpcall(ProtectedCall, WithTraceback)
-		callTarget, callName, callA, callB, callC, callD = savedTarget, savedName, savedA, savedB, savedC, savedD
-		if not ok then
-			ReportError(target, name, err)
-		end
-		return ok
-	end
-
-	-- A ShardAlly or ShardGlobal whose AI type has no module of its scope has nothing to run, and
-	-- ShardAI would warn at every unit that it has no modules.
-	local function HasModules(target)
-		local modules = target.modules
-		return modules == nil or modules[1] ~= nil
-	end
-
-	-- event delivery ---------------------------------------------------------------------------------
-	-- Provisional, as the old loader did: every object hears every unit event, whether or not one of its
-	-- modules wants it or its ally team can see the unit.
-
-	local function Deliver(target, name, a, b, c, d)
-		if catchUpTargets ~= nil and catchUpTargets[target] == nil then
-			return
-		end
-		if HasModules(target) then
-			Call(target, name, a, b, c, d)
-		end
-	end
-
-	local function DeliverToShared(name, a, b, c, d)
-		local globals = Shard.globals
-		for i = 1, #globals do
-			Deliver(globals[i], name, a, b, c, d)
-		end
-		for _, allies in pairs(Shard.alliesByAllyID) do
-			for i = 1, #allies do
-				Deliver(allies[i], name, a, b, c, d)
-			end
-		end
-	end
-
-	local function DeliverToAIs(name, a, b, c, d)
-		local AIs = Shard.AIs
-		for i = 1, #AIs do
-			Deliver(AIs[i], name, a, b, c, d)
-		end
-	end
-
-	local function DeliverToAll(name, a, b, c, d)
-		DeliverToShared(name, a, b, c, d)
-		DeliverToAIs(name, a, b, c, d)
-	end
-
-	-- the ShardAlly objects of the ally team that sees or loses the unit, and every AI
-	local function DeliverSight(name, unitID, unitTeam, allyTeam, unitDefID)
-		local allies = Shard.alliesByAllyID[allyTeam]
-		if allies ~= nil then
-			for i = 1, #allies do
-				Deliver(allies[i], name, unitID, unitTeam, allyTeam, unitDefID)
-			end
-		end
-		DeliverToAIs(name, unitID, unitTeam, allyTeam, unitDefID)
 	end
 
 	-- AI setup -------------------------------------------------------------------------------------
@@ -683,7 +539,7 @@ else
 		local ok, result = xpcall(function()
 			LoadRuntime()
 			return self:SetupAI(id)
-		end, WithTraceback)
+		end, Delivery.WithTraceback)
 		local allies = newAllies
 		newAllies = nil
 		if not ok then
@@ -804,7 +660,7 @@ else
 	-- regenerate the events of the units that already exist, as the old loader did after a reload;
 	-- only the objects in targets hear them
 	function gadget:CatchUp(targets)
-		catchUpTargets = targets
+		Delivery.SetCatchUpTargets(targets)
 		local units = spGetAllUnits()
 		for i = 1, #units do
 			local unitID = units[i]
@@ -831,7 +687,7 @@ else
 				end
 			end
 		end
-		catchUpTargets = nil
+		Delivery.SetCatchUpTargets(nil)
 	end
 
 	-- the synced side moved an AI team to another host, because its host left the game
@@ -898,32 +754,14 @@ else
 		end
 	end
 
-	local function UpdateObject(target)
-		if HasModules(target) then
-			Call(target, "Update")
-		end
-	end
-
 	function gadget:GameFrame(n)
 		if not Ready() then
 			return
 		end
 		MemStats.BeginFrame()
-		-- Provisional, as the old loader did: every object runs Update() every frame, global -> ally
-		-- team -> team; STAI's own SchedulerHST picks the module that works in each frame.
-		local globals = Shard.globals
-		for i = 1, #globals do
-			UpdateObject(globals[i])
-		end
-		for _, allies in pairs(Shard.alliesByAllyID) do
-			for i = 1, #allies do
-				UpdateObject(allies[i])
-			end
-		end
+		-- STAI's own SchedulerHST picks the module that works in each frame
+		Delivery.UpdateAll()
 		local AIs = Shard.AIs
-		for i = 1, #AIs do
-			UpdateObject(AIs[i])
-		end
 		-- each AI's queue becomes at most one message
 		for i = 1, #AIs do
 			AIs[i].outbox:Flush(n, spSendLuaRulesMsg)
@@ -1046,18 +884,8 @@ else
 		if not hosting then
 			return
 		end
-		for _, thisAI in ipairs(Shard.AIs) do
-			Call(thisAI, "GameEnd")
-		end
-		for _, allies in pairs(Shard.alliesByAllyID) do
-			for _, ally in ipairs(allies) do
-				Call(ally, "GameEnd")
-			end
-		end
-		for _, global in ipairs(Shard.globals) do
-			Call(global, "GameEnd")
-		end
-		WriteErrorSummary()
+		Delivery.EndGameAll()
+		Delivery.WriteErrorSummary()
 	end
 
 	function gadget:GameID(gameID)
@@ -1076,7 +904,7 @@ else
 	function gadget:Shutdown()
 		spEcho("Shard AI unsync gadget shutdown")
 		MemStats.WritePeak()
-		WriteErrorSummary()
+		Delivery.WriteErrorSummary()
 		gadgetHandler:RemoveSyncAction("shard_host")
 		gadgetHandler:RemoveSyncAction("shard_relay_rejected")
 	end
