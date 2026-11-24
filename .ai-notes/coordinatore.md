@@ -120,7 +120,9 @@ Claude-Session: <link della sessione>
 - Pool di tabelle: **nel framework**, un piccolo modulo con le sue funzioni, facile da raggiungere, per chi vuole usarlo. Toglierlo da STAI solo al porting e se costa poco.
 - Griglia di `LosHST`: **non va più bene così**; se ne parla al porting. Idea dell'utente: **una griglia unica** per tutto, ogni cella una tabella con i dati, più **liste delle celle «vere»** per tema (celle con nemici, con metallo, con unità mie, ecc.).
 - T15 scritto: `collect` d'avvio rimessa, ordini per messaggio a 10 (costante unica), `shard_runtime/tablepool.lua`.
-- Da fare poi: `maxInstances` **per partita** (contato nel synced), come l'utente lo intendeva; oggi è per client host.
+- T15 verificato. T16 scritto: `maxInstances` per partita, deterministico (primi N team AI per ID), con il relay che rifiuta i team esclusi.
+- Aperto da T15: un gruppo di ordini con più di 10 ordini (un `GiveOrder` a 11+ unità, o 11+ comandi in coda) va da solo e il relay lo **rifiuta intero**. Proposta: l'outbox lo spezza in pezzi da 10 su più messaggi, in ordine. Chiedere all'utente.
+- Dopo il via dell'utente: documento «Nuovo STAI» per il porting.
 
 **In sospeso per scelta dell'utente**
 

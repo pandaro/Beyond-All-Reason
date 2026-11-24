@@ -18,32 +18,29 @@
 
 ## Compito attuale
 
-### T15: `collect` d'avvio, ordini per frame a 10, pool di tabelle nel framework
+### T16: `maxInstances` per partita
 
-**Impegno: basso.** Tre cambi piccoli e separati.
-
-**Decisioni dell'utente (24 novembre 2026)**
-- La `collectgarbage("collect")` senza condizione del vecchio `AILoader.lua` (r. 276, in `gadget:Initialize` dopo il catch-up) **torna**: a inizio partita non si nota e si parte puliti.
-- Ordini per frame: **un numero che impostiamo noi**, una costante sola, **10** (oggi 25).
-- Pool di tabelle: **nel framework**, un piccolo modulo con le sue funzioni, facile da raggiungere, per chi vuole usarlo. Nessuno è obbligato.
+**Impegno: basso.** Oggi `MAX_INSTANCES_PER_AI_TYPE` (T14) conta le AI che **questo client** fa girare: con due host le AI di un tipo possono essere 4. L'utente lo intendeva **per partita**.
 
 **Lavoro**
 
-1. **`collect` d'avvio**: alla fine di `Lifecycle.CatchUpAfterReload` (il punto corrispondente indicato in T14), identica, con il commento «clean start, as in the old loader». Nei risultati: riga vecchia e riga nuova.
-2. **Ordini per frame**: oggi 25 ordini per messaggio, un messaggio per frame per AI. Una **sola costante** con nome chiaro (per esempio `MAX_ORDERS_PER_MESSAGE = 10`) letta da outbox e relay synced, così i due lati non possono divergere. Dove sta e come la leggono i due lati: scegli la forma più semplice e motivala. Una chiamata con più ordini di quanti ne stanno in un messaggio: oggi non si spezza; tieni la regola e scrivi nei risultati cosa succede con 10 (per esempio un ordine a una lista di unità).
-3. **Pool di tabelle**: `shard_runtime/tablepool.lua`, elementare: crea un pool, prende una tabella (vuota), la restituisce (svuotata). Niente misure automatiche, niente dimensioni massime, salvo che servano davvero. Raggiungibile da moduli e behaviour con una riga (`shard_include("tablepool")` o simile: scegli e motiva). Commento in testa: quando conviene (centinaia di tabelle per frame) e quando no. Nessun modulo di Shard o STAI lo usa in questo compito.
+1. Il conto diventa **per partita e deterministico**: ogni client guarda tutti i team AI della partita (la stessa lista da cui `SetupAI` legge il tipo), li ordina per ID di team, e per ogni tipo partono solo i primi `MAX_INSTANCES_PER_AI_TYPE`. Tutti i client arrivano allo stesso risultato senza scambiarsi niente. Se pensi che serva il synced, scrivi perché prima di farlo.
+2. Al cambio di host il conto non cambia: un team escluso resta escluso, uno ammesso resta ammesso.
+3. La riga di log resta, con il motivo nuovo (per esempio «AI team 4 not started: 2 STAI AIs already in this game, the most one AI type may have»).
+4. Il relay synced rifiuta gli ordini di un team AI escluso, con la stessa funzione (un solo punto che decide chi è ammesso, incluso da tutti e due i lati, come `OrderCodec` per il limite degli ordini).
+5. La costante resta 2 e resta l'unico posto da cambiare.
 
-**Test busted**: `collect` chiamata una volta alla fine del catch-up; il limite di 10 rispettato da outbox e relay (11 ordini → due messaggi; il relay rifiuta un messaggio con 11); il pool restituisce tabelle vuote, riusa quelle restituite, nessuna allocazione dopo il riscaldamento. Mutazioni.
+**Test busted**: due ally team con tre AI dello stesso tipo in tutto → partono le prime due per ID di team, su qualunque host; tipi diversi contano separati; il cambio di host non cambia chi è ammesso; il relay rifiuta un messaggio di un team escluso. Mutazioni.
 
-**Partita**: una A (STAI contro SimpleAI, `SHARD_MEM_STATS=1`, 15 minuti), confronto con T14: soprattutto ordini, messaggi e rifiutati.
+**Partite**: nessuna, salvo che il codice di gioco cambi più del previsto.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno per cambio.
+**Commit**, in inglese: uno solo.
 
 ## Risultati
 
-### T15 (agente locale, 24 novembre 2026)
+### T15 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**: `45b8a1529f` (collect d'avvio), `00e5c38bae` (10 ordini per messaggio), `bcb1cd83be` (tablepool).
 
