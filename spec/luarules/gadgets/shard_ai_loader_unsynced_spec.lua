@@ -662,10 +662,66 @@ describe("ShardAILoader unsynced side", function()
 		assert.is_nil(countBy(heard(loader, "UnitBuilt"), "owner")[o.team0])
 	end)
 
+	it("does not call an object none of whose modules wants the event, not even Prepare", function()
+		local loader = started()
+		local o = objects(loader)
+		o.ally0.specally.UnitIdle = loader.env.AIBase.UnitIdle
+		o.ally0:BuildHandlers()
+		local prepared = 0
+		local prepare = o.ally0.Prepare
+		o.ally0.Prepare = function(self)
+			prepared = prepared + 1
+			return prepare(self)
+		end
+		loader.world.units[100] = { team = 0 }
+
+		loader.gadget:UnitIdle(100, 1, 0)
+
+		assert.equal(0, prepared)
+		local counts = countBy(heard(loader, "UnitIdle"), "owner")
+		assert.is_nil(counts[o.ally0])
+		assert.equal(1, counts[o.ally1])
+		assert.equal(1, counts[o.team0])
+	end)
+
+	it("hands a unit event to the global object, then the ally objects, then the AIs", function()
+		local loader = started()
+		local o = objects(loader)
+		loader.world.units[100] = { team = 0 }
+
+		loader.gadget:UnitFinished(100, 1, 0)
+
+		local scopes = {}
+		for _, entry in ipairs(heard(loader, "UnitBuilt")) do
+			scopes[#scopes + 1] = entry.owner:Scope()
+		end
+		assert.same({ "global", "ally", "ally", "team", "team", "team" }, scopes)
+		assert.equal(o.team0, heard(loader, "UnitBuilt")[4].owner)
+	end)
+
+	it("allocates nothing to hand a unit event to every object", function()
+		local loader = started()
+		loader.world.units[100] = { team = 0 }
+		loader.env.SpecQuiet = true
+		loader.gadget:UnitIdle(100, 1, 0)
+
+		collectgarbage("collect")
+		collectgarbage("stop")
+		local before = collectgarbage("count")
+		for _ = 1, 500 do
+			loader.gadget:UnitIdle(100, 1, 0)
+		end
+		local after = collectgarbage("count")
+		collectgarbage("restart")
+
+		assert.equal(before, after)
+	end)
+
 	it("ends the game only for the objects that have modules", function()
 		local loader = started()
 		local o = objects(loader)
 		o.ally1.modules = {}
+		o.ally1:BuildHandlers() -- the event lists, as Init and AddModule build them
 		local ended = false
 		o.ally1.GameEnd = function()
 			ended = true

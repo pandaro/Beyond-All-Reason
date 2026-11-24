@@ -4,9 +4,10 @@
 -- call. Errors are told apart by object, call-in and message (the first line, with file and line): the first
 -- time with its traceback, then only counted; WriteErrorSummary lists them all once at the end.
 --
--- Provisional, as the old loader did: every object runs Update() every frame, and every object hears every unit
--- event, whether or not one of its modules wants it or its ally team can see the unit; only the sight events
--- (LOS and radar) go to the ally objects of the ally team concerned, and to every AI.
+-- An event reaches an object only when one of its modules wants it (ShardAI:WantsEvent), global -> ally team ->
+-- team. Provisional, as the old loader did: every object whose modules want Update() runs it every frame, and a
+-- unit event reaches every object, whether or not its ally team can see the unit; only the sight events (LOS and
+-- radar) go to the ally objects of the ally team concerned, and to every AI.
 
 local spEcho = Spring.Echo
 local spGetGameFrame = Spring.GetGameFrame
@@ -108,15 +109,13 @@ local function Call(target, name, a, b, c, d)
 	return ok
 end
 
--- A ShardAlly or ShardGlobal whose AI type has no module of its scope has nothing to run, and
--- ShardAI would warn at every unit that it has no modules.
-local function HasModules(target)
-	local modules = target.modules
-	return modules == nil or modules[1] ~= nil
+-- whether a module of the object wants the event; an object not initialised yet is called, and Prepare() runs Init()
+local function Wants(target, name)
+	return target:WantsEvent(name)
 end
 
 local function UpdateObject(target)
-	if HasModules(target) then
+	if Wants(target, "Update") then
 		Call(target, "Update")
 	end
 end
@@ -131,7 +130,7 @@ local function Deliver(target, name, a, b, c, d)
 	if catchUpTargets ~= nil and catchUpTargets[target] == nil then
 		return
 	end
-	if HasModules(target) then
+	if Wants(target, name) then
 		Call(target, name, a, b, c, d)
 	end
 end
@@ -200,7 +199,7 @@ local function UpdateAll()
 end
 
 local function EndGameObject(target)
-	if HasModules(target) then
+	if Wants(target, "GameEnd") then
 		Call(target, "GameEnd")
 	end
 end
