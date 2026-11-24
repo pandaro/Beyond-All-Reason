@@ -46,7 +46,7 @@
 
 ## Risultati
 
-### S2 (agente locale, 24 novembre 2026)
+### S2 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Cosa ho fatto** (commit `bf496c6431`, «STAI: run modules and behaviours in turns through the framework scheduler»)
 
