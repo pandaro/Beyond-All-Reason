@@ -861,7 +861,7 @@ Le partite stanno nella variabilità vista in T5c (fra 146 e 201 unità a fine p
 
 **Note**: EmmyLua senza errori nuovi; in `shardai.lua` un warning in più (28 contro 27), dello stesso tipo di quelli già presenti nei callback.
 
-### T9 (agente locale, 24 novembre 2026)
+### T9 (agente locale, 24 novembre 2026) — verificato dal coordinatore (EmmyLua e StyLua 2.5.2 da rifare)
 
 **Commit**
 
