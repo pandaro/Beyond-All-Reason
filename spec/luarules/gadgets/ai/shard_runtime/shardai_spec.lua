@@ -285,3 +285,151 @@ describe("behaviour.lua", function()
 		assert.equal(1, linesWith(runtime, "The module with the name noname module has no internal name!"))
 	end)
 end)
+
+describe("ShardAI targeted events", function()
+	local runtime ---@type table
+
+	before_each(function()
+		runtime = loadRuntime()
+	end)
+
+	-- a team module class whose methods `events` record their calls in `calls`
+	local function listening(internalName, events, calls, base)
+		local class = runtime.env.class(base or runtime.env.Module)
+		function class:Name()
+			return internalName
+		end
+		function class:internalName()
+			return internalName
+		end
+		function class:Scope()
+			return "team"
+		end
+		for _, event in ipairs(events) do
+			class[event] = function()
+				calls[#calls + 1] = internalName .. " " .. event
+			end
+		end
+		return class
+	end
+
+	local function team(modules)
+		local ai = newObject(runtime, runtime.env.ShardAI, modules, { id = 1, allyId = 0 })
+		ai:Init()
+		return ai
+	end
+
+	local function names(list)
+		local result = {}
+		for i, m in ipairs(list) do
+			result[i] = m:internalName()
+		end
+		return result
+	end
+
+	-- a unit that is ours, as AIBase:UnitBuilt asks
+	local function ownUnit()
+		return {
+			IsMine = function()
+				return true
+			end,
+		}
+	end
+
+	it("hands an event only to the modules that redefine it, in the order of modules.lua", function()
+		local calls = {}
+		local ai = team({
+			listening("dead1", { "UnitDead" }, calls),
+			listening("idle", { "UnitIdle" }, calls),
+			listening("dead2", { "UnitDead" }, calls),
+		})
+
+		ai:UnitDead({})
+
+		assert.same({ "dead1 UnitDead", "dead2 UnitDead" }, calls)
+		assert.same({ "dead1", "dead2" }, names(ai.handlers.UnitDead))
+		assert.same({}, ai.handlers.UnitMoveFailed)
+		assert.is_false(ai:WantsEvent("UnitMoveFailed"))
+		assert.is_true(ai:WantsEvent("UnitIdle"))
+	end)
+
+	it("hands UnitBuilt to a module that redefines only MyUnitBuilt", function()
+		local calls = {}
+		local ai = team({ listening("mine", { "MyUnitBuilt" }, calls), listening("other", { "UnitIdle" }, calls) })
+
+		ai:UnitBuilt(ownUnit())
+
+		assert.same({ "mine MyUnitBuilt" }, calls)
+		assert.same({ "mine" }, names(ai.handlers.UnitBuilt))
+	end)
+
+	it("hands UnitGiven to the modules that want UnitCreated or UnitBuilt, and to no other", function()
+		local calls = {}
+		local ai = team({
+			listening("created", { "UnitCreated" }, calls),
+			listening("built", { "UnitBuilt" }, calls),
+			listening("enemy", { "EnemyUnitBuilt" }, calls),
+			listening("idle", { "UnitIdle" }, calls),
+		})
+
+		ai:UnitGiven(ownUnit())
+
+		assert.same({ "created", "built", "enemy" }, names(ai.handlers.UnitGiven))
+		assert.same({ "created UnitCreated", "built UnitBuilt" }, calls)
+	end)
+
+	it("counts a method inherited from an intermediate class and one set in Init", function()
+		local calls = {}
+		local ModA = listening("moda", { "UnitDead" }, calls)
+		local ModB = runtime.env.class(ModA)
+		function ModB:internalName()
+			return "modb"
+		end
+		local ModC = listening("modc", {}, calls)
+		function ModC:Init()
+			self.UnitDead = function()
+				calls[#calls + 1] = "modc UnitDead"
+			end
+		end
+		local ai = team({ ModB, ModC })
+
+		ai:UnitDead({})
+
+		assert.same({ "moda UnitDead", "modc UnitDead" }, calls)
+	end)
+
+	it("updates the lists when a module is added after Init", function()
+		local calls = {}
+		local ai = team({ listening("first", { "UnitIdle" }, calls) })
+		local Late = listening("late", { "UnitDead" }, calls)
+
+		assert.is_false(ai:WantsEvent("UnitDead"))
+		ai:AddModule(Late())
+		ai:UnitDead({})
+
+		assert.same({ "late UnitDead" }, calls)
+	end)
+
+	it("allocates nothing to hand an event", function()
+		local count = 0
+		local Counter = listening("counter", {}, {})
+		function Counter:UnitDead()
+			count = count + 1
+		end
+		local ai = team({ Counter, listening("idle", { "UnitIdle" }, {}) })
+		local unit = {}
+		ai:UnitDead(unit)
+
+		collectgarbage("collect")
+		collectgarbage("stop")
+		local before = collectgarbage("count")
+		for _ = 1, 1000 do
+			ai:UnitDead(unit)
+		end
+		local after = collectgarbage("count")
+		collectgarbage("restart")
+
+		assert.equal(before, after)
+		assert.equal(1001, count)
+	end)
+end)
