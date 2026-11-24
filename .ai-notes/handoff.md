@@ -1038,7 +1038,7 @@ A, STAI contro SimpleAI:
 - `lx test` riscrive ancora `.emmyrc.json`: l'ho ripristinato ogni volta, non è nei commit.
 - `types.SchedAI.class` è la classe, ma `SetSchedule` copia `MScheduler` sulle istanze già a `Initialize`: per provare un tipo con solo `BScheduler` è servita una fixture (`BehavAI`) invece di cambiare la classe nel test.
 
-### T12 (agente locale, 24 novembre 2026)
+### T12 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Fatto**
 

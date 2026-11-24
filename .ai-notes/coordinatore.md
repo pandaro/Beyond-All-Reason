@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore
 
-Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T11).
+Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T12).
 
 Messaggio d'avvio per la chat nuova:
 
@@ -73,7 +73,7 @@ Claude-Session: <link della sessione>
   - synced: `hosts.lua` (host per ally team, successore), `relay.lua` (controllo e consegna degli ordini);
   - unsynced: `types.lua` (runtime, tipi di AI, oggetti, seme, fallimenti), `lifecycle.lua` (avvio, arresto, catch-up, cambio di host, invio ordini), `delivery.lua` (chiamate protette, elenco errori, consegna degli eventi), `unitregistry.lua` (tabelle di unità provvisorie, unità morte), `memstats.lua` (memoria per frame), `scheduler.lua` (turni).
 - `shard_runtime/`: classi (`AIBase`, `ShardAI`, `ShardAlly`, `ShardGlobal`, `Module`, `Behaviour`, `Unit`), `ordercodec.lua`, `spring_lua/` (API vera, `outbox.lua`), `shard_null/` (API finta per i test).
-- `shard_runtime/perceptionhandler.lua` (da T12): modulo di percezione offerto, non obbligatorio.
+- `shard_runtime/perceptionhandler.lua`: modulo di percezione offerto, non obbligatorio (il framework non filtra).
 - `Shard/`: AI di esempio, classe `ShardBasic` (nome proposto, non ancora confermato dall'utente). `STAI/`: l'AI dell'utente.
 
 **Cosa fa**
@@ -103,12 +103,12 @@ Claude-Session: <link della sessione>
 | T10 | consegna mirata, unità `nil`, ramo `shard_null` |
 | T9 | scheduler di base (EmmyLua e StyLua 2.5.2 da rifare: in T11) |
 | T11 | strumenti fissati in `~/.local/bin`, elezione dei behaviour (solo priorità > 0) con `legacyElection` per STAI, turni dei behaviour (`BScheduler`) |
-| **T12** | **in corso**: percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da Shard; tolti `Perception()` e `omniscient` |
+| T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
 
 **Prossimi passi** (ordine proposto all'utente)
 
-1. Aggiornare la guida: elezione e `BScheduler` (T11), poi percezione (T12).
-2. Verificare **T12, percezione**. Decisione dell'utente del 24 novembre 2026: il framework non filtra; consegna gli eventi LOS/radar e offre un modulo elementare (`PerceptionHandler`, due tabelle `los`/`radar`, `Sees`, `OnRadar`) che un'AI include, sostituisce o ignora (AI che bara ammessa). `game:GetEnemies()` resta onnisciente. Con questa il grosso del framework è fatto.
+1. Fatto: guida aggiornata con elezione, `BScheduler` e percezione.
+2. Decisioni aperte da T12: `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`); `shard_null` non crea oggetti ally, quindi sotto `shard_null` i moduli `"ally"` non si caricano.
 3. **Latenza in multiplayer**: partita vera con due client, da organizzare con l'utente; poi la scelta synced/unsynced come modalità predefinita.
 4. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`, branch pulito senza `.ai-notes/` e con commit riordinati, prove di partita per `AI_POLICY.md`.
 
