@@ -949,10 +949,10 @@ Nella variabilità vista fino a T10: per STAI non cambia niente (nessun campo nu
 
 **Commit**
 
-1. `61109d3f55` strumenti e controlli di T9: annotazioni in `scheduler.lua` e `shardai.lua`; riga sugli strumenti nel protocollo.
-2. `6980e4d018` elezione, `legacyElection`, riga di STAI, spec.
-3. `44874d7440` `BScheduler` e spec.
-4. `5422ed14e0` esempio in Shard.
+1. `dca5222bd3` strumenti e controlli di T9: annotazioni in `scheduler.lua` e `shardai.lua`; riga sugli strumenti nel protocollo.
+2. `e9e379fafc` elezione, `legacyElection`, riga di STAI, spec.
+3. `bbb25cbe57` `BScheduler` e spec.
+4. `885f668c6f` esempio in Shard.
 
 **0. Strumenti**: `~/.local/bin/stylua` (2.5.2) e `~/.local/bin/emmylua_check` (0.24.0), dalle release di GitHub (sha256 degli archivi: `bcb0d855…d5ab` StyLua, `f75c6981…7564` EmmyLua). `~/.local/bin` non è nel `PATH` della shell dell'agente: si chiamano col percorso intero (scritto nel protocollo).
 
