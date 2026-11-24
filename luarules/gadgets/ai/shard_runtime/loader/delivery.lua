@@ -155,6 +155,15 @@ local function DeliverToAIs(name, a, b, c, d)
 	end
 end
 
+--- Among the AIs only the owner of the unit, as the old loader did for UnitCreated: STAI's modules take
+--- UnitCreated for a unit of their own team (BuildingsHST blocks the ground of any structure it hears of)
+local function DeliverToOwner(teamID, name, a, b, c, d)
+	local thisAI = Shard.AIsByTeamID[teamID]
+	if thisAI ~= nil then
+		Deliver(thisAI, name, a, b, c, d)
+	end
+end
+
 local function DeliverToAll(name, a, b, c, d)
 	DeliverToShared(name, a, b, c, d)
 	DeliverToAIs(name, a, b, c, d)
@@ -213,6 +222,7 @@ return {
 	Deliver = Deliver,
 	DeliverToShared = DeliverToShared,
 	DeliverToAIs = DeliverToAIs,
+	DeliverToOwner = DeliverToOwner,
 	DeliverToAll = DeliverToAll,
 	DeliverSight = DeliverSight,
 	UpdateAll = UpdateAll,

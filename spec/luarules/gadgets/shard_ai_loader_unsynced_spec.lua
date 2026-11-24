@@ -607,6 +607,8 @@ describe("ShardAILoader unsynced side", function()
 	it("hashes the GameID into the same seed every time, below 2^24 at every step", function()
 		local loader = started()
 		local gameID = string.rep("\255", 16) .. "\0\127\200abc"
+		-- HashGameID is a function of loader/loader.lua, not of the gadget
+		local HashGameID = loader.env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/loader.lua").HashGameID
 
 		local reference = 0
 		for i = 1, #gameID do
@@ -615,8 +617,8 @@ describe("ShardAILoader unsynced side", function()
 			reference = step % 65521
 		end
 
-		assert.equal(reference, loader.gadget:HashGameID(gameID))
-		assert.equal(reference, loader.gadget:HashGameID(gameID))
+		assert.equal(reference, HashGameID(gameID))
+		assert.equal(reference, HashGameID(gameID))
 		loader.gadget:GameID(gameID)
 		local o = objects(loader)
 		assert.equal(reference, loader.env.Shard.randomseed)
