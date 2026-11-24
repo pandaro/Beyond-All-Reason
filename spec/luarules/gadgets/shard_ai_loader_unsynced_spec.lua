@@ -259,6 +259,42 @@ local function objects(loader)
 end
 
 describe("ShardAILoader unsynced side", function()
+	it("leaves no function of the loader in the environment of an AI type, nor in _G", function()
+		local loader = started()
+		local env = loader.env
+		local aiEnv = env.Shard.types.SpecAI.env
+		local names = {
+			-- the gadget methods of before, now functions of loader/loader.lua
+			"NewAPI",
+			"LoadAIType",
+			"GetAlly",
+			"SetupAI",
+			"AddAI",
+			"StartAIs",
+			"CatchUp",
+			"HashGameID",
+			"LoadRuntime",
+			"StopAI",
+			"ReportError",
+			"MemStats",
+			"UnitRegistry",
+			"Delivery",
+			"Loader",
+		}
+		for _, file in ipairs({ "memstats", "unitregistry", "delivery", "loader" }) do
+			local exported = env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/" .. file .. ".lua")
+			for name in pairs(exported) do
+				names[#names + 1] = name
+			end
+		end
+
+		for _, name in ipairs(names) do
+			assert.is_nil(rawget(env, name), name .. " in the gadget environment")
+			assert.is_nil(aiEnv[name], name .. " in the environment of SpecAI")
+			assert.is_nil(rawget(_G, name), name .. " in _G")
+		end
+	end)
+
 	it("loads nothing on a client that hosts no AI", function()
 		local world = defaultWorld()
 		world.me = 5

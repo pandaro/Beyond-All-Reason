@@ -121,6 +121,7 @@ local function loadLoader(world)
 	setfenv(chunk, env)
 	recorded.loaded = chunk()
 	recorded.gadget = env.gadget
+	recorded.env = env
 	recorded.codec = env.VFS.Include(CODEC_PATH)
 	recorded.VFS = env.VFS
 	recorded.world = world
@@ -392,6 +393,25 @@ describe("ShardAILoader host registry", function()
 		world.players[3].active = false
 		loader.gadget:PlayerRemoved(1, 1)
 		assert.same({ [0] = 6, [1] = 6, [2] = 6 }, hostParams(loader))
+	end)
+end)
+
+describe("ShardAILoader synced environment", function()
+	it("leaves no function of the relay or the host registry in the gadget environment, nor in _G", function()
+		local loader = started()
+		local names = { "Relay", "Hosts", "RegisterHosts", "ChooseSuccessor", "AddOrder", "GiveOrders", "Reject" }
+		for _, file in ipairs({ "relay", "hosts" }) do
+			local exported = loader.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/" .. file .. ".lua")
+			for name in pairs(exported) do
+				names[#names + 1] = name
+			end
+		end
+
+		for _, name in ipairs(names) do
+			assert.is_nil(loader.gadget[name], name .. " in the gadget")
+			assert.is_nil(rawget(loader.env, name), name .. " in the gadget environment")
+			assert.is_nil(rawget(_G, name), name .. " in _G")
+		end
 	end)
 end)
 
