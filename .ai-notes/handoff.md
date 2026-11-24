@@ -1116,6 +1116,6 @@ A, STAI contro SimpleAI (controllo per `types.lua`): unità ai minuti 1/5/10/13:
 
 **Commit**
 
-1. `fc8996c60d` Shard runtime: PerceptionHandler, an ally team module with the units its ally team sees in LOS and on radar
-2. `1fd69af9f8` Shard loader: no Perception() nor omniscient field; the unit tables hold every unit
-3. `181b7cd799` Shard example: AttackHandler targets only the enemies its ally team sees in LOS
+1. `21507320d0` Shard runtime: PerceptionHandler, an ally team module with the units its ally team sees in LOS and on radar
+2. `55bd31fb9e` Shard loader: no Perception() nor omniscient field; the unit tables hold every unit
+3. `a9cf6d542f` Shard example: AttackHandler targets only the enemies its ally team sees in LOS
