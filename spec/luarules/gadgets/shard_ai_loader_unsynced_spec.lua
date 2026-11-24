@@ -630,6 +630,21 @@ describe("ShardAILoader unsynced side", function()
 		assert.is_nil(countBy(heard(loader, "UnitBuilt"), "owner")[o.team0])
 	end)
 
+	it("ends the game only for the objects that have modules", function()
+		local loader = started()
+		local o = objects(loader)
+		o.ally1.modules = {}
+		local ended = false
+		o.ally1.GameEnd = function()
+			ended = true
+		end
+
+		loader.gadget:GameOver({ 0 })
+
+		assert.is_false(ended)
+		assert.equal(1, countBy(heard(loader, "GameEnd"), "owner")[o.ally0])
+	end)
+
 	it("ends the game for every module at GameOver", function()
 		local loader = started()
 

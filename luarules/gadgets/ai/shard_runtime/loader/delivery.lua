@@ -199,18 +199,24 @@ local function UpdateAll()
 	end
 end
 
+local function EndGameObject(target)
+	if HasModules(target) then
+		Call(target, "GameEnd")
+	end
+end
+
 --- GameEnd() of every object, team -> ally team -> global
 local function EndGameAll()
 	for _, thisAI in ipairs(Shard.AIs) do
-		Call(thisAI, "GameEnd")
+		EndGameObject(thisAI)
 	end
 	for _, allies in pairs(Shard.alliesByAllyID) do
 		for _, ally in ipairs(allies) do
-			Call(ally, "GameEnd")
+			EndGameObject(ally)
 		end
 	end
 	for _, global in ipairs(Shard.globals) do
-		Call(global, "GameEnd")
+		EndGameObject(global)
 	end
 end
 
