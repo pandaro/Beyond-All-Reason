@@ -213,7 +213,7 @@ Modules may call `Spring.*` directly, as STAI does.
 
 ## Scopes: team, ally, global
 
-**Stable** in the framework. **Planned**: the loader that creates `ShardAlly` and `ShardGlobal` and feeds them events; until it exists, only team modules run in a game. Every module of STAI and Shard declares `"team"` for now; MapHST and LosHST will move to `"global"` and `"ally"` when they are ported.
+**Stable.** The loader creates `ShardAlly` and `ShardGlobal` and feeds them events. Every module of STAI declares `"team"` for now; MapHST and LosHST will move to `"global"` and `"ally"` when they are ported.
 
 Some work is the same for every AI: the map analysis does not depend on the team, and the line of sight is shared by the whole ally team. Each module declares where it lives with `Scope()`, and the framework creates it once per instance of that scope:
 
@@ -284,12 +284,22 @@ MyAI.MScheduler = { "EcoHST", "AttackHST" } -- names returned by Name()
 - `self.ai.scheduler.moduleTeam` and `.moduleUpdate` tell whose turn it is.
 - An AI that wants a different scheduler writes its own and declares no list (STAI does this with its `SchedulerHST`).
 
-`BScheduler` does the same for behaviours (in progress).
+Behaviours can run in turns the same way:
+
+```lua
+MyAI.BScheduler = { "TaskQueueBehaviour" } -- names returned by the behaviours' Name()
+```
+
+- A listed behaviour gets `Update()` only on its turn: one turn per frame, one behaviour name of one AI, for all the units of that AI that have it. Turns go through the list, and for each name through every AI hosted on this client that declares it.
+- Behaviours not listed still get `Update()` on every unit update. A unit activates a newly elected behaviour on every update, in turn or not.
+- A turn is not skipped when the AI has no unit with that behaviour.
+- `self.ai.scheduler.behaviourTeam` and `.behaviourUpdate` tell whose turn it is.
+- A behaviour that works in turns should count elapsed frames, not calls: Shard's `TaskQueueBehaviour` does this.
 
 
 ## Units and behaviours
 
-**Stable**: the classes and events. **Planned**: the election rule below.
+**Stable**: the classes, the events and the election rule.
 
 Every unit the AI owns gets a `Unit` object, its mini AI. The `BehaviourFactory` gives it a list of behaviours: `behaviours.lua` maps unit names to lists of behaviour classes, and `defaultBehaviours(unit, ai)` covers the rest. At any time at most one behaviour is **active**: it is the one in control of the unit.
 
@@ -335,12 +345,16 @@ Events about the behaviour's own unit arrive as `Owner*`; events about other uni
 
 All behaviours of a unit receive these events, active or not; check `self:IsActive()` before giving orders.
 
-**Election.** `Priority()` returns the behaviour's priority (set it with `SetPriority`). `self.unit:ElectBehaviour()` picks the behaviour with the highest priority. `YieldControlOfUnit()` and `RequestControlOfUnit()` both trigger a new election. When the winner changes, the old behaviour is deactivated at once and the new one is activated on the unit's next update.
+**Election.** `Priority()` returns the behaviour's priority (set it with `SetPriority`). `self.unit:ElectBehaviour()` picks the behaviour in control; `YieldControlOfUnit()` and `RequestControlOfUnit()` both trigger a new election. The rule:
 
-The election rule is being fixed to match its own documentation:
+- Only a priority greater than zero can win; `nil` counts as zero. On a tie the first behaviour in the list wins.
+- If the active behaviour wins again, nothing changes.
+- If another behaviour wins, the active one is deactivated at once (`PreDeactivate`, `Deactivate`) and the winner is activated on the unit's next update (`PreActivate`, `Activate`).
+- If no behaviour has a priority above zero, the unit has no active behaviour: the active one is deactivated, and a behaviour waiting for activation is dropped.
 
-- Today: if every priority is zero or less, the first behaviour in the list still wins.
-- Planned: only a priority greater than zero can win; `nil` counts as zero; if no behaviour qualifies, the unit has no active behaviour. An option, `legacyElection`, keeps the old rule for code ported from STAI.
+So a behaviour that must control the unit returns a priority above zero, and one that has nothing to do returns zero.
+
+An AI class can keep the older rule with `MyAI.legacyElection = true`: the first behaviour in the list wins even when every priority is zero or less. STAI uses it; new AIs should not.
 
 ## The API: `game`, `map`, units
 
@@ -372,7 +386,7 @@ Positions are tables `{ x = …, y = …, z = … }`.
 
 **`ShardUnitType`** (`unit:Type()`, `game:GetTypeByName(name)`): read-only data from the unit definition: `Name()`, `ID()`, `IsBuilder()`, `IsFactory()`, `CanBuild(type)`, `CanMove()`, `CanFly()`, `Extractor()`, `BuildCostMetal()`, `BuildCostEnergy()`, `BuildTime()`, `Health()`, `LosRadius()`, and more in `spring_lua/unittype.lua`.
 
-**Orders** (**Stable** in the framework; **Planned**: the loader's relay that delivers them, see below):
+**Orders** (**Stable**):
 
 ```lua
 self.game:GiveOrder(unitID, CMD.MOVE, { x = 100, y = 0, z = 200 }, 0, "1-1")
@@ -395,9 +409,7 @@ unit:Move({ x = 100, y = 0, z = 200 })
 
 Orders are not given at once: they go to the AI's queue (`ShardOutbox`). Once per frame the queue sends one compact binary message with at most 25 orders; the rest waits for the next frames, in order. The orders of one call are never split across two messages. The synced side of the loader checks that the message comes from the player hosting the AI and that every unit belongs to the AI's team, then gives the orders to the engine.
 
-Planned changes to the API:
-
-- **Perception**: in the default `fair` mode, `game` and the unit objects show enemies only as the ally team can see them (line of sight and radar). An AI can declare `Perception()` returning `"omniscient"` for difficulty levels that cheat.
+**Perception** is up to the AI. `game` does not filter: `GetEnemies()` returns every enemy unit. An AI that should see only what its ally team sees keeps track of it from the line of sight and radar events; *Planned*: the framework offers a small module for this, `PerceptionHandler` (see [Units known to an AI](#how-an-ai-runs-in-a-game)). An AI can use it, write its own, or cheat.
 
 **Numbers.** Lua numbers in Recoil are 32-bit floats: integers are exact only up to 2^24 (16,777,216). Keep counters and IDs below that, and avoid arithmetic on large integers such as hashes.
 
@@ -454,7 +466,7 @@ Each order is then given only if its unit exists and belongs to the AI's team; o
 
 **Events.** See [Events](#events): only to the modules that want them. Among team AIs, `UnitCreated` goes only to the unit's owner (as in the old Shard). Line of sight and radar events go to the `ShardAlly` of the ally team concerned and to every team AI.
 
-**Units known to an AI.** *Provisional*: the loader keeps, for every team AI, the sets `ownUnitIds`, `friendlyUnitIds`, `alliedUnitIds`, `enemyUnitIds`, `neutralUnitIds` (Gaia's units are neutral). `game:GetUnits()`, `GetFriendlies()` and `GetEnemies()` read them, and they see every unit on the map. Planned: the ally team's perception will replace them, so an AI sees only what its ally team sees.
+**Units known to an AI.** The loader keeps, for every team AI, the sets `ownUnitIds`, `friendlyUnitIds`, `alliedUnitIds`, `enemyUnitIds`, `neutralUnitIds` (Gaia's units are neutral). `game:GetUnits()`, `GetFriendlies()` and `GetEnemies()` read them, and they see every unit on the map: the framework does not filter them. *Planned*: `shard_runtime/perceptionhandler.lua`, an optional ally-scope module with the sets `los` and `radar` and the functions `Sees(unitID)` and `OnRadar(unitID)`, filled from the line of sight and radar events. An AI includes it with `shard_include("perceptionhandler")`, replaces it with a file of the same name in its own folder, or does without it.
 
 **Errors.** Every call from the loader to an object runs protected. An error while loading an AI or in `Init()` stops that AI (and, for a shared object, the AIs that use it); the game goes on. An error during the game is printed with its traceback the first time it happens and only counted afterwards; the AI keeps running. Errors are told apart by object, event and message, and at the end of the game the log lists each of them with how many times and in which frames it happened.
 
