@@ -33,8 +33,9 @@ local MarkTypeFailed ---@type fun(aiName: string, reason: string)
 local RemoveValue ---@type fun(list: table, value: any)
 local RemoveAlly ---@type fun(ally: table)
 local Types ---@type table
+local Changed ---@type fun()
 
---- context = { gadget, aiTeams, teamList, Types, Delivery, UnitRegistry }
+--- context = { gadget, aiTeams, teamList, Types, Delivery, UnitRegistry, Scheduler }
 local function Setup(context)
 	gadget = context.gadget
 	aiTeams = context.aiTeams
@@ -47,6 +48,7 @@ local function Setup(context)
 	Call = context.Delivery.Call
 	SetCatchUpTargets = context.Delivery.SetCatchUpTargets
 	SetUnitTableTargets = context.UnitRegistry.SetUnitTableTargets
+	Changed = context.Scheduler.Changed
 end
 
 --- Loads the AI of team id and hosts it here; nil when it failed to load
@@ -57,6 +59,7 @@ local function AddAI(id)
 		Shard.AIs[#Shard.AIs + 1] = thisAI
 		thisAI.index = #Shard.AIs
 		hosting = true
+		Changed()
 	end
 	return thisAI
 end
@@ -77,6 +80,7 @@ local function StopAI(teamID, reason)
 		Shard.AIs[i].index = i
 	end
 	hosting = Shard.AIs[1] ~= nil
+	Changed()
 end
 
 -- Init() runs on the first Prepare(), as in Shard; an object whose Init() failed goes to `failed`

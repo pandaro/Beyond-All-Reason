@@ -27,8 +27,9 @@ local AI_PATH ---@type string
 local RUNTIME_PATH ---@type string
 local WithTraceback ---@type fun(err: any): string
 local NewUnitTables ---@type fun(thisAI: table)
+local schedulerState ---@type table
 
---- context = { gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry }
+--- context = { gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry, Scheduler }
 local function Setup(context)
 	gadget = context.gadget
 	aiTeams = context.aiTeams
@@ -37,6 +38,7 @@ local function Setup(context)
 	RUNTIME_PATH = context.runtimePath
 	WithTraceback = context.Delivery.WithTraceback
 	NewUnitTables = context.UnitRegistry.NewUnitTables
+	schedulerState = context.Scheduler.state
 end
 
 -- runtime and seeds ---------------------------------------------------------------------------------
@@ -98,6 +100,15 @@ end
 
 -- AI objects ---------------------------------------------------------------------------------------
 
+-- an object of a type whose class declares MScheduler gets the list, and the scheduler's state of the turn
+local function SetSchedule(target, aiType)
+	local names = aiType.class.MScheduler
+	if names ~= nil then
+		target.MScheduler = names
+		target.scheduler = schedulerState
+	end
+end
+
 -- api.lua builds a new game and map for every object, as before: it must not go through the AI
 -- type's include, which runs each file once
 local function NewAPI(aiType)
@@ -135,6 +146,7 @@ local function LoadAIType(aiName)
 	global.omniscient = aiType.omniscient
 	global.api = NewAPI(aiType)
 	global.AIs = {}
+	SetSchedule(global, aiType)
 	aiType.global = global
 	Shard.globals[#Shard.globals + 1] = global
 	Shard.types[aiName] = aiType
@@ -161,6 +173,7 @@ local function GetAlly(aiType, allyId)
 	ally.api = NewAPI(aiType)
 	ally.global = aiType.global
 	ally.AIs = {}
+	SetSchedule(ally, aiType)
 	allies[#allies + 1] = ally
 	if newAllies ~= nil then
 		newAllies[#newAllies + 1] = ally
@@ -190,6 +203,7 @@ local function SetupAI(id)
 	thisAI.ally = GetAlly(aiType, allyId)
 	---@diagnostic disable-next-line: call-non-callable
 	thisAI.outbox = ShardOutbox(id)
+	SetSchedule(thisAI, aiType)
 	if gameHash ~= nil then
 		thisAI.randomseed = TeamSeed(id)
 	end

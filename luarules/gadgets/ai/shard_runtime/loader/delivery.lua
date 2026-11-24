@@ -5,9 +5,10 @@
 -- time with its traceback, then only counted; WriteErrorSummary lists them all once at the end.
 --
 -- An event reaches an object only when one of its modules wants it (ShardAI:WantsEvent), global -> ally team ->
--- team. Provisional, as the old loader did: every object whose modules want Update() runs it every frame, and a
--- unit event reaches every object, whether or not its ally team can see the unit; only the sight events (LOS and
--- radar) go to the ally objects of the ally team concerned, and to every AI.
+-- team. Provisional, as the old loader did: every object whose modules want Update() runs it every frame (but
+-- the modules that run in turns, scheduler.lua), and a unit event reaches every object, whether or not its ally
+-- team can see the unit; only the sight events (LOS and radar) go to the ally objects of the ally team concerned,
+-- and to every AI.
 
 local spEcho = Spring.Echo
 local spGetGameFrame = Spring.GetGameFrame

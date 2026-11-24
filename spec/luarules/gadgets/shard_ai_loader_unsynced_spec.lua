@@ -8,6 +8,9 @@ local CODEC_PATH = "luarules/gadgets/ai/shard_runtime/ordercodec.lua"
 local FIXTURE_PATHS = {
 	["luarules/gadgets/ai/SpecAI/"] = "spec/fixtures/shard_ai/",
 	["luarules/gadgets/ai/BrokenAI/"] = "spec/fixtures/shard_ai_broken/",
+	["luarules/gadgets/ai/SchedAI/"] = "spec/fixtures/shard_ai_scheduled/",
+	["luarules/gadgets/ai/SchedAI/specmodules.lua"] = "spec/fixtures/shard_ai/specmodules.lua",
+	["luarules/gadgets/ai/SchedAI/behaviourfactory.lua"] = "spec/fixtures/shard_ai/behaviourfactory.lua",
 }
 
 local CMD = { STOP = 0, MOVE = 10, OPT_META = 4, OPT_RIGHT = 16, OPT_SHIFT = 32, OPT_CTRL = 64, OPT_ALT = 128 }
@@ -40,14 +43,17 @@ local function fileExists(path)
 	return false
 end
 
--- the spec AI types live under spec/fixtures, the rest of the runtime where the engine finds it
+-- the spec AI types live under spec/fixtures, the rest of the runtime where the engine finds it; the longest
+-- prefix wins
 local function realPath(path)
+	local found, foundPath = nil, nil
 	for aiPath, fixturePath in pairs(FIXTURE_PATHS) do
-		if string.sub(path, 1, #aiPath) == aiPath then
-			return fixturePath .. string.sub(path, #aiPath + 1)
+		if string.sub(path, 1, #aiPath) == aiPath and (found == nil or #aiPath > #found) then
+			found = aiPath
+			foundPath = fixturePath .. string.sub(path, #aiPath + 1)
 		end
 	end
-	return path
+	return foundPath or path
 end
 
 -- Loads ShardAILoader.lua as unsynced code over a fake engine; the gadget table is its environment.
@@ -283,8 +289,10 @@ describe("ShardAILoader unsynced side", function()
 			"Types",
 			"Lifecycle",
 			"LoadAI",
+			"Scheduler",
+			"Rebuild",
 		}
-		for _, file in ipairs({ "memstats", "unitregistry", "delivery", "types", "lifecycle" }) do
+		for _, file in ipairs({ "memstats", "unitregistry", "delivery", "types", "lifecycle", "scheduler" }) do
 			local exported = env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/" .. file .. ".lua")
 			for name in pairs(exported) do
 				names[#names + 1] = name
@@ -787,6 +795,334 @@ describe("ShardAILoader unsynced side", function()
 		assert.equal((reference * 31 + 1) % 65521, o.team0.randomseed)
 		assert.are_not.equal(o.team0.randomseed, o.team1.randomseed)
 		assert.is_true(reference * 31 + 255 < 2 ^ 24)
+	end)
+
+	describe("with the turns of the modules", function()
+		-- teams 0, 1 and 2 are SchedAI, whose class lists the turns: specteam, specally, specglobal, specteamb
+		local function scheduledWorld()
+			local world = defaultWorld()
+			for teamID = 0, 2 do
+				world.teams[teamID].luaAI = "SchedAI"
+			end
+			return world
+		end
+
+		local function label(entry)
+			local owner = entry.owner
+			local scope = owner:Scope()
+			if scope == "team" then
+				return entry.module .. "@t" .. owner.id
+			elseif scope == "ally" then
+				return entry.module .. "@a" .. owner.allyId
+			end
+			return entry.module .. "@" .. owner.fullname
+		end
+
+		-- runs the frames; the Updates of each frame as labels, in the order they came
+		local function updatesByFrame(loader, from, to)
+			local byFrame = {}
+			for n = from, to do
+				local mark = #loader.log
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+				local labels = {}
+				for i = mark + 1, #loader.log do
+					local entry = loader.log[i]
+					if entry[1] == "Update" then
+						labels[#labels + 1] = label({ module = entry[2], owner = entry[3] })
+					end
+				end
+				byFrame[#byFrame + 1] = labels
+			end
+			return byFrame
+		end
+
+		-- the Updates of the listed modules, frame after frame
+		local function turnsOf(byFrame)
+			local turns = {}
+			for _, labels in ipairs(byFrame) do
+				for _, text in ipairs(labels) do
+					if not string.find(text, "specteamc", 1, true) then
+						turns[#turns + 1] = text
+					end
+				end
+			end
+			return turns
+		end
+
+		local ROUND = {
+			"specteam@t0",
+			"specteam@t1",
+			"specteam@t2",
+			"specally@a0",
+			"specally@a1",
+			"specglobal@SchedAI",
+			"specteamb@t0",
+			"specteamb@t1",
+			"specteamb@t2",
+		}
+
+		it("gives Update to every module every frame when the class lists no turns", function()
+			local loader = started()
+
+			local byFrame = updatesByFrame(loader, 1, 3)
+
+			for _, labels in ipairs(byFrame) do
+				table.sort(labels)
+				assert.same({
+					"specally@a0",
+					"specally@a1",
+					"specglobal@SpecAI",
+					"specteam@t0",
+					"specteam@t1",
+					"specteam@t2",
+				}, labels)
+			end
+			assert.is_nil(loader.env.Shard.AIsByTeamID[0].scheduler)
+		end)
+
+		it("runs one listed module a frame, in the order of the list and round after round", function()
+			local loader = started(scheduledWorld())
+
+			local byFrame = updatesByFrame(loader, 1, 18)
+
+			for _, labels in ipairs(byFrame) do
+				local unlisted = 0
+				for _, text in ipairs(labels) do
+					if string.find(text, "specteamc", 1, true) then
+						unlisted = unlisted + 1
+					end
+				end
+				assert.equal(3, unlisted)
+				assert.equal(4, #labels)
+			end
+			local expected = {}
+			for i = 1, 18 do
+				expected[i] = ROUND[(i - 1) % #ROUND + 1]
+			end
+			assert.same(expected, turnsOf(byFrame))
+		end)
+
+		it("does not call every frame an object whose modules all run in turns, not even Prepare", function()
+			local loader = started(scheduledWorld())
+			local o = objects(loader)
+			local prepared = 0
+			local prepare = o.ally0.Prepare
+			o.ally0.Prepare = function(self)
+				prepared = prepared + 1
+				return prepare(self)
+			end
+
+			updatesByFrame(loader, 1, 3)
+
+			assert.equal(0, prepared)
+			assert.same({}, o.ally0.handlers.Update)
+			assert.equal(1, #o.team0.handlers.Update)
+			assert.equal(o.team0.specteamc, o.team0.handlers.Update[1])
+		end)
+
+		it("gives a shared module one turn a round for the object that holds it", function()
+			local loader = started(scheduledWorld())
+
+			local counts = {}
+			for _, text in ipairs(turnsOf(updatesByFrame(loader, 1, 3 * #ROUND))) do
+				counts[text] = (counts[text] or 0) + 1
+			end
+
+			assert.equal(3, counts["specally@a0"])
+			assert.equal(3, counts["specally@a1"])
+			assert.equal(3, counts["specglobal@SchedAI"])
+			assert.equal(3, counts["specteam@t1"])
+		end)
+
+		it("takes a stopped AI out of the rotation without skipping or repeating the turns of the others", function()
+			local loader = started(scheduledWorld())
+			local before = turnsOf(updatesByFrame(loader, 1, 1))
+
+			-- team 1 was the next turn
+			loader.syncActions.shard_host("shard_host", 1, 1)
+			local after = turnsOf(updatesByFrame(loader, 2, 15))
+
+			assert.same({ "specteam@t0" }, before)
+			assert.same({
+				"specteam@t2",
+				"specally@a0",
+				"specally@a1",
+				"specglobal@SchedAI",
+				"specteamb@t0",
+				"specteamb@t2",
+				"specteam@t0",
+				"specteam@t2",
+				"specally@a0",
+				"specally@a1",
+				"specglobal@SchedAI",
+				"specteamb@t0",
+				"specteamb@t2",
+				"specteam@t0",
+			}, after)
+		end)
+
+		it("goes on from the same turn when an AI whose turn is not next stops", function()
+			local loader = started(scheduledWorld())
+			updatesByFrame(loader, 1, 4)
+
+			loader.syncActions.shard_host("shard_host", 0, 1)
+			local after = turnsOf(updatesByFrame(loader, 5, 10))
+
+			assert.same({
+				"specally@a1",
+				"specglobal@SchedAI",
+				"specteamb@t1",
+				"specteamb@t2",
+				"specteam@t1",
+				"specteam@t2",
+			}, after)
+		end)
+
+		it("skips a listed module no object holds, and gives it turns once AddModule adds it", function()
+			local loader = loadLoader(scheduledWorld())
+			loader.gadget:Initialize()
+			local names = loader.env.Shard.types.SchedAI.class.MScheduler
+			names[#names + 1] = "SpecLate"
+			loader.gadget:GameStart()
+			local env = loader.env
+			local Late = env.class(env.Module)
+			function Late:Name()
+				return "SpecLate"
+			end
+			function Late:internalName()
+				return "speclate"
+			end
+			function Late:Scope()
+				return "team"
+			end
+			local lateFrames = {}
+			function Late:Update()
+				lateFrames[#lateFrames + 1] = loader.world.frame
+			end
+
+			local before = turnsOf(updatesByFrame(loader, 1, 9))
+			objects(loader).team0:AddModule(Late())
+			updatesByFrame(loader, 10, 28)
+
+			assert.same(ROUND, before)
+			assert.same({ 10, 20 }, lateFrames)
+		end)
+
+		it("puts an AI taken over from another host in the rotation", function()
+			local world = scheduledWorld()
+			world.hosts[2] = 1
+			local loader = started(world)
+			local before = turnsOf(updatesByFrame(loader, 1, 7))
+
+			loader.syncActions.shard_host("shard_host", 2, 0)
+			local after = turnsOf(updatesByFrame(loader, 8, 16))
+
+			assert.same({
+				"specteam@t0",
+				"specteam@t1",
+				"specally@a0",
+				"specglobal@SchedAI",
+				"specteamb@t0",
+				"specteamb@t1",
+				"specteam@t0",
+			}, before)
+			assert.same({
+				"specteam@t1",
+				"specteam@t2",
+				"specally@a0",
+				"specally@a1",
+				"specglobal@SchedAI",
+				"specteamb@t0",
+				"specteamb@t1",
+				"specteamb@t2",
+				"specteam@t0",
+			}, after)
+		end)
+
+		it("leaves an AI type that lists no turns as it was, next to one that lists them", function()
+			local world = defaultWorld()
+			world.teams[0].luaAI = "SchedAI"
+			world.teams[1].luaAI = "SchedAI"
+			local loader = started(world)
+
+			local byFrame = updatesByFrame(loader, 1, 12)
+
+			local turns = {}
+			for _, labels in ipairs(byFrame) do
+				local plain = {}
+				for _, text in ipairs(labels) do
+					if string.find(text, "SpecAI", 1, true) or string.find(text, "@a1", 1, true) then
+						plain[#plain + 1] = text
+					elseif string.find(text, "@t2", 1, true) then
+						plain[#plain + 1] = text
+					elseif not string.find(text, "specteamc", 1, true) then
+						turns[#turns + 1] = text
+					end
+				end
+				table.sort(plain)
+				assert.same({ "specally@a1", "specglobal@SpecAI", "specteam@t2" }, plain)
+			end
+			local round = {
+				"specteam@t0",
+				"specteam@t1",
+				"specally@a0",
+				"specglobal@SchedAI",
+				"specteamb@t0",
+				"specteamb@t1",
+			}
+			assert.same(round, { unpack(turns, 1, 6) })
+			assert.same(round, { unpack(turns, 7, 12) })
+			assert.is_nil(loader.env.Shard.AIsByTeamID[2].scheduler)
+		end)
+
+		it("tells the module whose turn it is through the scheduler table of its object", function()
+			local loader = started(scheduledWorld())
+			local o = objects(loader)
+			local seen = {}
+			loader.hooks.Update = function(module)
+				local scheduler = module.ai.scheduler
+				seen[#seen + 1] = { module:Name(), scheduler.moduleUpdate, scheduler.moduleTeam }
+			end
+
+			updatesByFrame(loader, 1, 4)
+
+			assert.equal(o.team0.scheduler, o.ally0.scheduler)
+			assert.equal(o.team0.scheduler, o.global.scheduler)
+			local listed = {}
+			for _, entry in ipairs(seen) do
+				if entry[1] ~= "SpecTeamModuleC" then
+					listed[#listed + 1] = entry
+				end
+			end
+			assert.same({
+				{ "SpecTeamModule", "SpecTeamModule", 0 },
+				{ "SpecTeamModule", "SpecTeamModule", 1 },
+				{ "SpecTeamModule", "SpecTeamModule", 2 },
+				{ "SpecAllyModule", "SpecAllyModule", nil },
+			}, listed)
+		end)
+
+		it("allocates nothing to run the turns", function()
+			local loader = started(scheduledWorld())
+			loader.env.SpecQuiet = true
+			for n = 1, 20 do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+
+			collectgarbage("collect")
+			collectgarbage("stop")
+			local before = collectgarbage("count")
+			for n = 21, 520 do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+			local after = collectgarbage("count")
+			collectgarbage("restart")
+
+			assert.equal(before, after)
+		end)
 	end)
 
 	describe("with errors while loading", function()

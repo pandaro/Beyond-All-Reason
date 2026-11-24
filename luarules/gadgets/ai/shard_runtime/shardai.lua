@@ -207,18 +207,37 @@ function ShardAI:Init()
 end
 
 --- For every event, the modules that want it, in the order of modules.lua; built after Init and AddModule
+--
+-- When the AI class declares MScheduler, a list of module names, the modules of this object named there go to
+-- scheduledModules (position in the list -> module): the loader's scheduler runs their Update in turns, and they
+-- leave the Update of every frame. BScheduler, a list of behaviours, is not read yet.
 function ShardAI:BuildHandlers()
+	local scheduled = {}
+	local inTurns = {}
+	local names = self.MScheduler
+	if names ~= nil then
+		for _, m in ipairs(self.modules) do
+			local name = m:Name()
+			for position = 1, #names do
+				if names[position] == name then
+					scheduled[position] = m
+					inTurns[m] = true
+				end
+			end
+		end
+	end
 	local handlers = {}
 	for _, event in ipairs(EVENTS) do
 		local list = {}
 		for _, m in ipairs(self.modules) do
-			if WantsEvent(m, event) then
+			if WantsEvent(m, event) and not (event == "Update" and inTurns[m]) then
 				list[#list + 1] = m
 			end
 		end
 		handlers[event] = list
 	end
 	self.handlers = handlers
+	self.scheduledModules = scheduled
 end
 
 --- Whether a module of this object wants the event: the loader calls the object only then
@@ -264,6 +283,17 @@ function ShardAI:Update()
 	end
 	----tracyZoneEndMem()
 	--self.game:StopTimer('UPDATE')
+end
+
+--- The turn of one module of MScheduler: position is its place in the list
+function ShardAI:ScheduledUpdate(position)
+	if self.gameend == true then
+		return
+	end
+	local m = self.scheduledModules[position]
+	if m ~= nil then
+		m:Update()
+	end
 end
 
 function ShardAI:GameMessage(text)

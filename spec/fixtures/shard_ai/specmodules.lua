@@ -46,3 +46,5 @@ end
 SpecGlobalModule = recordingModule("SpecGlobalModule", "specglobal", "global")
 SpecAllyModule = recordingModule("SpecAllyModule", "specally", "ally")
 SpecTeamModule = recordingModule("SpecTeamModule", "specteam", "team")
+SpecTeamModuleB = recordingModule("SpecTeamModuleB", "specteamb", "team")
+SpecTeamModuleC = recordingModule("SpecTeamModuleC", "specteamc", "team")

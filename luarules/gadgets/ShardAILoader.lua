@@ -90,6 +90,7 @@ else
 	local MemStats = VFS.Include(LOADER_PATH .. "memstats.lua")
 	local UnitRegistry = VFS.Include(LOADER_PATH .. "unitregistry.lua")
 	local Delivery = VFS.Include(LOADER_PATH .. "delivery.lua")
+	local Scheduler = VFS.Include(LOADER_PATH .. "scheduler.lua")
 	local Types = VFS.Include(LOADER_PATH .. "types.lua")
 	local Lifecycle = VFS.Include(LOADER_PATH .. "lifecycle.lua")
 	Types.Setup({
@@ -100,6 +101,7 @@ else
 		runtimePath = RUNTIME_PATH,
 		Delivery = Delivery,
 		UnitRegistry = UnitRegistry,
+		Scheduler = Scheduler,
 	})
 	Lifecycle.Setup({
 		gadget = gadget,
@@ -108,13 +110,16 @@ else
 		Types = Types,
 		Delivery = Delivery,
 		UnitRegistry = UnitRegistry,
+		Scheduler = Scheduler,
 	})
+	Scheduler.Setup({ Delivery = Delivery })
 
 	-- the functions of every frame and every unit event
 	local IsHosting = Lifecycle.IsHosting
 	local StartAIsOnce = Lifecycle.StartAIsOnce
 	local FlushOrders = Lifecycle.FlushOrders
 	local UpdateAll = Delivery.UpdateAll
+	local RunScheduledTurn = Scheduler.RunScheduledTurn
 	local DeliverToShared = Delivery.DeliverToShared
 	local DeliverToOwner = Delivery.DeliverToOwner
 	local DeliverToAll = Delivery.DeliverToAll
@@ -151,6 +156,7 @@ else
 		StartAIsOnce()
 		BeginMemoryFrame()
 		UpdateAll()
+		RunScheduledTurn()
 		FlushOrders(n)
 		ExpireDeadUnits(n)
 		EndMemoryFrame(n)
