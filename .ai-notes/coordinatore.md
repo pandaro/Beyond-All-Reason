@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore
 
-Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T13).
+Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T16: il framework è fermo; il porting di STAI va avanti sul branch `stai/porting`, con `.ai-notes/stai/`).
 
 Messaggio d'avvio per la chat nuova:
 
@@ -106,6 +106,8 @@ Claude-Session: <link della sessione>
 | T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
 | T13 | `shard_null` crea anche gli oggetti d'alleanza e globale, prepara global → ally → team |
 | T14 | rete di sicurezza della GC rimessa (in `memstats.lua`, stessi valori, ogni 121 frame); `MAX_INSTANCES_PER_AI_TYPE = 2` per client host. Aperti: la `collect` senza condizione di `Initialize` (r. 276 del vecchio loader) non rimessa; limite per client o per partita |
+| T15 | `collect` d'avvio rimessa; `MAX_ORDERS_PER_MESSAGE` unico in `ordercodec.lua`; `shard_runtime/tablepool.lua` |
+| T16 | `maxInstances` per partita (`loader/admission.lua`, primi 2 team per tipo, per ID; il relay rifiuta gli esclusi); 20 ordini per messaggio |
 
 **Prossimi passi** (ordine proposto all'utente)
 
@@ -122,7 +124,7 @@ Claude-Session: <link della sessione>
 - T15 scritto: `collect` d'avvio rimessa, ordini per messaggio a 10 (costante unica), `shard_runtime/tablepool.lua`.
 - T15 verificato. T16 scritto: `maxInstances` per partita, deterministico (primi N team AI per ID), con il relay che rifiuta i team esclusi.
 - Aperto da T15: un gruppo di ordini con più di 10 ordini (un `GiveOrder` a 11+ unità, o 11+ comandi in coda) va da solo e il relay lo **rifiuta intero**. Decisione dell'utente: niente spezzatura, limite alzato a 20 (extra di T16). **Nota**: gli ordini troppo grandi (gruppi oltre 20) possono essere persi; in teoria per quei casi si può usare `GiveOrderArrayToUnitArray` (un solo comando per molte unità).
-- Porting di STAI preparato in `.ai-notes/stai/` (`nuovo-stai.md`, `coordinatore.md`, `handoff.md`). Branch `stai/porting` da creare da `shard/fase1` dopo la verifica di T16; il porting lo segue un'altra chat con lo stesso metodo (compiti S1, S2, …).
+- Porting di STAI preparato in `.ai-notes/stai/` (`nuovo-stai.md`, `coordinatore.md`, `handoff.md`). Branch `stai/porting` creato da `shard/fase1` dopo la verifica di T16; il porting lo segue un'altra chat con lo stesso metodo (compiti S1, S2, …).
 
 **In sospeso per scelta dell'utente**
 

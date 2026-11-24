@@ -42,9 +42,9 @@
 
 ## Risultati
 
-### T16 (agente locale, 24 novembre 2026)
+### T16 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
-**Commit**: `05f3c46453` (`maxInstances` per partita), `a816f926b9` (20 ordini per messaggio).
+**Commit**: `05f3c46453` (`maxInstances` per partita), `a816f926b9` (20 ordini per messaggio). Dopo il rebase: `39382534`, `cee1aca2`.
 
 **1. `maxInstances` per partita**
 
