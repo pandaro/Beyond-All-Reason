@@ -17,21 +17,28 @@
 
 ## Compito attuale
 
-### T7b: nomi e due difetti piccoli del loader
+### T8: Shard come AI di esempio, che gioca
 
-**Impegno: basso.** Spostamenti e rinomine già decisi, più due correzioni piccole; i test di T7 fanno da rete.
+**Impegno: medio.** Struttura piccola da sistemare e una prima prova in partita di un'AI che finora non ha mai girato nel nuovo loader; la parte incerta è capire perché eventualmente non gioca, senza mettersi a migliorarla.
 
-1. **`loader/loader.lua` diviso in due file** (scelta del coordinatore, coerente con la divisione per compiti voluta dall'utente):
-   - `loader/types.lua`: runtime, tipi di AI e loro ambiente, creazione degli oggetti (`NewAPI`, `GetAlly`, `SetupAI`), seme, fallimenti del caricamento;
-   - `loader/lifecycle.lua`: avvio (`StartAIsOnce`, `StartAIs`), arresto (`StopAI`), catch-up, cambio di host, `AddHostedAIs`, `FlushOrders`.
-   Stesso stile di T7: tabelle restituite, nessun globale, dipendenze passate con `Setup`, ordine delle sezioni uguale agli altri file, commento in testa. Se una funzione non ha un posto chiaro, mettila dove la usa di più e scrivilo nei risultati. Aggiorna il test «nessuna funzione del loader visibile» con i file nuovi.
-2. **`KeepDeadUnit` → `UnitDied`** (in `unitregistry.lua`, nel gadget e nelle spec).
-3. **`GameEnd` solo agli oggetti con moduli**: `EndGameAll` passa da `HasModules` come `UpdateAll` e `Deliver`. Test: un oggetto senza moduli non riceve `GameEnd`.
-4. **Catch-up mirato**: in un cambio di host, la rigenerazione degli eventi delle unità esistenti aggiorna le tabelle di unità solo delle AI nuove (`catchUpTargets`), non di tutte. Test: con un'AI già attiva e una nuova, dopo il catch-up le tabelle dell'AI già attiva non sono state riscritte (per esempio contando le chiamate o con una tabella strumentata).
+**Decisione dell'utente (24 novembre 2026)**: il lavoro resta sul framework, e STAI si tocca il meno possibile. `Shard/` diventa la **raccolta di esempi allineati al framework**: un'AI di base, semplice, che mostra come si usa ogni pezzo (struttura, ambiti, ordini, e da T9 lo scheduler). In questo compito: farla girare e darle la struttura giusta, niente di più. **STAI non si tocca.**
 
-**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test` (nessuna asserzione tolta), `run_engine_tests.sh`, partita A di T5c breve (5 minuti) senza righe `[AI Loader] error`.
+**Lavoro**
 
-**Commit**, in inglese: uno per punto.
+1. **Struttura come le altre AI** (`<NomeAI>/boot.lua` restituisce `NomeAI()`, la classe in `<NomeAI>/ai.lua`):
+   - `Shard/ai.lua` nuovo, con la classe dell'AI derivata da `ShardAI`, con `Name()` e `internalName()`, sul modello di `STAI/ai.lua` ma ridotto all'essenziale;
+   - `Shard/boot.lua` la include e la restituisce, nello stesso modo di `STAI/boot.lua`; resta il ramo `shard_null` com'è (il problema noto di `shard_include` in quel ramo non fa parte di questo compito);
+   - **nome della classe**: non può essere `Shard`, che è già l'oggetto globale del runtime (`Shard:shardify_unit`…) e verrebbe coperto nell'ambiente del tipo. Usa **`ShardBasic`** (proposta del coordinatore, da confermare con l'utente: scrivilo nei risultati) e controlla che nessun file di `Shard/` usi il globale `Shard` del runtime in un modo che il nome nuovo rompa.
+2. **Una partita**: startscript nuovo in `.ai-notes/tools/startscripts/` con Shard (`ShortName=Shard`, come in `luaai.lua`) contro SimpleAI, sulla stessa mappa di T5c, 15 minuti, con `run_engine_game.sh` e `SHARD_MEM_STATS=1`.
+3. **Cosa guardare**: errori del loader (`[AI Loader] error…` e il riepilogo a fine partita), contatori del relay, e dal gadget di controllo se Shard costruisce (unità, fabbriche, mex per minuto).
+4. **Correzioni**: solo quello che impedisce a Shard di caricarsi o di giocare (errori di caricamento, errori a ogni frame, nomi di unità che in BAR non esistono più), con il cambiamento più piccolo possibile, ognuna con un test che fallisce prima e passa dopo, dove si può. Tutto il resto (gioca male, sceglie male) va **elencato, non corretto**. I commenti e i nomi nelle righe che tocchi diventano inglesi.
+5. Se Shard gioca: una seconda partita breve (5 minuti) **Shard contro STAI**, per vedere che i due tipi convivono (ambienti separati, nessuna classe che si sovrascrive).
+
+**Controlli**: StyLua sui file toccati, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
+
+**Commit**, in inglese: uno per la struttura (punto 1), uno per ogni correzione, uno per lo startscript.
+
+**Nei risultati**: righe per file, le righe chiave del log delle partite (unità per minuto di Shard, contatori del relay, riepilogo degli errori, righe della memoria), le correzioni con la causa, l'elenco di ciò che non va ma non hai corretto, il nome della classe scelto.
 
 ## Risultati
 
