@@ -860,3 +860,89 @@ Le partite stanno nella variabilità vista in T5c (fra 146 e 201 unità a fine p
 3. `Spring`, `UnitDefs`, `Game` finti: 14 file di STAI li usano direttamente.
 
 **Note**: EmmyLua senza errori nuovi; in `shardai.lua` un warning in più (28 contro 27), dello stesso tipo di quelli già presenti nei callback.
+
+### T9 (agente locale, 24 novembre 2026)
+
+**Commit**
+
+1. `4d59f1fca8` scheduler e spec (11 file, +568 −11).
+2. `2059d084fb` esempio in Shard (3 file).
+
+Nessuno startscript nuovo: `d_shard_vs_simpleai.txt` e `a_stai_vs_simpleai.txt` bastano.
+
+**Righe per file**
+
+| File | Cambio |
+| --- | --- |
+| `shard_runtime/loader/scheduler.lua` | nuovo, 143 |
+| `shard_runtime/shardai.lua` | +31 −1 (`BuildHandlers`, `ScheduledUpdate`) |
+| `shard_runtime/loader/types.lua` | +15 −1 (`SetSchedule`) |
+| `shard_runtime/loader/lifecycle.lua` | +5 −1 (`Changed()` in `AddAI` e `StopAI`) |
+| `shard_runtime/loader/delivery.lua` | commento in testa |
+| `ShardAILoader.lua` | +6 (include, `Setup`, `RunScheduledTurn()` dopo `UpdateAll()`) |
+| `Shard/ai.lua` | +4; `Shard/attackhandler.lua` +2 −5 |
+| spec unsynced | +11 casi; fixture `spec/fixtures/shard_ai_scheduled/` (3 file), `specmodules.lua` +2 moduli |
+| `shard_null_spec.lua` | +1 caso |
+
+**Come funziona**
+
+- `ShardAI:BuildHandlers` (alla fine di `Init` e in `AddModule`): se `self.MScheduler` c'è, i moduli di questo oggetto il cui `Name()` è nella lista vanno in `self.scheduledModules` (posizione nella lista → modulo) e **non** entrano in `handlers.Update`. Un oggetto la cui lista `Update` resta vuota non viene chiamato a ogni frame (`WantsEvent`, come T10). Senza `MScheduler` il codice fa esattamente quello di prima (`scheduledModules` vuota).
+- `ShardAI:ScheduledUpdate(position)`: `Update` del modulo in quella posizione, se l'oggetto non è a fine partita. Lo scheduler lo chiama con `Delivery.Call` (quindi `Prepare` e `xpcall` come ogni altra chiamata).
+- `types.lua` copia la lista della classe dell'AI (`aiType.class.MScheduler`) anche sugli oggetti ally e global del tipo, che sono `ShardAlly`/`ShardGlobal` e non la vedrebbero.
+- `scheduler.lua`: una rotazione piatta di record `{ target, position, team, name }`, costruita solo quando `Changed()` è stato chiamato (`AddAI`, `StopAI`), al turno successivo. Ordine: per ogni posizione, le AI in `Shard.AIs` che la dichiarano; il modulo condiviso va all'oggetto che lo tiene (ally o global) una volta per posizione. I record sono riusati fra una ricostruzione e l'altra, quindi il cursore riparte dal record che stava per girare, o dal primo successivo rimasto. Per frame: avanza fino al primo record il cui oggetto ha davvero il modulo (un nome elencato e non tenuto da nessuno non consuma il frame; diventa un turno quando `AddModule` lo aggiunge), un solo turno, nessuna tabella nuova.
+- Tipi diversi con liste diverse: la posizione `i` di ciascuno, in un unico giro lungo quanto la lista più lunga.
+- `BScheduler`: non letto, scritto nel commento in testa a `scheduler.lua` e in `BuildHandlers`.
+
+**Campi di compatibilità**: `self.ai.scheduler.moduleTeam` e `.moduleUpdate`. `scheduler` è **una sola tabella per client** (`Scheduler.state`), messa da `types.lua` su ogni oggetto (team, ally, global) dei tipi che dichiarano `MScheduler`; i tipi senza lista non hanno il campo (STAI invariato). Perché lì: un modulo raggiunge già il proprio oggetto con `self.ai`, anche se è un modulo condiviso (il suo `ai` è l'ally o il global); il nome ricalca `self.ai.schedulerhst` di STAI, così una condizione come quella dei moduli di STAI si traduce cambiando solo il campo. Per un turno di un modulo ally o global `moduleTeam` è `nil` (non è il turno di un team). Con lo scheduler che chiama solo il modulo di turno, il controllo nei moduli non serve più: i campi sono per chi vuole sapere a chi tocca.
+
+**Shard**: `ShardBasic.MScheduler = { "AttackHandler", "PlacementHandler" }`, con il commento sulla regola. Fuori: `UnitHandler` (fa girare i behaviour) e `Sleep` (conta i frame: a turni le attese si allungherebbero); `MetalSpotHandler` non ha `Update`. `AttackHandler:Update` aveva `if (frame + team) % 15 == 0`: chiamato a turni scatterebbe a caso (con un giro di 2 frame, solo nei frame pari o dispari), quindi ora chiama `DoTargetting` a ogni turno; lo sfasamento fra AI lo fa lo scheduler. Con una sola AI Shard il giro è di 2 frame: la mira passa da ogni 15 frame a ogni 2, il piazzamento da ogni frame a ogni 2.
+
+**Test** (`2666 successes / 0 failures / 0 errors / 1 pending`; T10: 2654, +12)
+
+Fixture `SchedAI`: classe con `MScheduler = { SpecTeamModule, SpecAllyModule, SpecGlobalModule, SpecTeamModuleB }`, `SpecTeamModuleC` non elencato, `BScheduler` dichiarato; i moduli sono quelli di `SpecAI` (la spec mappa `specmodules.lua` e `behaviourfactory.lua` sui file di `shard_ai/`; `realPath` ora sceglie il prefisso più lungo).
+
+1. senza liste: ogni modulo `Update` a ogni frame, nessun campo `scheduler`;
+2. con liste: 4 `Update` per frame (3 `specteamc` + 1 elencato), 18 frame = due giri esatti di `t0,t1,t2 / a0,a1 / global / t0,t1,t2`;
+3. ally con tutti i moduli a turni: nessun `Prepare` nei frame non suoi, `handlers.Update` vuota; team: solo `specteamc`;
+4. modulo condiviso: un turno per giro per contenitore (3 su 3 giri);
+5. AI fermata quando era la prossima: il turno passa alla successiva, nessun salto né ripetizione per 14 frame;
+6. AI fermata che non era la prossima: si riparte dallo stesso turno;
+7. nome elencato non tenuto da nessuno: saltato senza consumare il frame; dopo `AddModule` ha il suo turno (frame 10 e 20);
+8. AI presa da un altro host: entra nella rotazione, il cursore resta dov'era;
+9. due tipi (SchedAI e SpecAI): SpecAI riceve tutto a ogni frame come prima; SchedAI gira a turni;
+10. `moduleTeam`/`moduleUpdate` letti dal modulo durante il turno; la stessa tabella su team, ally, global;
+11. 500 frame senza allocazioni (stesso metodo di T6: `collectgarbage("stop")` e confronto di `count`);
+12. (`shard_null_spec`) Shard: `handlers.Update` = `UnitHandler`, `Sleep`; `scheduledModules` = `AttackHandler`, `PlacementHandler`.
+
+Sul codice di prima: 7 casi falliscono, 1 errore (il test dei nomi esportati non trova `scheduler.lua`). Passano anche prima il caso 1 (è il «come oggi» chiesto) e il caso 11 (prima non c'erano turni): la mutazione che alloca una tabella per frame in `RunScheduledTurn` lo fa fallire.
+
+**Mutazioni** (tutte prese): elencati lasciati in `Update` (7 fallimenti); condiviso una volta per AI (5); cursore a 1 dopo la ricostruzione (2); cursore che salta un record (2); `StopAI` senza `Changed` (2); `AddAI` senza `Changed` (1); AI in ordine inverso (6); un'allocazione per frame (2); tutti i turni in un frame (6); `moduleUpdate` o `moduleTeam` non scritti (1 ciascuna); nome non tenuto dato all'ally (1); nessun salto dei turni senza modulo (1). Un `Changed()` in `StartAIs` che avevo messo non era coperto: era ridondante (ogni `StartAIs` che crea oggetti segue un `AddAI`, e la ricostruzione avviene al frame dopo) e l'ho tolto.
+
+**Partite** (`SHARD_MEM_STATS=1`, 15 minuti, nessuna riga `[AI Loader] error` in nessuna delle due)
+
+D, Shard contro SimpleAI:
+
+| Minuto | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Shard unità T9 | 6 | 10 | 12 | 15 | 18 | 19 | 14 | 13 | 11 | 0 |
+| Shard unità T8 | 6 | 10 | 11 | 11 | 12 | 12 | 14 | 15 | 3 | 0 |
+| fabbriche / mex T9 | 0 / 1 | 0 / 1 | 0 / 1 | 1 / 1 | 1 / 1 | 2 / 1 | 0 / 1 | 0 / 1 | 0 / 1 | 0 / 0 |
+
+Distrutto al minuto 10 come in T8 (SimpleAI a fine partita 74 unità). Relay `357 messages, 357 orders given, 1 orders rejected` (T8: 879 / 881 / 0). Memoria: medie 3,5–20 KB per frame, massimi di circa 5.950 KB quasi ogni minuto (la spirale di `PlacementHandler`, come in T8), heap 10–19 MB; dopo la distruzione 0,06 KB. Gli ordini sono meno della metà di T8: con una partita sola non so dire se dipenda dal piazzamento ogni 2 frame o dalla variabilità; Shard costruisce 1 mex (in T8 0).
+
+A, STAI contro SimpleAI:
+
+| | T9 | T10 |
+| --- | --- | --- |
+| STAI a fine partita | 188 unità, 2 fabbriche, 37 mex | 182 / 2 / 32 |
+| unità ai minuti 1/5/10/13 | 6 / 35 / 107 / 164 | 6 / 40 / 86 / 142 |
+| relay | 4031 messaggi, 15539 ordini, 6 rifiutati | 3638 / 12169 / 10 |
+| memoria media per frame | 0,18–0,83 KB, max fino a 73 KB, heap 13,2–15 MB | 0,18–0,62, max 172, heap 13–14,4 |
+
+Nella variabilità vista fino a T10: per STAI non cambia niente (nessun campo nuovo sui suoi oggetti, `handlers` identiche).
+
+**Controlli**: `run_engine_tests.sh`: `RESULT: ok`. StyLua pulito sui file toccati, ma con **StyLua 2.6.0** (l'estensione di VSCodium): su questa macchina non trovo né StyLua 2.5.2 né `emmylua_check` (non sono nel `PATH` né altrove sul disco), quindi **EmmyLua non l'ho eseguito**. Da controllare con gli strumenti fissati.
+
+**Note**
+- `lx test` riscrive `.emmyrc.json` (percorsi `lib`/`src` delle dipendenze); l'ho ripristinato a ogni esecuzione, non è nei commit.
+- Un modulo condiviso aggiunto con `AddModule` a un ally dopo l'avvio non entra nella rotazione finché le AI ospitate non cambiano (il caso del team invece sì, test 7). Non l'ho gestito: nessuno lo usa.
