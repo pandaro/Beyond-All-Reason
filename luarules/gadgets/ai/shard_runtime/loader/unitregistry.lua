@@ -68,7 +68,7 @@ local function GrowDeadRing()
 end
 
 --- Marks the ShardUnit of a dead unit destroyed and keeps it in the cache for DEAD_UNIT_FRAMES
-local function KeepDeadUnit(unitID, unit, frame)
+local function UnitDied(unitID, unit, frame)
 	unit.destroyed = true
 	if deadCount == deadCapacity then
 		GrowDeadRing()
@@ -95,6 +95,6 @@ return {
 	NewUnitTables = NewUnitTables,
 	AddToUnitTables = AddToUnitTables,
 	RemoveFromUnitTables = RemoveFromUnitTables,
-	KeepDeadUnit = KeepDeadUnit,
+	UnitDied = UnitDied,
 	ExpireDeadUnits = ExpireDeadUnits,
 }

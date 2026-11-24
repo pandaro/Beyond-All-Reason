@@ -121,7 +121,7 @@ else
 	local DeliverSight = Delivery.DeliverSight
 	local AddToUnitTables = UnitRegistry.AddToUnitTables
 	local RemoveFromUnitTables = UnitRegistry.RemoveFromUnitTables
-	local KeepDeadUnit = UnitRegistry.KeepDeadUnit
+	local UnitDied = UnitRegistry.UnitDied
 	local ExpireDeadUnits = UnitRegistry.ExpireDeadUnits
 	local BeginMemoryFrame = MemStats.BeginFrame
 	local EndMemoryFrame = MemStats.EndFrame
@@ -185,7 +185,7 @@ else
 		DeliverToAll("UnitDead", unit)
 		RemoveFromUnitTables(unitId)
 		-- kept a while, with its type and name, then dropped: the old loader kept every dead unit forever
-		KeepDeadUnit(unitId, unit, spGetGameFrame())
+		UnitDied(unitId, unit, spGetGameFrame())
 	end
 
 	function gadget:UnitDamaged(
