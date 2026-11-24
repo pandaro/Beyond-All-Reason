@@ -64,4 +64,5 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 
 | Compito | Stato |
 | --- | --- |
-| S1 | partenza: istruzioni locali dell'esecutore su `stai/porting`, tre partite A di riferimento dopo T16 — scritto, da eseguire |
+| S1 | partenza: istruzioni locali dell'esecutore su `stai/porting`, tre partite A di riferimento dopo T16 — verificato |
+| S2 | scheduler: liste nella classe, via `SchedulerHST` e i controlli di turno; `BomberBST` resta fermo — scritto, da eseguire |

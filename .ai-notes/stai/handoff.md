@@ -18,29 +18,36 @@
 
 ## Compito attuale
 
-### S1: partenza — istruzioni locali e partite di riferimento
+### S2: scheduler — le liste nella classe, via `SchedulerHST`
 
-**Impegno: basso.** Nessun cambio al codice del gioco. Serve un punto di riferimento nuovo: i numeri di `nuovo-stai.md` §6 sono di prima di T15–T16 (ordini per messaggio 25 → 10 → 20, `maxInstances` per partita).
+**Impegno: medio.** Punto 1 di `nuovo-stai.md` (deciso). STAI passa allo scheduler del framework (`shard_runtime/loader/scheduler.lua`, guida §Scheduler) **senza cambiare cosa gira e quando**.
 
 **Lavoro**
 
-1. **Istruzioni locali**: aggiorna `CLAUDE.local.md` (e la copia in `~/.spring/games/BAR.sdd/CLAUDE.local.md` se è un file distinto) perché, per «esegui», puntino a questo file (`.ai-notes/stai/handoff.md`) e al branch `stai/porting`, con le stesse regole di prima (compiti S<n>, risultati qui, `git add -f` per `.ai-notes/`, commit di framework a parte con «Shard …»). Le decisioni tecniche numerate restano come sono. Non committare `CLAUDE.local.md`; nei risultati scrivi in poche righe cosa hai cambiato.
-2. **Controllo di partenza**: `git log -1` uguale a `origin/stai/porting`; `lx --lua-version 5.1 test` e `.ai-notes/tools/run_engine_tests.sh` passano come alla fine di T16 (2728 successi, `RESULT: ok`). Ripristina `.emmyrc.json`.
-3. **Tre partite A**: `SHARD_MEM_STATS=1 .ai-notes/tools/run_engine_game.sh .ai-notes/tools/startscripts/a_stai_vs_simpleai.txt 15`, tre volte. Per ogni partita, in una tabella (una colonna per partita):
-   - unità STAI ai minuti 1, 5, 10, 13 e a fine partita; fabbriche e mex a fine partita;
-   - relay: messaggi, ordini, rifiutati **per motivo** (atteso `excluded = 0`; quanti `count`, cioè gruppi oltre 20 ordini);
-   - memoria media per frame, picco, heap;
-   - righe `[AI Loader] error` (numero e testo distinto, una volta ciascuno);
-   - tempo reale della partita.
-4. Se una partita va molto fuori dai valori di §6 (meno di 140 unità, meno di 15 mex, errori nuovi) **non correggere niente**: scrivilo e fermati dopo le tre partite.
+1. **Liste nella classe**: `STAI.MScheduler` e `STAI.BScheduler` in `STAI/ai.lua`, con gli stessi nomi e lo stesso ordine di `SchedulerHST.MScheduler` / `BScheduler` (anche le righe commentate, `OverviewHST` e `BomberBST`, restano commentate come oggi).
+2. **Via `SchedulerHST`**: `git rm` di `STAI/schedulerHST.lua`; tolti `shard_include("schedulerhst")` e `SchedulerHST` da `STAI/modules.lua`.
+3. **Via i controlli di turno** in testa agli `Update` dei moduli e dei behaviour elencati (`self.ai.schedulerhst.moduleTeam ~= self.ai.id ...`, `behaviourTeam ~= ...`): il runtime chiama solo nel turno. Prima di toglierne uno, guarda se **prima del controllo** c'è codice che gira ogni frame (contatori, timer): se c'è, scrivilo nei risultati e decidi in modo che il comportamento resti uguale (per esempio un contatore che contava i frame deve continuare a contare i frame).
+4. **Casi speciali, da non cambiare nel comportamento**:
+   - `BomberBST` (`bomberbst.lua` r. 63) è creato da `behaviourfactory.lua` ma non è nella lista: oggi il suo controllo non scatta mai, quindi il suo `Update` **non gira mai**. Con il framework un behaviour non elencato riceve `Update` a ogni frame. Tienilo fermo come oggi nel modo più semplice e leggibile (per esempio `Update` che ritorna subito, con un commento in inglese che spiega perché); niente di più.
+   - `MexUpBST` non è creato da nessuno: lascia il file com'è, salvo sostituire `self.ai.schedulerhst` con `self.ai.scheduler` perché non resti un riferimento a un modulo che non esiste.
+   - `ScoutBST:Draw` (r. 246) ha `not a == b` (difetto: la prima metà non conta mai). Passa a `self.ai.scheduler` **lasciando il difetto com'è** e scrivilo nei risultati; si corregge al punto 11.
+   - `overviewhst.lua` r. 18: riga commentata, lasciala.
+5. Alla fine `grep -rn schedulerhst luarules/gadgets/ai/STAI` non deve trovare niente fuori dai commenti.
 
-**Controlli**: nessun file di gioco toccato (`git status` pulito a parte `.ai-notes/stai/handoff.md`).
+**Test**: se ci sono test di STAI che usano `SchedulerHST`, aggiornali; altrimenti niente test nuovi (il comportamento dello scheduler è già coperto dai test del framework). `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno solo, con i risultati in questo file.
+**Partite**:
+- tre partite A come in S1; tabella con le stesse righe di S1, più una colonna con l'intervallo di S1 per confronto;
+- una partita C (`c_stai_vs_stai.txt`, 15 minuti): due STAI sullo stesso host, per vedere che la rotazione fra due team funzioni (unità e mex di **tutte e due** le STAI a fine partita, errori).
+- Se le partite A vanno chiaramente peggio di S1 (tutte e tre sotto il minimo di S1 in unità o mex) **fermati** e scrivi cosa vedi, senza correggere.
+
+**Controlli**: StyLua 2.5.2 e EmmyLua 0.24.0 sui file toccati (EmmyLua: nessun errore nuovo rispetto ai 20 di sempre). `.emmyrc.json` ripristinato.
+
+**Commit**, in inglese: uno per il codice di STAI («STAI: …»), uno per i risultati.
 
 ## Risultati
 
-### S1 (agente locale, 24 novembre 2026)
+### S1 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **1. Istruzioni locali** (`CLAUDE.local.md`, un solo file, non committato): fase attuale «porting di STAI»; il protocollo ora rimanda per primo a `.ai-notes/stai/handoff.md` sul branch `stai/porting` («esegui» o «vai»: pull, compito S<n>, risultati qui, commit e push), con commit di framework a parte che iniziano con «Shard …» e `nuovo-stai.md` riservato al coordinatore; il protocollo `shard/fase1` è segnato come chiuso. `git add -f` vale per tutti i file tracciati di `.ai-notes/`; l'impegno si riferisce ai compiti di questo file. Le decisioni numerate sono invariate.
 
