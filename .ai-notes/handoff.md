@@ -17,48 +17,45 @@
 
 ## Compito attuale
 
-### T9: lo scheduler di base
+### T11: strumenti fissati, elezione dei behaviour, turni dei behaviour
 
-**Impegno: medio.** Un pezzo nuovo ma piccolo, con una regola già decisa; la cura serve nel non cambiare niente per chi non lo usa (STAI) e nel non allocare a ogni frame.
+**Impegno: alto.** L'elezione decide chi comanda ogni unità: un errore qui fa stare ferme le unità o le fa contendere, senza errori nel log. In più si aggiunge la seconda metà dello scheduler. STAI deve restare identica (con una sola riga in `STAI/ai.lua`, vedi punto 2).
 
-**Decisione dell'utente (24 novembre 2026)**: il framework offre una base **semplice e intuitiva**; chi vuole uno scheduler diverso se lo scrive nella sua AI. **Niente budget di tempo**: un turno per frame, «se finisce finisce». STAI tiene il suo `SchedulerHST` e **non si tocca**.
+**0. Strumenti, una volta per tutte.** In T9 StyLua 2.5.2 ed EmmyLua 0.24.0 non c'erano più (erano in una cartella temporanea). Installali in modo permanente in `~/.local/bin` (dalle release ufficiali su GitHub, le versioni di `CLAUDE.local.md`), controlla `stylua --version` ed `emmylua_check --version`, e rifai i controlli di T9 (StyLua 2.5.2 sui file toccati da T9, EmmyLua su tutto). Se trovi qualcosa, correggilo in un commit a parte. Aggiungi al protocollo di `handoff.md` una riga: dove stanno gli strumenti.
 
-**La regola**
+**Decisioni**
 
-- La classe dell'AI (quella di `ai.lua`) **dichiara** le liste dei turni: `ShardBasic.MScheduler = { "AttackHandler", ... }`, con i nomi restituiti da `Name()` dei moduli.
-- Se le dichiara: i moduli elencati girano **a turni**, chiamati direttamente dallo scheduler; i moduli **non elencati** ricevono `Update` a ogni frame, come oggi.
-- Se non le dichiara (oggi STAI, perché le sue liste stanno dentro `SchedulerHST`): `Update` a tutti a ogni frame, esattamente come oggi.
+- Decisione n. 8: l'elezione segue **il commento di `Unit:ElectBehaviour`**: vince solo una priorità **maggiore di zero**; `nil` vale zero; a parità vince il primo nella lista; il comportamento attivo, se perde, esce **subito** (`PreDeactivate`, `Deactivate`), il nuovo entra **al frame dopo** (in `Unit:Update`); se vince quello già attivo non cambia niente; **se nessuno ha priorità maggiore di zero, nessun comportamento è attivo** (quello attivo esce, e un eventuale `nextBehaviour` in attesa si annulla).
+- Oggi il codice fa vincere il primo della lista anche con priorità zero o negativa (`bestBehaviour == nil or …`). Quella regola resta disponibile come **`legacyElection`**, solo per STAI.
+- Decisione n. 7, seconda metà: **`BScheduler`**, i turni dei behaviour, con la stessa regola dei moduli e senza budget.
 
-**Lo scheduler**
+**Lavoro**
 
-1. Uno per client, nel loader (`shard_runtime/loader/scheduler.lua`, stesso stile di T7: tabella restituita, nessun globale, commento in testa).
-2. Un turno per frame: una coppia (AI, modulo). Ordine dei turni come `SchedulerHST` di STAI: per ogni modulo della lista, tutte le AI ospitate qui che la dichiarano, poi il modulo successivo; finita la lista si ricomincia.
-3. Fra **AI ospitate su questo client**, di qualunque tipo che dichiari le liste. Un'AI fermata o tolta (fallimento, cambio di host) esce dalla rotazione; una nuova entra.
-4. **Moduli condivisi** (`"ally"`, `"global"`) nella lista: ricevono il loro turno **una volta per giro** per contenitore, non una volta per AI.
-5. Campi di compatibilità, aggiornati a ogni turno su un oggetto raggiungibile da ogni AI (proponi tu dove: per esempio `self.ai.scheduler`): `moduleTeam`, `moduleUpdate`.
-6. `BScheduler` (i behaviour) **non fa parte di questo compito**: i behaviour li fa girare `UnitHandler`, che è un modulo dell'AI; i turni dei behaviour vanno con il compito sull'elezione. Se una classe dichiara `BScheduler`, per ora non succede niente: scrivilo in un commento.
-7. **Con la consegna mirata di T10**: i moduli elencati escono dalla lista `Update` di ogni frame (`handlers.Update`) e li chiama solo lo scheduler; un oggetto la cui lista `Update` resta vuota non viene chiamato a ogni frame (come in T10). Le liste si costruiscono insieme a quelle di T10, non a ogni frame.
-8. Nessuna tabella nuova a ogni frame. `GameFrame` resta leggibile: un passo in più, per esempio `RunScheduledTurn()` accanto a `UpdateAll()`.
-
-**Shard come esempio**: `Shard/ai.lua` dichiara `MScheduler` con i suoi moduli che fanno lavoro periodico; i moduli che devono girare a ogni frame (`UnitHandler`) restano fuori dalla lista. Un commento breve in `ai.lua` spiega la regola a chi legge l'esempio.
+1. **Elezione** in `shard_runtime/unit.lua` (`Unit:ElectBehaviour`), partendo dalla versione di oggi e da quella rimossa; il commento resta e descrive esattamente il codice.
+2. **`legacyElection`**: un campo della classe dell'AI, letto dalle sue unità (`STAI.legacyElection = true`). Se è vero, la regola di oggi, identica. In `STAI/ai.lua` aggiungi **solo** quella riga, con un commento breve («keeps the election rule STAI was written for»): è l'unica modifica a STAI ammessa in questo compito. Verifica che `Shard/behaviour.lua` (che per Shard prende il posto del `Behaviour` del runtime) funzioni con la regola nuova.
+3. **Turni dei behaviour** (`BScheduler`):
+   - se la classe dell'AI dichiara `BScheduler` (nomi restituiti da `Name()` dei behaviour), i behaviour elencati ricevono `Update` solo nel loro turno; quelli non elencati a ogni `Unit:Update`, come oggi; senza lista, tutto come oggi;
+   - turno = (AI, nome di behaviour), un turno per frame, stessa rotazione di `MScheduler` (per ogni nome della lista, le AI ospitate che la dichiarano), nello scheduler di T9 (`loader/scheduler.lua`);
+   - campi `behaviourTeam` e `behaviourUpdate` in `self.ai.scheduler`, accanto a `moduleTeam`/`moduleUpdate`;
+   - il controllo «è il turno di questo behaviour?» va in `Unit:Update` del runtime (che `UnitHandler` chiama), senza allocazioni; l'attivazione del `nextBehaviour` all'inizio di `Unit:Update` resta a ogni chiamata;
+   - STAI non dichiara `BScheduler` nella classe (le sue liste sono in `SchedulerHST`): per lei non cambia niente.
+4. **Shard come esempio**: `ShardBasic.BScheduler` con i behaviour che fanno lavoro periodico (scegli tu e motiva; per esempio `AttackerBehaviour`); un commento breve in `ai.lua`. Shard usa la regola nuova dell'elezione (non dichiara `legacyElection`): controlla che `BootBehaviour`, `TaskQueueBehaviour` e `AttackerBehaviour` abbiano priorità maggiori di zero dove devono comandare, e scrivi nei risultati cosa cambia per Shard. Se Shard smette di funzionare per la regola nuova, correggi le priorità di Shard (è l'esempio: deve mostrare l'uso giusto), non la regola.
+5. **Guida**: niente, la aggiorna il coordinatore.
 
 **Test busted**
 
-- Senza liste: ogni modulo riceve `Update` a ogni frame (come oggi).
-- Con liste: un solo modulo elencato chiamato per frame, nell'ordine giusto, ciclico; i non elencati a ogni frame; i moduli elencati **non** ricevono l'`Update` di ogni frame.
-- Due AI con liste: alternanza come in `SchedulerHST`; un'AI fermata esce dalla rotazione senza saltare o ripetere turni delle altre.
-- Due tipi diversi, uno con liste e uno senza: il secondo non cambia.
-- Modulo condiviso nella lista: un turno per giro per contenitore.
-- `moduleTeam`/`moduleUpdate` aggiornati.
-- Nessuna allocazione per frame (stesso metodo di T6).
+- Elezione, regola nuova: vince la priorità più alta > 0; `nil` vale zero; tutte ≤ 0 → nessuno attivo e l'attivo esce subito; a parità il primo; vince l'attivo → nessuna chiamata a `Deactivate`/`Activate`; il nuovo si attiva solo al `Unit:Update` dopo; un `nextBehaviour` in attesa si annulla se perde prima di entrare.
+- `legacyElection`: gli stessi casi danno i risultati di oggi (in particolare: tutte ≤ 0 → vince il primo).
+- `BScheduler`: elencati solo nel turno, non elencati sempre; due AI che alternano; campi aggiornati; senza lista come oggi; nessuna allocazione per frame.
+- Prova delle mutazioni.
 
-**Partite** (`run_engine_game.sh`, `SHARD_MEM_STATS=1`):
-- Shard contro SimpleAI, 15 minuti: gioca come in T8 (unità per minuto simili, anche se Shard resta debole: i suoi problemi di gioco sono in sospeso per scelta dell'utente), nessun errore;
-- STAI contro SimpleAI, 15 minuti: come in T10 (nessun errore, numeri simili): conferma che per STAI non è cambiato niente.
+**Partite** (`SHARD_MEM_STATS=1`, 15 minuti): A (STAI contro SimpleAI) come in T9; D (Shard contro SimpleAI): nessun errore, e confronto con T9.
 
-**Commit**, in inglese: scheduler e spec; esempio in Shard; eventuale startscript.
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Nei risultati**: righe per file, test e mutazioni, le righe chiave delle due partite (unità per minuto, relay, memoria), dove hai messo i campi di compatibilità e perché.
+**Commit**, in inglese: strumenti e controlli di T9; elezione e `legacyElection` (con la riga di STAI) e spec; `BScheduler` e spec; esempio in Shard.
+
+**Nei risultati**: righe per file, test e mutazioni, le righe chiave delle due partite confrontate con T9, cosa cambia per Shard con la regola nuova, l'esito dei controlli rifatti su T9.
 
 ## Risultati
 
