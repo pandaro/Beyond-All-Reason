@@ -944,3 +944,101 @@ Nella variabilità vista fino a T10: per STAI non cambia niente (nessun campo nu
 **Note**
 - `lx test` riscrive `.emmyrc.json` (percorsi `lib`/`src` delle dipendenze); l'ho ripristinato a ogni esecuzione, non è nei commit.
 - Un modulo condiviso aggiunto con `AddModule` a un ally dopo l'avvio non entra nella rotazione finché le AI ospitate non cambiano (il caso del team invece sì, test 7). Non l'ho gestito: nessuno lo usa.
+
+### T11 (agente locale, 24 novembre 2026)
+
+**Commit**
+
+1. `61109d3f55` strumenti e controlli di T9: annotazioni in `scheduler.lua` e `shardai.lua`; riga sugli strumenti nel protocollo.
+2. `6980e4d018` elezione, `legacyElection`, riga di STAI, spec.
+3. `44874d7440` `BScheduler` e spec.
+4. `5422ed14e0` esempio in Shard.
+
+**0. Strumenti**: `~/.local/bin/stylua` (2.5.2) e `~/.local/bin/emmylua_check` (0.24.0), dalle release di GitHub (sha256 degli archivi: `bcb0d855…d5ab` StyLua, `f75c6981…7564` EmmyLua). `~/.local/bin` non è nel `PATH` della shell dell'agente: si chiamano col percorso intero (scritto nel protocollo).
+
+**Controlli di T9 rifatti**
+- StyLua 2.5.2 sui 14 file `.lua` toccati da T9: puliti.
+- EmmyLua 0.24.0 su tutto, contro `50218e25bf` (prima di T9) in un worktree: 20 errori in entrambi, negli stessi punti. Warning nuovi di T9: 6 in `scheduler.lua` (`record may be nil` ×5 e `never` → `integer`) e 1 in `ShardAI:ScheduledUpdate` (`Update` non definito). Corretti con una classe `ShardSchedulerTurn` e tre annotazioni locali: `scheduler.lua` ora ha 0 warning. Gli altri scostamenti per file (per esempio `global-in-non-module` in `ShardAI:Prepare`, codice non toccato) cambiano fra due esecuzioni sullo stesso albero, come già visto in T2.
+
+**Righe per file** (codice; spec a parte)
+
+| File | Cambio |
+| --- | --- |
+| `shard_runtime/unit.lua` | elezione +50 −16; `Unit:Update` +24 −7 (ora 319 righe) |
+| `STAI/ai.lua` | +3 (la riga e il commento) |
+| `shard_runtime/loader/scheduler.lua` | +12 −3 (annotazioni), +78 −36 (`BScheduler`); ora 203 righe |
+| `shard_runtime/loader/types.lua` | +6 −2 |
+| `shard_runtime/shardai.lua` | +1 −1 (annotazione), +10 −1 |
+| `ShardAILoader.lua` | +2 |
+| `Shard/ai.lua` | +4; `Shard/taskqueuebehaviour.lua` +6 −3 |
+| spec | `unit_spec.lua` nuova (373 righe), loader +269, `shard_null_spec.lua` +41; fixture `shard_ai_behaviours/boot.lua` (16), `shard_ai_scheduled/ai.lua` +2 −1 |
+
+**Elezione** (`Unit:ElectBehaviour`): scorre i behaviour in ordine, `Priority() or 0`, vince solo `score > bestScore` partendo da 0 (quindi > 0, e a parità il primo). Poi `nextBehaviour = nil`; se il vincitore è l'attivo (o nessuno vince e non c'è un attivo) finisce lì; altrimenti `nextBehaviour = vincitore` (anche `nil`), e l'attivo, se c'è, esce subito: `activeBehaviour = nil`, `PreDeactivate`, `Deactivate`. Il commento è aggiornato ed è esatto.
+- Un cambio in più, motivato: un behaviour disattivato **non resta** `activeBehaviour` fino all'`Update` successivo. Con la regola di oggi resta, e ne seguono due difetti: due elezioni prima di un `Update` lo disattivano due volte; e se rivince prima dell'`Update`, «non cambia niente» ma il `nextBehaviour` già scelto entra lo stesso (c'è un test legacy che fissa proprio questo). Con l'attivo azzerato, `activeBehaviour` e `nextBehaviour` non sono mai impostati insieme. Fuori da `unit.lua` nessuno legge `activeBehaviour`/`ActiveBehaviour()` (grep su `luarules/gadgets/ai` e `shard_help_draw.lua`).
+- **`legacyElection`**: `local function LegacyElection(self)` in `unit.lua`, con il corpo di oggi copiato identico; la sceglie `self.ai.legacyElection == true`. `STAI.legacyElection = true` in `STAI/ai.lua`, col commento chiesto. Con la regola di oggi una priorità `nil` dopo il primo behaviour è un errore (`nil > 0`): resta così, e c'è un test.
+- `Shard/behaviour.lua`: funziona con la regola nuova. Le sottoclassi hanno `priority = 0` da `init` e `Priority()` restituisce quello; un `Behaviour()` creato direttamente ha `priority` `nil`, che ora vale zero invece di un errore.
+
+**`BScheduler`**
+- `scheduler.lua`: una seconda rotazione, di record `{ target = AI, position, team, name }`, costruita come quella dei moduli (per ogni posizione di `BScheduler`, le AI di `Shard.AIs` che la dichiarano) e ricostruita con lei quando c'è `Changed()`. Il cursore riparte come per i moduli: la logica comune è passata in `ResumeAt`, e `Rebuild` ora chiama `RebuildModules` e `RebuildBehaviours`. `NextBehaviourTurn()` fa un turno per frame: scrive `behaviourTeam` e `behaviourUpdate` in `state` (la stessa tabella di `moduleTeam`/`moduleUpdate`), o `nil` se la rotazione è vuota. Non chiama niente.
+- `ShardAILoader.lua`: `NextBehaviourTurn()` **prima** di `UpdateAll()`, perché i behaviour girano dentro l'`Update` di ogni frame di `UnitHandler`. Chiamato dopo, come `RunScheduledTurn`, il turno varrebbe per il frame successivo (c'è una mutazione che lo controlla).
+- `types.lua`: `scheduler` va agli oggetti dei tipi con `MScheduler` **o** `BScheduler`. Agli ally e ai global va solo la tabella `scheduler`, non `BScheduler`.
+- `ShardAI:BuildHandlers`: se c'è `BScheduler`, `self.scheduledBehaviours = { [nome] = true }`.
+- `Unit:Update`: l'attivazione del `nextBehaviour` resta in testa, a ogni chiamata. Senza `scheduledBehaviours` o senza `scheduler` (per esempio sotto `shard_null`) c'è il ciclo di prima, identico. Altrimenti il nome di turno è `behaviourUpdate`, se `behaviourTeam == ai.id`, e `behaviour:Update()` va a chi ha quel `Name()` o non è in lista. Nessuna allocazione.
+- Una scelta diversa dai moduli: un turno di behaviour **non si salta** quando l'AI non ha unità con quel behaviour. Saperlo costerebbe una scansione delle unità; STAI fa lo stesso. È scritto in testa a `scheduler.lua`.
+
+**Shard**
+- `ShardBasic.BScheduler = { "TaskQueueBehaviour" }`: è l'unico behaviour di Shard con lavoro periodico (fa avanzare le code dei costruttori). `AttackerBehaviour` non ha `Update` (quella ereditata è vuota): elencarlo non cambierebbe niente. `BootBehaviour` conta i frame per liberare un'unità nuova e resta fuori, come `Sleep` fra i moduli.
+- `TaskQueueBehaviour:Update`: il `countdown` contava le chiamate (15 prima di `ProgressQueue`). Ora somma i frame passati dall'`Update` precedente, quindi a turni l'attesa resta di 15 frame; chiamato a ogni frame conta esattamente come prima. Il controllo viene prima dell'incremento, come prima: a turni si avanza al primo turno dopo i 15 frame. Con una sola AI Shard la rotazione ha un solo turno, quindi in partita non cambia niente.
+- **Cosa cambia per Shard con la regola nuova.** Priorità: `BootBehaviour` vale 500 mentre aspetta (solo unità mobili, dopo il frame 10), altrimenti 0. `TaskQueueBehaviour` vale sempre 50. `AttackerBehaviour` vale 100 quando attacca, altrimenti 0.
+  - Costruttori (Boot + TaskQueue) e fabbriche: nessun cambio, TaskQueue (50) comanda dopo l'attesa di Boot.
+  - Unità d'attacco (Boot + Attacker) e unità con solo Boot: dopo l'attesa, oggi restava attivo Boot (che da attivo non fa niente); ora **nessun behaviour è attivo** finché `AttackCell` non chiede l'elezione, e allora vince Attacker (100) come prima.
+  - Effetto pratico nullo, quindi le priorità di Shard non vanno corrette.
+
+**Test** (suite `2694 successes / 0 failures / 0 errors / 1 pending`, uguale con `SPEC_ORDER=reverse`; prima del compito 2666, +28)
+- `unit_spec.lua`, elezione, regola nuova (9 casi): vince la più alta > 0; `nil` vale zero (e un attivo con `nil` esce); tutte ≤ 0 → nessuno attivo; l'attivo esce subito quando non resta niente > 0; a parità il primo; vince l'attivo → nessuna chiamata; il perdente esce subito e il nuovo entra all'`Update`; un `nextBehaviour` in attesa che perde si annulla (anche quando nessuno vince); due elezioni prima di un `Update` → una sola disattivazione.
+- `legacyElection` (7 casi): più alta > 0; tutte ≤ 0 → il primo; l'attivo resta se nessuno è > 0; parità; `nil` del primo vince, `nil` dopo il primo è un errore; uscita subito e ingresso all'`Update`; l'attivo disattivato resta `ActiveBehaviour()` fino all'`Update` e il `nextBehaviour` entra anche se l'attivo rivince.
+- Sul `unit.lua` di prima: falliscono i 6 casi della regola nuova che la cambiano (`nil`, nessuno attivo, uscita senza nulla > 0, perdente e vincitore, attesa annullata, doppia disattivazione). Passano anche prima i 3 casi che la regola nuova lascia uguali (più alta, parità, vince l'attivo) e tutti i casi legacy, che sono la regola di oggi.
+- `Unit:Update` (4 casi in `unit_spec.lua`): elencati solo nel turno del loro nome per la loro AI (team diverso, nome di nessuno, turno vuoto), non elencati sempre; senza lista o senza `scheduler`, tutti sempre; l'attivazione del nuovo avviene anche fuori turno; 1000 `Update` senza allocazioni.
+- Loader (5 casi, fixture `BehavAI` con solo `BScheduler`): tre AI, giro `SpecBehaviour@t0,t1,t2, SpecBehaviourB@t0,t1,t2` un turno per frame, `SpecBehaviourFree` ogni frame per tutte e tre; due AI che alternano, accanto a una AI `SpecAI` senza lista i cui behaviour girano tutti a ogni frame (né `scheduler` né `scheduledBehaviours`); `behaviourTeam`/`behaviourUpdate` letti da un modulo durante l'`Update` del frame, già sul turno di quel frame; AI fermata → il giro continua senza salti; tipo con solo `BScheduler`, più lungo di `MScheduler`: moduli tutti a ogni frame, behaviour a turni, `scheduler` condiviso; 500 frame senza allocazioni.
+- Sul codice senza `BScheduler`: falliscono 5 casi. Passano anche prima «senza lista come oggi», l'attivazione a ogni `Update` e le due prove di allocazione (prima non c'erano turni); le mutazioni con allocazioni le fanno fallire.
+- `shard_null_spec.lua` (2 casi): `scheduledBehaviours = { TaskQueueBehaviour = true }`; `countdown` a frame: con `Update` a ogni frame avanza al frame 16 (come prima), ogni 3 frame al 21. Ciascuno fallisce senza la sua modifica.
+
+**Mutazioni** (tutte prese; fra parentesi i fallimenti)
+- Elezione: parità all'ultimo (5); ≤ 0 può vincere (4); `nil` non zero (2 errori); attesa non annullata (1); attivo non azzerato (5); vincitore attivato subito (3); l'attivo che rivince rientra (1); perdente non disattivato (4); legacy ignorata (4); legacy sempre (6); legacy senza «primo di default» (2); legacy che azzera l'attivo (1).
+- `BScheduler`: elencati sempre (4); turno senza controllo del team (4); non elencati solo nel turno (3); allocazione in `Unit:Update` (2); turno che non avanza (4); AI in ordine inverso (4); cursore a 1 dopo la ricostruzione (1); behaviour non ricostruiti (4); rotazione che legge `MScheduler` (1); `NextBehaviourTurn` dopo `UpdateAll` (4); niente `scheduler` senza `MScheduler` (1); niente `scheduledBehaviours` (4); allocazione nella rotazione (2).
+- Una mutazione sopravvissuta ha mostrato un controllo inutile: `self:Scope() == "team"` in `BuildHandlers`. Ally e global non ricevono mai `BScheduler`, quindi l'ho tolto.
+
+**Partite** (`SHARD_MEM_STATS=1`, 15 minuti; nessuna riga `[AI Loader] error`; solo gli errori di sempre: `gui_pip`, `sensor_ranges_jammer_preview`, groundFX, shader, `AdvSky`, `ceg_test_projectile`)
+
+D, Shard contro SimpleAI: la prima partita moriva al minuto 7 (T9: 10). Per capire se fosse la regola nuova ho fatto altre 3 partite con T11 e 3 con il codice di prima del compito (`c706feaca9`, solo `luarules/` rimesso com'era e poi ripristinato).
+
+| Partita | unità Shard ai minuti 1–10 | distrutto | mex | relay (messaggi / ordini / rifiutati) |
+| --- | --- | --- | --- | --- |
+| T11 #0 | 5 10 11 11 14 10 0 | min. 7 | 1 solo al min. 1 | 557 / 556 / 1 |
+| T11 #1 | 5 10 11 11 14 14 10 0 | min. 8 | idem | 700 / 702 / 0 |
+| T11 #2 | 5 10 11 11 14 14 10 8 6 0 | min. 10 | idem | 679 / 680 / 1 |
+| T11 #3 | 5 10 11 11 13 14 11 9 8 9 … 4 a fine partita | vivo | 1 (min. 1 e 8) | 1252 / 1252 / 0 |
+| prima #1 | 5 10 11 11 14 11 7 8 0 | min. 9 | 1 solo al min. 1 | 565 / 566 / 0 |
+| prima #2 | 5 10 11 11 14 9 0 | min. 7 | idem | 546 / 549 / 0 |
+| prima #3 | 5 10 11 11 13 12 10 0 | min. 8 | idem | 673 / 674 / 0 |
+| T9 | 6 10 12 15 18 19 14 13 11 0 | min. 10 | 1 | 357 / 357 / 1 |
+
+Stessa distribuzione prima e dopo il compito: nessun segno che la regola nuova peggiori Shard. Memoria nella partita #0: medie 3,4–13,5 KB per frame con Shard vivo e massimi di circa 5.950 KB (la spirale di `PlacementHandler`, come in T8 e T9), heap 9–13 MB; dopo la distruzione 0,06 KB.
+
+A, STAI contro SimpleAI:
+
+| | T11 | T9 | T10 |
+| --- | --- | --- | --- |
+| STAI a fine partita | 147 unità, 2 fabbriche, 15 mex | 188 / 2 / 37 | 182 / 2 / 32 |
+| unità ai minuti 1/5/10/13 | 6 / 32 / 75 / 125 | 6 / 35 / 107 / 164 | 6 / 40 / 86 / 142 |
+| relay | 3052 messaggi, 15253 ordini, 15 rifiutati | 4031 / 15539 / 6 | 3638 / 12169 / 10 |
+| memoria media per frame | 0,18–0,65 KB, max 63 KB, heap 13,1–15,4 MB | 0,18–0,83, max 73, heap 13,2–15 | 0,18–0,62, max 172, heap 13–14,4 |
+
+147 unità sta nella variabilità vista in T5c (146–201). Per STAI il codice è lo stesso: `legacyElection` ha il corpo di prima, la classe non dichiara `BScheduler` (quindi niente `scheduledBehaviours` né `scheduler`, e `Unit:Update` prende il ciclo di prima). Ho fatto una sola partita A.
+
+**Controlli**: StyLua 2.5.2 pulito su tutti i file toccati. EmmyLua 0.24.0: 20 errori, gli stessi di prima. Nei file toccati nessun warning nuovo: `scheduler.lua` 0, `shardai.lua` 27, `unit.lua` da 10 a 8, spec solo hint; in `taskqueuebehaviour.lua` restano i 2 `unnecessary-if` di prima, a righe spostate. `run_engine_tests.sh`: `RESULT: ok`.
+
+**Note**
+- StyLua 2.5.2 a volte stabilizza una tabella in un `assert.same(...)` solo alla seconda o terza passata: conviene ricontrollare con `--check` dopo aver formattato.
+- `lx test` riscrive ancora `.emmyrc.json`: l'ho ripristinato ogni volta, non è nei commit.
+- `types.SchedAI.class` è la classe, ma `SetSchedule` copia `MScheduler` sulle istanze già a `Initialize`: per provare un tipo con solo `BScheduler` è servita una fixture (`BehavAI`) invece di cambiare la classe nel test.
