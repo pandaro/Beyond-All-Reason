@@ -19,6 +19,7 @@ function BuildingsHST:Init()
 	self.builders = {}
 	self.roles = {}
 	self.allyMex = {}
+	self.trampledCells = {} --positions of the most trampled cells, TasksHST holds this table
 	self:DontBuildOnMetalOrGeoSpots()
 
 	-- Shared rectangle helper so we can test pure logic without spinning up AI.
@@ -734,6 +735,130 @@ function BuildingsHST:VisualDBG()
 			ch
 		)
 	end
+end
+
+function BuildingsHST:ClosestFreeMex(unittype, builder, position) --get the closest free metal spot for the request unittype
+	position = position or builder:GetPosition()
+	local layer, net = self.ai.maphst:MobilityOfUnit(builder)
+	local uname = unittype:Name()
+	local spotPosition = true
+	if not layer or not net then
+		return
+	end
+	local sortlist = self.ai.tool:sortByDistance(position, self.ai.maphst.networks[layer][net].metals)
+	local CELL
+	for index, spot in pairs(sortlist) do
+		spotPosition = true
+		if spotPosition and not self:PlansOverlap(spot, uname) then
+			self:EchoDebug(spot.x, spot.z, "dont overlap")
+		else
+			self:EchoDebug(spot.x, spot.z, "reject cause Plans Overlap")
+			spotPosition = false
+		end
+		if spotPosition and map:CanBuildHere(unittype, spot) then
+			self:EchoDebug(spot.x, spot.z, "is buildable")
+		else
+			self:EchoDebug(spot.x, spot.z, "reject cause CANTBUILDHERE")
+			spotPosition = false
+		end
+
+		CELL = self.ai.maphst:GetCell(spot, self.ai.loshst.ENEMY)
+		if spotPosition and (not CELL or CELL.ENEMY == 0) then
+			self:EchoDebug(spot.x, spot.z, "no enemy")
+		else
+			self:EchoDebug(spot.x, spot.z, "reject cause ENEMY")
+			spotPosition = false
+		end
+		if spotPosition and self.ai.targethst:IsSafeCell(spot, builder) then
+			self:EchoDebug(spot.x, spot.z, "is safe")
+		else
+			self:EchoDebug(spot.x, spot.z, "reject cause NOTSAFE")
+			spotPosition = false
+		end
+
+		if spotPosition and self.ai.maphst:UnitCanGoHere(builder, spot) then
+			self:EchoDebug(spot.x, spot.z, "is reachable")
+		else
+			self:EchoDebug(spot.x, spot.z, "reject cause CANT GO HERE")
+			spotPosition = false
+		end
+		if spotPosition == true then
+			return spot
+		end
+	end
+end
+
+function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i chose commander) walk on a CELL, the analisy is from cell to cell foreach cell, CAUTION is heavy computable
+	self:EchoDebug("UnitMexMoveTest  START")
+	local counter = 0
+	local testUnitName = testUnit.unit:Internal():Name()
+	local testUnitPos = testUnit.unit:Internal():GetPosition()
+	local ttt = { trampled = 0 }
+	local first, firstX, firstZ
+	local wpos, wposX, wposZ
+	local waypoints
+	local total = 0
+	self.TRAMPLED = {} --how many times each cell is trampled by non-flying units
+	for X = 1, self.ai.maphst.gridSideX do
+		self.TRAMPLED[X] = {}
+		for Z = 1, self.ai.maphst.gridSideZ do
+			self.TRAMPLED[X][Z] = 0
+		end
+	end
+	for index1, POS1 in pairs(self.ai.maphst.METALS) do
+		waypoints = self.ai.maphst:getPath(testUnitName, testUnitPos, POS1, true)
+		if waypoints then
+			counter = counter + 1
+			first = table.remove(waypoints)
+
+			for i, v in pairs(waypoints) do
+				firstX, firstZ = self.ai.maphst:PosToGrid(first)
+				wpos = table.remove(waypoints)
+				wposX, wposZ = self.ai.maphst:PosToGrid(wpos)
+				if firstX ~= wposX or firstZ ~= wposZ then
+					self.TRAMPLED[firstX][firstZ] = self.TRAMPLED[firstX][firstZ]
+						+ (
+								2
+								+ (
+									self.ai.tool:distance(wpos, self.ai.maphst.elmoMapCenter)
+									/ self.ai.maphst.elmoMapMaxCenterDistance
+								)
+							)
+							* (1 - (self.ai.tool:distance(testUnitPos, POS1) / self.ai.maphst.elmoMapMaxDistance))
+					total = total + 1
+
+					ttt.trampled = math.max(ttt.trampled, self.TRAMPLED[firstX][firstZ])
+					first = wpos
+				end
+			end
+		end
+
+	end
+	local sum = 0
+	local count = 0
+	local average = 0
+	for X = 1, self.ai.maphst.gridSideX do --numeric loops keep the cell order
+		for Z = 1, self.ai.maphst.gridSideZ do
+			if self.TRAMPLED[X][Z] > 0 then
+
+				sum = sum + self.TRAMPLED[X][Z]
+				count = count + 1
+			end
+		end
+	end
+	average = sum / count
+	self:EchoDebug("average trampled", average)
+	for X = 1, self.ai.maphst.gridSideX do
+		for Z = 1, self.ai.maphst.gridSideZ do
+			if self.TRAMPLED[X][Z] < average * 1.5 then
+				self.TRAMPLED[X][Z] = nil
+			else
+				table.insert(self.trampledCells, self.ai.maphst.GRID[X][Z].POS)
+			end
+
+		end
+	end
+	self:EchoDebug(counter, "mobility commander evalutated:", "most trampled", ttt.trampled, "average", average)
 end
 
 --[[

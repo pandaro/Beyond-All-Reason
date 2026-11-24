@@ -33,7 +33,6 @@ function MapHST:Init()
 	self:metalScan()
 	self:geoScan()
 	self:LayerScan()
-	self.trampledCells = {}
 	self:DrawDebug()
 	collectgarbage("collect")
 	self:EchoDebug("MapHST STOP")
@@ -168,7 +167,6 @@ function MapHST:NewCell(gx, gz)
 	cell.metalSpots = {} --hold the metalSpots of this cell
 	cell.geoSpots = {} --hold the geoSpots of this cell
 	cell.allSpots = {} --hold all the interesting spots
-	cell.trampled = 0 --how many times it is trampled by non-flying units
 	return cell
 end
 
@@ -516,117 +514,6 @@ function MapHST:gridThePath(wp, factor)
 	return wp
 end
 
-function MapHST:UnitMexMoveTest(testUnit) --check how many time a unit(i chose commander) walk on a CELL, the analisy is from cell to cell foreach cell, CAUTION is heavy computable
-	self:EchoDebug("UnitMexMoveTest  START")
-	local counter = 0
-	local testUnitName = testUnit.unit:Internal():Name()
-	local testUnitPos = testUnit.unit:Internal():GetPosition()
-	self.ttt = { trampled = 0 }
-	local first, firstX, firstZ
-	local wpos, wposX, wposZ
-	local waypoints
-	local total = 0
-	for index1, POS1 in pairs(self.METALS) do
-		waypoints = self:getPath(testUnitName, testUnitPos, POS1, true)
-		if waypoints then
-			counter = counter + 1
-			first = table.remove(waypoints)
-
-			for i, v in pairs(waypoints) do
-				firstX, firstZ = self:PosToGrid(first)
-				wpos = table.remove(waypoints)
-				wposX, wposZ = self:PosToGrid(wpos)
-				if firstX ~= wposX or firstZ ~= wposZ then
-					self.GRID[firstX][firstZ].trampled = self.GRID[firstX][firstZ].trampled
-						+ (2 + (self.ai.tool:distance(wpos, self.elmoMapCenter) / self.elmoMapMaxCenterDistance))
-							* (1 - (self.ai.tool:distance(testUnitPos, POS1) / self.elmoMapMaxDistance))
-					total = total + 1
-
-					self.ttt.trampled = math.max(self.ttt.trampled, self.GRID[firstX][firstZ].trampled)
-					first = wpos
-				end
-			end
-		end
-
-	end
-	local sum = 0
-	local count = 0
-	local average = 0
-	for X, Zetas in pairs(self.GRID) do
-		for Z, CELL in pairs(Zetas) do
-			if CELL.trampled > 0 then
-
-				sum = sum + CELL.trampled
-				count = count + 1
-			end
-		end
-	end
-	average = sum / count
-	self:EchoDebug("average trampled", average)
-	for X, Zetas in pairs(self.GRID) do
-		for Z, CELL in pairs(Zetas) do
-			if CELL.trampled < average * 1.5 then
-				CELL.trampled = nil
-			else
-				table.insert(self.trampledCells, CELL.POS)
-			end
-
-		end
-	end
-	self:EchoDebug(counter, "mobility commander evalutated:", "most trampled", self.ttt.trampled, "average", average)
-end
-
-function MapHST:ClosestFreeMex(unittype, builder, position) --get the closest free metal spot for the request unittype
-	position = position or builder:GetPosition()
-	local layer, net = self:MobilityOfUnit(builder)
-	local uname = unittype:Name()
-	local spotPosition = true
-	if not layer or not net then
-		return
-	end
-	local sortlist = self.ai.tool:sortByDistance(position, self.networks[layer][net].metals)
-	local CELL
-	for index, spot in pairs(sortlist) do
-		spotPosition = true
-		if spotPosition and not self.ai.buildingshst:PlansOverlap(spot, uname) then
-			self:EchoDebug(spot.x, spot.z, "dont overlap")
-		else
-			self:EchoDebug(spot.x, spot.z, "reject cause Plans Overlap")
-			spotPosition = false
-		end
-		if spotPosition and map:CanBuildHere(unittype, spot) then
-			self:EchoDebug(spot.x, spot.z, "is buildable")
-		else
-			self:EchoDebug(spot.x, spot.z, "reject cause CANTBUILDHERE")
-			spotPosition = false
-		end
-
-		CELL = self:GetCell(spot, self.ai.loshst.ENEMY)
-		if spotPosition and (not CELL or CELL.ENEMY == 0) then
-			self:EchoDebug(spot.x, spot.z, "no enemy")
-		else
-			self:EchoDebug(spot.x, spot.z, "reject cause ENEMY")
-			spotPosition = false
-		end
-		if spotPosition and self.ai.targethst:IsSafeCell(spot, builder) then
-			self:EchoDebug(spot.x, spot.z, "is safe")
-		else
-			self:EchoDebug(spot.x, spot.z, "reject cause NOTSAFE")
-			spotPosition = false
-		end
-
-		if spotPosition and self:UnitCanGoHere(builder, spot) then
-			self:EchoDebug(spot.x, spot.z, "is reachable")
-		else
-			self:EchoDebug(spot.x, spot.z, "reject cause CANT GO HERE")
-			spotPosition = false
-		end
-		if spotPosition == true then
-			return spot
-		end
-	end
-end
-
 function MapHST:MobilityNetworkHere(mtype, position)
 	if not mtype or not position then
 		return nil
@@ -718,9 +605,6 @@ function MapHST:DrawDebug()
 	for X, Zetas in pairs(self.GRID) do
 		for Z, CELL in pairs(Zetas) do
 			map:DrawPoint(CELL.POS, nil, X .. ":" .. Z .. " = " .. ((X - 1) * self.ai.maphst.gridSideX) + Z, 9)
-			if CELL.trampled then --and CELL.trampled > self.ttt.trampled / 2 then --CELL.trampled > 1 then --
-				map:DrawPoint(CELL.POS, { 1, 1, 1, 1 }, math.ceil(CELL.trampled), 9)
-			end
 			local pos1, pos2 = {}, {}
 			pos1.x, pos1.z = CELL.POS.x - self.gridSizeHalf, CELL.POS.z - self.gridSizeHalf
 			pos2.x, pos2.z = CELL.POS.x + self.gridSizeHalf, CELL.POS.z + self.gridSizeHalf

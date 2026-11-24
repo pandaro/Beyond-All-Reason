@@ -650,7 +650,7 @@ function TasksHST:startRolesParams()
 			end, --economicParameters
 			duplicate = false, --duplicateFilter
 			numeric = false, --numericalParameter
-			location = { list = self.ai.maphst.trampledCells, min = 50, neighbours = { "_popup2_", "_popup1_" } },
+			location = { list = self.ai.buildingshst.trampledCells, min = 50, neighbours = { "_popup2_", "_popup1_" } },
 		},
 
 		{
@@ -1091,7 +1091,7 @@ function TasksHST:startRolesParams()
 			end, --economicParameters
 			duplicate = false, --duplicateFilter
 			numeric = false, --numericalParameter
-			location = { list = self.ai.maphst.trampledCells, min = 50, neighbours = { "_popup2_", "_popup1_" } },
+			location = { list = self.ai.buildingshst.trampledCells, min = 50, neighbours = { "_popup2_", "_popup1_" } },
 		},
 
 		{
@@ -1101,7 +1101,7 @@ function TasksHST:startRolesParams()
 			end, --economicParameters
 			duplicate = false, --duplicateFilter
 			numeric = false, --numericalParameter
-			location = { list = self.ai.maphst.trampledCells, min = 50, neighbours = { "_popup2_" } },
+			location = { list = self.ai.buildingshst.trampledCells, min = 50, neighbours = { "_popup2_" } },
 		},
 
 		{

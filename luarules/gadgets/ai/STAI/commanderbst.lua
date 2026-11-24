@@ -11,7 +11,7 @@ function CommanderBST:Init()
 	self.save = false
 	self.position = self.unit:Internal():GetPosition()
 	self.ai.loshst.CENTER = self.position
-	self.ai.maphst:UnitMexMoveTest(self)
+	self.ai.buildingshst:UnitMexMoveTest(self)
 	self:EchoDebug("init")
 end
 

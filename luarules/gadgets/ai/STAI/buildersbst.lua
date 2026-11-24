@@ -292,7 +292,7 @@ function BuildersBST:findPlace(utype, value, cat, loc)
 	if cat == "_mex_" then
 		local uw
 		local reclaimEnemyMex
-		POS, uw, reclaimEnemyMex = self.ai.maphst:ClosestFreeMex(utype, builder)
+		POS, uw, reclaimEnemyMex = self.ai.buildingshst:ClosestFreeMex(utype, builder)
 		if not POS then
 			self:EchoDebug("no pos for mex found")
 		end
