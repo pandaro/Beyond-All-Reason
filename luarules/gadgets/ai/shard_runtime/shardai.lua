@@ -212,7 +212,7 @@ end
 -- scheduledModules (position in the list -> module): the loader's scheduler runs their Update in turns, and they
 -- leave the Update of every frame. BScheduler, a list of behaviours, is not read yet.
 function ShardAI:BuildHandlers()
-	local scheduled = {}
+	local scheduled = {} ---@type table<integer, table>
 	local inTurns = {}
 	local names = self.MScheduler
 	if names ~= nil then

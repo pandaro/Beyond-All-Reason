@@ -15,8 +15,14 @@
 --
 -- BScheduler, the list of behaviours, is not read: behaviours run in UnitHandler's Update, a module of the AI.
 
+---@class ShardSchedulerTurn
+---@field target table the AI, ally or global object that holds the module
+---@field position integer
+---@field team integer?
+---@field name string
+
 local state = { moduleTeam = nil, moduleUpdate = nil }
-local turns = {} ---@type table[] the rotation: { target, position, team, name } records
+local turns = {} ---@type ShardSchedulerTurn[] the rotation
 local cursor = 1 -- the turn to run next
 local changed = true
 local recordsByTarget = {} -- object -> position -> record, so that a record outlives a rebuild
@@ -104,7 +110,7 @@ local function Rebuild()
 	local nextPlace = 1
 	local count = #turns
 	for k = 0, count - 1 do
-		local place = placeOf[turns[(cursor - 1 + k) % count + 1]]
+		local place = placeOf[turns[(cursor - 1 + k) % count + 1]] ---@type integer?
 		if place ~= nil then
 			nextPlace = place
 			break
@@ -122,7 +128,7 @@ local function RunScheduledTurn()
 	end
 	local count = #turns
 	for _ = 1, count do
-		local record = turns[cursor]
+		local record = turns[cursor] --[[@as ShardSchedulerTurn]]
 		cursor = cursor % count + 1
 		local target = record.target
 		local held = target.scheduledModules
