@@ -6,10 +6,12 @@ else
 	require("shard_runtime/shard_null/boot")
 end
 
+shard_include("ai")
+
 -- create and use an AI
 if ShardSpringLua then
-	return ShardAI()
+	return ShardBasic()
 else
-	ai = ShardAI()
+	ai = ShardBasic()
 	ai:Init()
 end
