@@ -11,6 +11,8 @@ local gaiaTeamID = Spring.GetGaiaTeamID()
 
 local DEAD_UNIT_FRAMES = 900
 
+local catchUpTargets = nil -- while catching up, only these AIs have their unit tables written
+
 local deadIDs, deadUnits, deadExpiry = {}, {}, {}
 local deadCapacity, deadHead, deadCount = 0, 1, 0
 
@@ -24,11 +26,18 @@ local function NewUnitTables(thisAI)
 	thisAI.neutralUnitIds = {}
 end
 
+--- While catching up, only the AIs in targets: the others already know the units
+local function SetUnitTableTargets(targets)
+	catchUpTargets = targets
+end
+
 local function AddToUnitTables(unitID, teamID)
 	local AIs = Shard.AIs
 	for i = 1, #AIs do
 		local thisAI = AIs[i]
-		if teamID == thisAI.id then
+		if catchUpTargets ~= nil and catchUpTargets[thisAI] == nil then
+			-- an AI that already knows the units of a catch-up
+		elseif teamID == thisAI.id then
 			thisAI.ownUnitIds[unitID] = true
 			thisAI.friendlyUnitIds[unitID] = true
 		elseif thisAI.alliedTeamIds[teamID] then
@@ -93,6 +102,7 @@ end
 
 return {
 	NewUnitTables = NewUnitTables,
+	SetUnitTableTargets = SetUnitTableTargets,
 	AddToUnitTables = AddToUnitTables,
 	RemoveFromUnitTables = RemoveFromUnitTables,
 	UnitDied = UnitDied,

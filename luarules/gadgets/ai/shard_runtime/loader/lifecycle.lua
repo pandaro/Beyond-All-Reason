@@ -27,13 +27,14 @@ local aiTeams ---@type table<integer, string> teamID -> AI name, for the teams w
 local teamList ---@type integer[]
 local Call ---@type fun(target: table, name: string, ...): boolean
 local SetCatchUpTargets ---@type fun(targets: table?)
+local SetUnitTableTargets ---@type fun(targets: table?)
 local LoadAI ---@type fun(id: integer): table?
 local MarkTypeFailed ---@type fun(aiName: string, reason: string)
 local RemoveValue ---@type fun(list: table, value: any)
 local RemoveAlly ---@type fun(ally: table)
 local Types ---@type table
 
---- context = { gadget, aiTeams, teamList, Types, Delivery }
+--- context = { gadget, aiTeams, teamList, Types, Delivery, UnitRegistry }
 local function Setup(context)
 	gadget = context.gadget
 	aiTeams = context.aiTeams
@@ -45,6 +46,7 @@ local function Setup(context)
 	RemoveAlly = Types.RemoveAlly
 	Call = context.Delivery.Call
 	SetCatchUpTargets = context.Delivery.SetCatchUpTargets
+	SetUnitTableTargets = context.UnitRegistry.SetUnitTableTargets
 end
 
 --- Loads the AI of team id and hosts it here; nil when it failed to load
@@ -156,6 +158,7 @@ end
 -- only the objects in targets hear them
 local function CatchUp(targets)
 	SetCatchUpTargets(targets)
+	SetUnitTableTargets(targets)
 	local units = spGetAllUnits()
 	for i = 1, #units do
 		local unitID = units[i]
@@ -183,6 +186,7 @@ local function CatchUp(targets)
 		end
 	end
 	SetCatchUpTargets(nil)
+	SetUnitTableTargets(nil)
 end
 
 -- the synced side moved an AI team to another host, because its host left the game

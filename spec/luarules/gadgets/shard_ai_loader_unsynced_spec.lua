@@ -610,6 +610,38 @@ describe("ShardAILoader unsynced side", function()
 		assert.equal(o.global.specglobal, o.team2.specglobal)
 	end)
 
+	it(
+		"writes the unit tables of the AI taken over during the catch-up, not those of the AIs already running",
+		function()
+			local world = defaultWorld()
+			world.hosts[2] = 1
+			local loader = started(world)
+			addUnit(loader, 100, 0)
+			addUnit(loader, 300, 3)
+			local team0 = loader.env.Shard.AIsByTeamID[0]
+			local writes = 0
+			local function counting()
+				return setmetatable({}, {
+					__newindex = function(t, key, value)
+						writes = writes + 1
+						rawset(t, key, value)
+					end,
+				})
+			end
+			for _, name in ipairs({ "ownUnitIds", "friendlyUnitIds", "alliedUnitIds", "enemyUnitIds", "neutralUnitIds" }) do
+				team0[name] = counting()
+			end
+			loader.world.frame = 100
+
+			loader.syncActions.shard_host("shard_host", 2, 0)
+
+			local team2 = loader.env.Shard.AIsByTeamID[2]
+			assert.equal(0, writes)
+			assert.same({ [100] = true }, team2.enemyUnitIds)
+			assert.same({ [300] = true }, team2.alliedUnitIds)
+		end
+	)
+
 	it("stops a team whose host moved away and drops its queued orders", function()
 		local loader = started()
 		local o = objects(loader)
