@@ -1161,3 +1161,83 @@ A, STAI contro SimpleAI (controllo per `types.lua`): unità ai minuti 1/5/10/13:
 **Commit**
 
 1. `9cc285d311` Shard null: Start builds a ShardGlobal and a ShardAlly and prepares global, ally, team as the loader does
+
+### T14 (agente locale, 24 novembre 2026)
+
+**Dove stava la `collect` e dove sta ora**
+
+Il vecchio `luarules/gadgets/AILoader.lua` (`git show 3ad8f3fb^:luarules/gadgets/AILoader.lua`) ne ha **due**:
+
+- r. 276, in `gadget:Initialize`, dopo il catch-up delle unità: `collectgarbage('collect')` senza condizione. **Non l'ho rimessa**: non ha soglia né valori, gira una volta al caricamento e non è la rete di sicurezza descritta nel compito. Se va rimessa anche questa, il punto corrispondente è la fine di `Lifecycle.CatchUpAfterReload`. Da decidere.
+- r. 357–369, la rete di sicurezza, in `gadget:GameFrame`, dentro il ciclo sulle AI, dopo `thisAI:Update()` della **prima** AI (`if i == 1 and n % 121 == 0`): `ramuse = gcinfo()`, se `ramuse > garbagelimit` → `collectgarbage("collect")`, poi `newgarbagelimit = math_min(1000000, gcinfo() + basememlimit + pershardmemlimit * numShards)` e una riga di log. I valori (r. 324–328): `basememlimit = 200000`, `pershardmemlimit = 50000`, `garbagelimit` parte da `basememlimit`. A ogni AI caricata (r. 340–342, in `SetupAI`): `garbagelimit = math_min(1000000, garbagelimit + pershardmemlimit)`, riga di log, `numShards + 1`.
+
+Ora:
+
+| Vecchio | Nuovo |
+| --- | --- |
+| r. 324–328, locali del gadget | `loader/memstats.lua` r. 26–32, stessi nomi e valori |
+| r. 340–342, in `SetupAI` dopo `Prepare` | `memstats.lua` `AIAdded` (r. 76), chiamata da `lifecycle.lua` `AddAI` (r. 65) quando l'AI è caricata; stessa riga di log |
+| r. 357–369, `GameFrame`, dopo l'`Update` della prima AI | `memstats.lua` `SafetyNet` (r. 91, la `collect` a r. 96), chiamata in `ShardAILoader.lua` `GameFrame` r. 164, dopo `UpdateAll()` e `RunScheduledTurn()`, prima di `FlushOrders`; stessa condizione (`n % 121 == 0`, `ramuse > garbagelimit`), stesso calcolo, stessa riga di log |
+
+Differenze inevitabili: oggi l'`Update` di tutte le AI è in `UpdateAll` (più i turni dello scheduler), quindi la rete scatta dopo l'`Update` di **tutte** le AI del frame, non fra la prima e le altre; `if i == 1` diventa «una volta per frame, se il client ospita AI» (`GameFrame` esce prima se non ne ospita). La riga di log dice ancora «STAIs», identica alla vecchia. `memoryRecord` non l'ho rimesso: c'è già il picco di `MemStats` («Shard memory record»). `AddAI` è chiamata anche al cambio di host, come la vecchia `SetupAI`; `StopAI` non abbassa il limite, come prima.
+
+**`maxInstances`**: `MAX_INSTANCES_PER_AI_TYPE = 2` in testa a `loader/types.lua` (r. 17). `AtInstanceLimit` (r. 192) conta le AI di quel tipo in `Shard.AIs`, cioè quelle che **questo client** fa girare; `SetupAI` la chiama subito dopo la riga «AI Player … is a …» (r. 217) e, al limite, restituisce `nil` prima di caricare il tipo o creare oggetti ally: nessun errore, le altre AI vanno avanti. Riga: `[AI Loader] AI team 2 not started: 2 SpecAI AIs already run on this client, the most one AI type may have`. Una AI fermata (`StopAI`) libera il posto.
+
+- **Da notare**: il limite è per client host, non per partita; con due host (un ally team ciascuno) le AI di un tipo possono essere 2 per host. Se lo volete per partita va contato nel synced. Da decidere.
+- **Per la spec**: `Types.Setup` accetta un campo facoltativo `maxInstancesPerAIType` che sostituisce la costante. Il loader non lo passa mai; la spec lo mette a 3 per i test di sempre (il mondo di prova ha tre team SpecAI, 42 righe dipendono dal team 2) e a `nil` (la costante vera) per i test del limite.
+
+**Righe per file**
+
+| File | Commit GC | Commit limite |
+| --- | --- | --- |
+| `luarules/gadgets/ShardAILoader.lua` | +3 | |
+| `loader/lifecycle.lua` | +4 −1 | |
+| `loader/memstats.lua` | +49 | |
+| `loader/types.lua` | | +33 −1 |
+| `spec/.../shard_ai_loader_unsynced_spec.lua` | +87 −1 | +46 −1 |
+
+**Test busted** (2716 successi, 0 fallimenti, 1 pending di sempre; ognuno dei due commit passa da solo: il primo dà 2714). Il finto engine: `gcinfo()` e `collectgarbage("count")` leggono `world.heap`; `collectgarbage("collect")` va in `SpecLog` e mette `world.heap = world.heapAfterCollect`.
+
+- Limite (2): tre team SpecAI → partono 0 e 1, il 2 no, niente ally per l'ally team 1, una riga di log per il team 2 e nessuna per 0 e 1; due SpecAI e un PercAI → partono tutti e tre.
+- GC (4): righe «AI 0/1/2 (SpecAI) using 200 MB RAM, adjusting limit to 250/300/350 MB»; nessuna `collect` con heap uguale al limite o su frame non multipli di 121, una con heap sopra a frame 242; la `collect` viene dopo l'ultimo `Update` del frame in `SpecLog`, riga «3 STAIs using 350 MB RAM > 350 MB limit, … adjusting limit to 450 MB», poi 450000 non raccoglie e 450001 sì; tetto a 1000 MB.
+
+**Mutazioni** (16, tutte prese; falliti + errori nella spec del loader, 67 test)
+
+| Mutazione | falliti |
+| --- | --- |
+| nessun limite | 1 |
+| limite uno in meno | 18 + 26 errori |
+| conta tutti i tipi | 1 |
+| costante 3 | 1 |
+| senza riga di log | 1 |
+| `SafetyNet` non chiamata | 2 + 1 errore |
+| `SafetyNet` prima di `UpdateAll` | 1 |
+| ogni 120 frame | 2 + 1 errore |
+| `>=` al posto di `>` | 2 |
+| limite non aggiornato dopo la `collect` | 1 |
+| base 250 MB / per AI 60 MB | 2 + 1 errore / 2 + 1 errore |
+| senza tetto di 1 GB | 1 |
+| `AIAdded` non chiamata | 3 |
+| `numShards` non contato | 1 |
+| nessuna `collect` | 1 + 1 errore |
+
+**Controlli**: StyLua 2.5.2 pulito sui 5 file. EmmyLua 0.24.0: 20 errori, gli stessi; nei file toccati le stesse diagnostiche di prima (solo hint). `run_engine_tests.sh`: `RESULT: ok`. `.emmyrc.json` riscritto da `lx`, ripristinato.
+
+**Partita A** (STAI contro SimpleAI, `SHARD_MEM_STATS=1`, 15 minuti; nessuna riga `[AI Loader] error`, solo gli errori di sempre: `gui_pip`, `sensor_ranges_jammer_preview`, groundFX, shader, `AdvSky`, `ceg_test_projectile`)
+
+| | T14 | T12 |
+| --- | --- | --- |
+| unità STAI min. 1/5/10/13 | 6 / 31 / 90 / 134 | 5 / 36 / 100 / 161 |
+| a fine partita | 185 unità, 2 fabbriche, 28 mex | 194, 2, 36 |
+| relay (messaggi / ordini / rifiutati) | 2658 / 15057 / 13 | 2309 / 14421 / 8 |
+| memoria per frame, medie | 0,18–0,70 KB | 0,17–0,72 KB |
+| memoria per frame, massimo | 159 KB (min. 11) | 81 KB |
+| heap | 13,2–14,8 MB | 13,1–15,1 MB |
+| picco («Shard memory record») | 15.582 KB | — |
+
+La rete di sicurezza ha scritto una sola riga, «AI 0 (STAI) using 200 MB RAM, adjusting limit to 250 MB»: con l'heap sotto i 16 MB non scatta mai, come atteso; nessuna `collect` nella partita. Le differenze nei numeri di STAI sono nella variabilità fra partite già vista in T11/T12; il massimo di 159 KB in un frame è un picco isolato (gli altri minuti 15–62 KB).
+
+**Commit**
+
+1. `ba961659f0` Shard loader: the old loader's garbage collection safety net, with the same limits, every 121 frames after the AIs' Update
+2. `7d7a0b0d5f` Shard loader: at most 2 AIs of one type per client; the teams beyond stay without AI and the log says why
