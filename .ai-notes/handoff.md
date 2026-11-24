@@ -736,3 +736,41 @@ Gadget: `Types.Setup(...)` e `Lifecycle.Setup(...)` al posto di `Loader.Setup`; 
 **Controlli**: StyLua pulito; EmmyLua 0 warning nei file del loader e nel gadget, 22 errori nel repository come prima; `lx --lua-version 5.1 test`: `2638 successes / 0 failures / 0 errors / 1 pending` (T7: 2636 + 2 casi nuovi); `run_engine_tests.sh`: `RESULT: ok`; partita A di 5 minuti: nessuna riga `[AI Loader] error`, relay `362 messages, 757 orders given, 0 orders rejected`, STAI 37 unità, 1 fabbrica, 6 mex.
 
 **Nota di metodo**: ho scritto i quattro punti insieme e poi li ho separati nei commit, ricostruendo lo stato del solo punto 1 prima del primo commit; ogni commit è stato provato con la suite completa.
+
+### T8 (agente locale, 24 novembre 2026)
+
+**Nome della classe: `ShardBasic`** (proposta del coordinatore, da confermare con l'utente). Nessun file di `Shard/` usa il globale `Shard` del runtime, quindi il nome non rompe nulla.
+
+**Commit**
+
+1. `76a55e269c` struttura: `Shard/ai.lua` (nuovo, 11 righe: `ShardBasic = class(ShardAI)`, `Name()` "Shard", `internalName()` "shard"); `Shard/boot.lua` +3 −2 (`shard_include("ai")`, restituisce `ShardBasic()`; ramo `shard_null` invariato).
+2. `b69a510a6d` `Shard/behaviours.lua` +4 −1: definisce `behaviours = {}` e lo restituisce. `BehaviourFactory:AddBehaviours` legge il globale `behaviours[nome dell'unità]`, che **nessun file ha mai definito** (nemmeno a `3ad8f3fb^`): con l'ambiente separato per tipo, alla prima unità `attempt to index global 'behaviours'` e Shard non dava ordini. Vuota: ogni unità riceve `defaultBehaviours`. Spec `spec/luarules/gadgets/ai/Shard/behaviours_spec.lua` (fallisce prima).
+3. `a8685480d5` `Shard/behaviour.lua` +2: `Behaviour:OwnerCreated`, che `shard_runtime/unit.lua:105` chiama e che il `Behaviour` di Shard (che per Shard prende il posto di quello del runtime) non aveva. Spec `behaviour_spec.lua`: tutti i callback `Owner*` che `Unit` chiama esistono (fallisce prima).
+4. `bc25bb59c7` `Shard/placementhandler.lua` +1 −1: `NewJob` passava a `snap_to_grid` un `start_position` inesistente invece di `details.start_position` (`placementhandler.lua:20: attempt to index local 'pos'`); nessuna costruzione partiva. Spec `placementhandler_spec.lua` (stesso errore prima).
+5. `fc35147be7` `Shard/placementhandler.lua`: le 19 chiamate `SendToUnsynced("shard_debug_position", …)` (solo nel codice synced: le AI girano nell'unsynced; in partita 27.020 errori in 15 minuti) passano da una `DebugPosition` locale che chiama `Script.LuaUI.shard_debug_position` se il widget c'è, come faceva il vecchio loader. Spec: `CanBuildAt` in un ambiente senza `SendToUnsynced` (fallisce prima).
+6. `eee670beae` `Shard/taskqueuebehaviour.lua` +4 −1: stesso difetto in `TaskQueueBehaviour:DebugPoint` (10.253 errori in 15 minuti). Spec `taskqueuebehaviour_spec.lua` (fallisce prima).
+7. `c469ee72b0` startscript `d_shard_vs_simpleai.txt` e `e_shard_vs_stai.txt`.
+
+Tutti i difetti 2–6 c'erano già nel vecchio Shard; li ha resi visibili l'ambiente separato per tipo (2), il `Behaviour` del runtime (3) e il fatto che l'AI gira nell'unsynced (5, 6).
+
+**Partita D, Shard contro SimpleAI, 15 minuti, `SHARD_MEM_STATS=1`, dopo tutte le correzioni**: nessuna riga `[AI Loader] error`, nessun riepilogo; relay `879 messages, 881 orders given, 0 orders rejected`.
+
+| Minuto | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Shard unità | 6 | 10 | 11 | 11 | 12 | 12 | 14 | 15 | 3 | 0 |
+| fabbriche / mex | 1 / 0 | 1 / 0 | 1 / 0 | 1 / 0 | 1 / 0 | 1 / 0 | 3 / 0 | 3 / 0 | 0 / 0 | 0 / 0 |
+
+Distrutta da SimpleAI al minuto 10 (SimpleAI a fine partita: 32 unità). Memoria: medie da 0,06 a 20 KB per frame, **massimi di circa 5.950 KB in un frame** quasi ogni minuto in cui Shard costruisce, heap da 9,5 a 23,4 MB; dopo la distruzione 0,06 KB.
+
+Prima dell'ultima correzione (con `DebugPoint` ancora in errore) Shard aveva costruito fino a 5 mex e 2 fabbriche, 19 unità, 53 ordini: con `DebugPoint` corretto ne costruisce 0. Non ho indagato (vedi sotto).
+
+**Partita E, Shard contro STAI, 5 minuti**: i due tipi girano insieme, semi 61969 e 61970, nessun errore, relay `724 messages, 898 orders given, 0 orders rejected`. A 5 minuti Shard 14 unità, 1 fabbrica, 0 mex; STAI 39 unità, 1 fabbrica, 7 mex.
+
+**Controlli**: StyLua pulito sui file toccati; EmmyLua: nessun errore o warning nuovo nei file di `Shard/` (confrontato con il codice prima del compito: `taskqueuebehaviour.lua` aveva già 1 errore, `value` non definito, e 44 warning, ora 42; `boot.lua` e `behaviours.lua` invariati); `lx --lua-version 5.1 test`: `2643 successes / 0 failures / 0 errors / 1 pending` (T7b: 2638 + 5 spec di Shard); `run_engine_tests.sh`: `RESULT: ok`.
+
+**Non corretto, da elencare**
+
+- Shard non costruisce mex (0 in due partite dopo le correzioni) e resta senza metallo dal minuto 2: da capire in `TaskQueueBehaviour:BuildExtractor` / `MetalSpotHandler:ClosestFreeSpot` (i metal spot ora vengono dai game rules param). Che con `DebugPoint` in errore ne costruisse è un indizio: l'errore interrompeva `Update` in un punto che forse cambia il flusso della coda.
+- Allocazioni di circa 6 MB in un frame: con buona probabilità `PlacementHandler:GenerateSpiral` (raggio 1500, passo 16: una spirale di circa 190 × 190 posizioni a ogni nuovo lavoro di piazzamento).
+- `shard_runtime/unit.lua:155` (`Unit:UnitDamaged`, `unit` nil), visto una volta in una partita: da T6b `shardify_unit` restituisce `nil` per un ID non valido e non in cache, e il loader consegna l'evento lo stesso. È del runtime/loader, non di Shard: proposta di non consegnare `UnitDamaged` quando l'unità è `nil`, da decidere.
+- `taskqueuebehaviour.lua`: `value` non definito (errore EmmyLua già presente).
