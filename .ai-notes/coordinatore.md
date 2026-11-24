@@ -122,7 +122,7 @@ Claude-Session: <link della sessione>
 - T15 scritto: `collect` d'avvio rimessa, ordini per messaggio a 10 (costante unica), `shard_runtime/tablepool.lua`.
 - T15 verificato. T16 scritto: `maxInstances` per partita, deterministico (primi N team AI per ID), con il relay che rifiuta i team esclusi.
 - Aperto da T15: un gruppo di ordini con più di 10 ordini (un `GiveOrder` a 11+ unità, o 11+ comandi in coda) va da solo e il relay lo **rifiuta intero**. Decisione dell'utente: niente spezzatura, limite alzato a 20 (extra di T16). **Nota**: gli ordini troppo grandi (gruppi oltre 20) possono essere persi; in teoria per quei casi si può usare `GiveOrderArrayToUnitArray` (un solo comando per molte unità).
-- Dopo il via dell'utente: documento «Nuovo STAI» per il porting.
+- Porting di STAI preparato in `.ai-notes/stai/` (`nuovo-stai.md`, `coordinatore.md`, `handoff.md`). Branch `stai/porting` da creare da `shard/fase1` dopo la verifica di T16; il porting lo segue un'altra chat con lo stesso metodo (compiti S1, S2, …).
 
 **In sospeso per scelta dell'utente**
 
