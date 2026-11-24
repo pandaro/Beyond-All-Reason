@@ -11,6 +11,10 @@ local FIXTURE_PATHS = {
 	["luarules/gadgets/ai/SchedAI/"] = "spec/fixtures/shard_ai_scheduled/",
 	["luarules/gadgets/ai/SchedAI/specmodules.lua"] = "spec/fixtures/shard_ai/specmodules.lua",
 	["luarules/gadgets/ai/SchedAI/behaviourfactory.lua"] = "spec/fixtures/shard_ai/behaviourfactory.lua",
+	["luarules/gadgets/ai/BehavAI/"] = "spec/fixtures/shard_ai_behaviours/",
+	["luarules/gadgets/ai/BehavAI/modules.lua"] = "spec/fixtures/shard_ai_scheduled/modules.lua",
+	["luarules/gadgets/ai/BehavAI/specmodules.lua"] = "spec/fixtures/shard_ai/specmodules.lua",
+	["luarules/gadgets/ai/BehavAI/behaviourfactory.lua"] = "spec/fixtures/shard_ai/behaviourfactory.lua",
 }
 
 local CMD = { STOP = 0, MOVE = 10, OPT_META = 4, OPT_RIGHT = 16, OPT_SHIFT = 32, OPT_CTRL = 64, OPT_ALT = 128 }
@@ -1105,6 +1109,271 @@ describe("ShardAILoader unsynced side", function()
 
 		it("allocates nothing to run the turns", function()
 			local loader = started(scheduledWorld())
+			loader.env.SpecQuiet = true
+			for n = 1, 20 do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+
+			collectgarbage("collect")
+			collectgarbage("stop")
+			local before = collectgarbage("count")
+			for n = 21, 520 do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+			local after = collectgarbage("count")
+			collectgarbage("restart")
+
+			assert.equal(before, after)
+		end)
+	end)
+
+	describe("with the turns of the behaviours", function()
+		-- teams 0, 1 and 2 are SchedAI, whose class lists the behaviours SpecBehaviour and SpecBehaviourB
+		local function scheduledWorld()
+			local world = defaultWorld()
+			for teamID = 0, 2 do
+				world.teams[teamID].luaAI = "SchedAI"
+			end
+			return world
+		end
+
+		-- Every AI of the list gets a unit with SpecBehaviour, SpecBehaviourB and SpecBehaviourFree, and a team
+		-- module, not in turns, that gives the unit Update every frame, as UnitHandler does. A behaviour's Update
+		-- goes to updates as "<name>@t<team>", unless quiet.
+		local function addUnits(loader, AIs)
+			local env = loader.env
+			local run = { updates = {}, quiet = false } ---@type { updates: string[], quiet: boolean }
+			for _, thisAI in ipairs(AIs) do
+				local unit = env.Shard.types[loader.world.teams[thisAI.id].luaAI].env.Unit()
+				unit:SetAI(thisAI)
+				unit:SetEngineRepresentation({
+					ID = function()
+						return 100 + thisAI.id
+					end,
+				})
+				unit:Init()
+				for _, name in ipairs({ "SpecBehaviour", "SpecBehaviourB", "SpecBehaviourFree" }) do
+					local label = name .. "@t" .. thisAI.id
+					local class = env.class(env.Behaviour)
+					function class:Name()
+						return name
+					end
+					function class:Update()
+						if not run.quiet then
+							run.updates[#run.updates + 1] = label
+						end
+					end
+					unit:AddBehaviour(class())
+				end
+				local Runner = env.class(env.Module)
+				function Runner:Name()
+					return "SpecUnitRunner"
+				end
+				function Runner:internalName()
+					return "specunitrunner"
+				end
+				function Runner:Scope()
+					return "team"
+				end
+				function Runner:Update()
+					unit:Update()
+				end
+				thisAI:AddModule(Runner())
+			end
+			return run
+		end
+
+		-- runs the frames; the behaviour Updates of each frame, those of SpecBehaviourFree apart
+		local function behaviourFrames(loader, run, from, to)
+			local listed, free = {}, {}
+			for n = from, to do
+				run.updates = {}
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+				local frameFree = {}
+				for _, label in ipairs(run.updates) do
+					if string.find(label, "Free", 1, true) then
+						frameFree[#frameFree + 1] = label
+					else
+						listed[#listed + 1] = label
+					end
+				end
+				table.sort(frameFree)
+				free[#free + 1] = frameFree
+			end
+			return listed, free
+		end
+
+		local ROUND = {
+			"SpecBehaviour@t0",
+			"SpecBehaviour@t1",
+			"SpecBehaviour@t2",
+			"SpecBehaviourB@t0",
+			"SpecBehaviourB@t1",
+			"SpecBehaviourB@t2",
+		}
+
+		it(
+			"gives a listed behaviour Update only in its turn, one turn a frame, and an unlisted one every frame",
+			function()
+				local loader = started(scheduledWorld())
+				local o = objects(loader)
+				local run = addUnits(loader, { o.team0, o.team1, o.team2 })
+
+				local listed, free = behaviourFrames(loader, run, 1, 12)
+
+				local expected = {}
+				for i = 1, 12 do
+					expected[i] = ROUND[(i - 1) % #ROUND + 1]
+				end
+				assert.same(expected, listed)
+				for _, frameFree in ipairs(free) do
+					assert.same({ "SpecBehaviourFree@t0", "SpecBehaviourFree@t1", "SpecBehaviourFree@t2" }, frameFree)
+				end
+			end
+		)
+
+		it("alternates two AIs, and leaves the behaviours of a type that lists none as they were", function()
+			local world = defaultWorld()
+			world.teams[0].luaAI = "SchedAI"
+			world.teams[1].luaAI = "SchedAI"
+			local loader = started(world)
+			local o = objects(loader)
+			local run = addUnits(loader, { o.team0, o.team1, o.team2 })
+
+			local listed, free = behaviourFrames(loader, run, 1, 8)
+
+			local scheduled, plain = {}, {}
+			for _, label in ipairs(listed) do
+				if string.find(label, "@t2", 1, true) then
+					plain[#plain + 1] = label
+				else
+					scheduled[#scheduled + 1] = label
+				end
+			end
+			assert.same({
+				"SpecBehaviour@t0",
+				"SpecBehaviour@t1",
+				"SpecBehaviourB@t0",
+				"SpecBehaviourB@t1",
+				"SpecBehaviour@t0",
+				"SpecBehaviour@t1",
+				"SpecBehaviourB@t0",
+				"SpecBehaviourB@t1",
+			}, scheduled)
+			assert.equal(16, #plain)
+			assert.is_nil(o.team2.scheduler)
+			assert.is_nil(o.team2.scheduledBehaviours)
+			for _, frameFree in ipairs(free) do
+				assert.same({ "SpecBehaviourFree@t0", "SpecBehaviourFree@t1", "SpecBehaviourFree@t2" }, frameFree)
+			end
+		end)
+
+		it("says whose turn it is in behaviourTeam and behaviourUpdate, before the Update of the frame", function()
+			local loader = started(scheduledWorld())
+			local o = objects(loader)
+			local seen = {}
+			loader.hooks.Update = function(module)
+				if module:Name() == "SpecTeamModuleC" and module.ai == o.team0 then
+					local scheduler = module.ai.scheduler
+					seen[#seen + 1] = { scheduler.behaviourUpdate, scheduler.behaviourTeam }
+				end
+			end
+
+			for n = 1, 7 do
+				loader.world.frame = n
+				loader.gadget:GameFrame(n)
+			end
+
+			assert.same({
+				{ "SpecBehaviour", 0 },
+				{ "SpecBehaviour", 1 },
+				{ "SpecBehaviour", 2 },
+				{ "SpecBehaviourB", 0 },
+				{ "SpecBehaviourB", 1 },
+				{ "SpecBehaviourB", 2 },
+				{ "SpecBehaviour", 0 },
+			}, seen)
+			assert.same({ SpecBehaviour = true, SpecBehaviourB = true }, o.team0.scheduledBehaviours)
+			assert.is_nil(o.ally0.scheduledBehaviours)
+		end)
+
+		it(
+			"takes a stopped AI out of the rotation of the behaviours without skipping the turns of the others",
+			function()
+				local loader = started(scheduledWorld())
+				local o = objects(loader)
+				local run = addUnits(loader, { o.team0, o.team1, o.team2 })
+				local before = behaviourFrames(loader, run, 1, 1)
+
+				loader.syncActions.shard_host("shard_host", 1, 1)
+				local after = behaviourFrames(loader, run, 2, 6)
+
+				assert.same({ "SpecBehaviour@t0" }, before)
+				assert.same({
+					"SpecBehaviour@t2",
+					"SpecBehaviourB@t0",
+					"SpecBehaviourB@t2",
+					"SpecBehaviour@t0",
+					"SpecBehaviour@t2",
+				}, after)
+			end
+		)
+
+		it(
+			"runs the behaviours in turns for a class that lists only behaviours, longer than the list of modules",
+			function()
+				local world = defaultWorld()
+				for teamID = 0, 2 do
+					world.teams[teamID].luaAI = "BehavAI"
+				end
+				local loader = started(world)
+				local o = objects(loader)
+				local run = addUnits(loader, { o.team0, o.team1 })
+
+				for n = 1, 2 do
+					local mark = #loader.log
+					loader.world.frame = n
+					loader.gadget:GameFrame(n)
+					local updates = 0
+					for i = mark + 1, #loader.log do
+						if loader.log[i][1] == "Update" then
+							updates = updates + 1
+						end
+					end
+					-- the global, two allies, three modules for each of three teams
+					assert.equal(12, updates)
+				end
+				local turns = {}
+				run.updates = {}
+				for n = 3, 10 do
+					loader.world.frame = n
+					loader.gadget:GameFrame(n)
+				end
+				for _, label in ipairs(run.updates) do
+					turns[#turns + 1] = label
+				end
+
+				-- frames 3 to 10 are the turns 3 to 10 of nine; those of team 2, which has no unit, update nothing
+				assert.same({
+					"SpecBehaviourFree@t0",
+					"SpecBehaviourFree@t1",
+					"SpecBehaviourB@t0",
+					"SpecBehaviourB@t1",
+					"SpecBehaviour@t0",
+				}, turns)
+				assert.equal(o.team0.scheduler, o.team1.scheduler)
+				assert.equal(o.team0.scheduler, o.ally0.scheduler)
+			end
+		)
+
+		it("allocates nothing to run the turns of the behaviours", function()
+			local loader = started(scheduledWorld())
+			local o = objects(loader)
+			local run = addUnits(loader, { o.team0, o.team1, o.team2 })
+			run.quiet = true
 			loader.env.SpecQuiet = true
 			for n = 1, 20 do
 				loader.world.frame = n

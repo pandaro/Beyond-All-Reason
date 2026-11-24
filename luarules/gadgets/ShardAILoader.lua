@@ -120,6 +120,7 @@ else
 	local FlushOrders = Lifecycle.FlushOrders
 	local UpdateAll = Delivery.UpdateAll
 	local RunScheduledTurn = Scheduler.RunScheduledTurn
+	local NextBehaviourTurn = Scheduler.NextBehaviourTurn
 	local DeliverToShared = Delivery.DeliverToShared
 	local DeliverToOwner = Delivery.DeliverToOwner
 	local DeliverToAll = Delivery.DeliverToAll
@@ -155,6 +156,7 @@ else
 		end
 		StartAIsOnce()
 		BeginMemoryFrame()
+		NextBehaviourTurn()
 		UpdateAll()
 		RunScheduledTurn()
 		FlushOrders(n)

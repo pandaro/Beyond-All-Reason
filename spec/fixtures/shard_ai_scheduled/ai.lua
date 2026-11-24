@@ -10,4 +10,5 @@ end
 
 -- SpecTeamModuleC is not listed: it gets Update every frame
 SchedAI.MScheduler = { "SpecTeamModule", "SpecAllyModule", "SpecGlobalModule", "SpecTeamModuleB" }
-SchedAI.BScheduler = { "SpecBehaviour" }
+-- SpecBehaviourFree is not listed: it gets Update at every Unit:Update
+SchedAI.BScheduler = { "SpecBehaviour", "SpecBehaviourB" }

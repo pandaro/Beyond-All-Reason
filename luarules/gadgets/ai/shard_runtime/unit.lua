@@ -103,13 +103,30 @@ function Unit:Update()
 		self.activeBehaviour:Activate()
 	end
 
-	-- Pass the update event to the behaviours
-	for k, behaviour in pairs(self.behaviours) do
-		--self.game:StartTimer(behaviour:Name() .. ' Unit')
-		--tracyZoneBeginMem('STAI:'..behaviour:Name())
-		behaviour:Update()
-		--tracyZoneEndMem('STAI:'..behaviour:Name())
-		--self.game:StopTimer(behaviour:Name() .. ' Unit')
+	-- Pass the update event to the behaviours: those whose Name() the AI class lists in BScheduler only in the
+	-- turn of that name for this AI, the others every time
+	local ai = self.ai ---@type table?
+	local inTurns = ai and ai.scheduledBehaviours
+	local scheduler = ai and ai.scheduler
+	if inTurns == nil or scheduler == nil then
+		for k, behaviour in pairs(self.behaviours) do
+			--self.game:StartTimer(behaviour:Name() .. ' Unit')
+			--tracyZoneBeginMem('STAI:'..behaviour:Name())
+			behaviour:Update()
+			--tracyZoneEndMem('STAI:'..behaviour:Name())
+			--self.game:StopTimer(behaviour:Name() .. ' Unit')
+		end
+		return
+	end
+	local turn = nil
+	if scheduler.behaviourTeam == ai.id then
+		turn = scheduler.behaviourUpdate
+	end
+	for _, behaviour in pairs(self.behaviours) do
+		local name = behaviour:Name()
+		if name == turn or inTurns[name] == nil then
+			behaviour:Update()
+		end
 	end
 	--  		RAM = gcinfo() - RAM
 	--  		if RAM > 0 then
@@ -271,7 +288,7 @@ function Unit:ElectBehaviour()
 	if self:HasBehaviours() == false then
 		return -- exit early
 	end
-	local ai = self.ai
+	local ai = self.ai ---@type table?
 	if ai ~= nil and ai.legacyElection == true then
 		LegacyElection(self)
 		return
@@ -289,7 +306,7 @@ function Unit:ElectBehaviour()
 
 	-- the active behaviour and the one waiting for the next update are never both set
 	self.nextBehaviour = nil
-	local active = self.activeBehaviour
+	local active = self.activeBehaviour ---@type table?
 	if bestBehaviour == active then
 		return
 	end

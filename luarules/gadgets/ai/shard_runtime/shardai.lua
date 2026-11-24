@@ -210,7 +210,8 @@ end
 --
 -- When the AI class declares MScheduler, a list of module names, the modules of this object named there go to
 -- scheduledModules (position in the list -> module): the loader's scheduler runs their Update in turns, and they
--- leave the Update of every frame. BScheduler, a list of behaviours, is not read yet.
+-- leave the Update of every frame. When it declares BScheduler, a list of behaviour names, the AI gets them as
+-- the set scheduledBehaviours, which Unit:Update reads; ally and global objects never get BScheduler.
 function ShardAI:BuildHandlers()
 	local scheduled = {} ---@type table<integer, table>
 	local inTurns = {}
@@ -238,6 +239,14 @@ function ShardAI:BuildHandlers()
 	end
 	self.handlers = handlers
 	self.scheduledModules = scheduled
+	local behaviourNames = self.BScheduler ---@type string[]?
+	if behaviourNames ~= nil then
+		local set = {}
+		for i = 1, #behaviourNames do
+			set[behaviourNames[i]] = true
+		end
+		self.scheduledBehaviours = set
+	end
 end
 
 --- Whether a module of this object wants the event: the loader calls the object only then

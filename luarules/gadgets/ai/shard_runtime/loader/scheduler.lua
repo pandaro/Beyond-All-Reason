@@ -1,4 +1,4 @@
--- The turns of the modules, one scheduler for every AI hosted on this client. Unsynced.
+-- The turns of the modules and of the behaviours, one scheduler for every AI hosted on this client. Unsynced.
 --
 -- Only for the AI types whose class declares MScheduler, a list of module names: the modules listed there run
 -- in turns, one module of one object a frame, and no longer in the Update of every frame (ShardAI:BuildHandlers).
@@ -9,23 +9,30 @@
 -- turn a round for the object that holds it, not one for each of its AIs. The rotation is rebuilt only when the
 -- hosted AIs change (Changed), and goes on from the turn it was about to run, or the next one still in it.
 --
+-- BScheduler, a list of behaviour names (their Name()), has a rotation of its own built the same way, one turn
+-- of one AI a frame, and no module call: NextBehaviourTurn only says whose turn it is, before the Update of
+-- every frame, and Unit:Update gives Update to a listed behaviour only in the turn of its name for its AI. A turn
+-- is not skipped when the AI has no unit with that behaviour.
+--
 -- During a turn, the table that every object of such a type holds as `scheduler` says whose turn it is, as the
 -- fields of the same name in SchedulerHST: moduleTeam (the AI's team; nil for an ally or global module) and
--- moduleUpdate (the module's Name()).
---
--- BScheduler, the list of behaviours, is not read: behaviours run in UnitHandler's Update, a module of the AI.
+-- moduleUpdate (the module's Name()), behaviourTeam and behaviourUpdate (the behaviour's Name()).
 
 ---@class ShardSchedulerTurn
----@field target table the AI, ally or global object that holds the module
+---@field target table the AI, ally or global object that holds the module; the AI for a behaviour
 ---@field position integer
 ---@field team integer?
 ---@field name string
 
-local state = { moduleTeam = nil, moduleUpdate = nil }
-local turns = {} ---@type ShardSchedulerTurn[] the rotation
+local state = { moduleTeam = nil, moduleUpdate = nil, behaviourTeam = nil, behaviourUpdate = nil }
+local turns = {} ---@type ShardSchedulerTurn[] the rotation of the modules
 local cursor = 1 -- the turn to run next
+local behaviourTurns = {} ---@type ShardSchedulerTurn[] the rotation of the behaviours
+local behaviourCursor = 1
 local changed = true
-local recordsByTarget = {} -- object -> position -> record, so that a record outlives a rebuild
+-- object -> position -> record, so that a record outlives a rebuild
+local recordsByTarget = {}
+local behaviourRecordsByTarget = {}
 
 -- given by Setup
 local Call ---@type fun(target: table, name: string, ...): boolean
@@ -40,10 +47,10 @@ local function Changed()
 	changed = true
 end
 
-local function Record(records, target, position, name)
+local function Record(records, previous, target, position, name)
 	local byPosition = records[target]
 	if byPosition == nil then
-		byPosition = recordsByTarget[target] or {}
+		byPosition = previous[target] or {}
 		records[target] = byPosition
 	end
 	local record = byPosition[position]
@@ -75,20 +82,38 @@ local function Holder(thisAI, position)
 	return thisAI
 end
 
-local function Rebuild()
-	changed = false
-	local AIs = Shard.AIs
+-- the place in newTurns to go on from: the first record of the old rotation, from its cursor on, still in it
+local function ResumeAt(oldTurns, oldCursor, newTurns)
+	local placeOf = {}
+	for i = 1, #newTurns do
+		placeOf[newTurns[i]] = i
+	end
+	local count = #oldTurns
+	for k = 0, count - 1 do
+		local place = placeOf[oldTurns[(oldCursor - 1 + k) % count + 1]] ---@type integer?
+		if place ~= nil then
+			return place
+		end
+	end
+	return 1
+end
+
+local function Longest(AIs, field)
 	local longest = 0
 	for i = 1, #AIs do
-		local names = AIs[i].MScheduler
+		local names = AIs[i][field]
 		if names ~= nil and #names > longest then
 			longest = #names
 		end
 	end
+	return longest
+end
+
+local function RebuildModules(AIs)
 	local newTurns = {}
 	local records = {}
 	local givenAt = {} -- shared object -> the last position it got a turn at
-	for position = 1, longest do
+	for position = 1, Longest(AIs, "MScheduler") do
 		for i = 1, #AIs do
 			local thisAI = AIs[i]
 			local names = thisAI.MScheduler
@@ -97,28 +122,56 @@ local function Rebuild()
 				local target = Holder(thisAI, position)
 				if target == thisAI or givenAt[target] ~= position then
 					givenAt[target] = position
-					newTurns[#newTurns + 1] = Record(records, target, position, name)
+					newTurns[#newTurns + 1] = Record(records, recordsByTarget, target, position, name)
 				end
 			end
 		end
 	end
+	cursor = ResumeAt(turns, cursor, newTurns)
+	turns = newTurns
+	recordsByTarget = records
+end
 
-	local placeOf = {}
-	for i = 1, #newTurns do
-		placeOf[newTurns[i]] = i
-	end
-	local nextPlace = 1
-	local count = #turns
-	for k = 0, count - 1 do
-		local place = placeOf[turns[(cursor - 1 + k) % count + 1]] ---@type integer?
-		if place ~= nil then
-			nextPlace = place
-			break
+local function RebuildBehaviours(AIs)
+	local newTurns = {}
+	local records = {}
+	for position = 1, Longest(AIs, "BScheduler") do
+		for i = 1, #AIs do
+			local thisAI = AIs[i]
+			local names = thisAI.BScheduler
+			local name = names and names[position]
+			if name ~= nil then
+				newTurns[#newTurns + 1] = Record(records, behaviourRecordsByTarget, thisAI, position, name)
+			end
 		end
 	end
-	turns = newTurns
-	cursor = nextPlace
-	recordsByTarget = records
+	behaviourCursor = ResumeAt(behaviourTurns, behaviourCursor, newTurns)
+	behaviourTurns = newTurns
+	behaviourRecordsByTarget = records
+end
+
+local function Rebuild()
+	changed = false
+	local AIs = Shard.AIs
+	RebuildModules(AIs)
+	RebuildBehaviours(AIs)
+end
+
+--- The turn of the behaviours for this frame, before the Update of every frame: the next AI and behaviour name
+local function NextBehaviourTurn()
+	if changed then
+		Rebuild()
+	end
+	local count = #behaviourTurns
+	if count == 0 then
+		state.behaviourTeam = nil
+		state.behaviourUpdate = nil
+		return
+	end
+	local record = behaviourTurns[behaviourCursor] --[[@as ShardSchedulerTurn]]
+	behaviourCursor = behaviourCursor % count + 1
+	state.behaviourTeam = record.team
+	state.behaviourUpdate = record.name
 end
 
 --- One turn: the next module in the rotation whose object holds it now
@@ -146,4 +199,5 @@ return {
 	Setup = Setup,
 	Changed = Changed,
 	RunScheduledTurn = RunScheduledTurn,
+	NextBehaviourTurn = NextBehaviourTurn,
 }

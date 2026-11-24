@@ -56,7 +56,7 @@ local function electAndUpdate(unit)
 end
 
 describe("Shard runtime Unit", function()
-	local env
+	local env ---@type table
 
 	before_each(function()
 		env = loadRuntime()
@@ -269,6 +269,105 @@ describe("Shard runtime Unit", function()
 				"b2:Activate",
 			}, log)
 			assert.equal(b[2], unit:ActiveBehaviour())
+		end)
+	end)
+
+	describe("updating the behaviours", function()
+		-- A unit of the AI of team 4 with the behaviours of the given names; updates counts the Update of each.
+		local function scheduledUnit(names, ai)
+			local updates = {}
+			local unit = env.Unit()
+			unit.ai = ai
+			unit:SetEngineRepresentation({
+				ID = function()
+					return 1
+				end,
+			})
+			unit:Init()
+			for _, name in ipairs(names) do
+				local class = env.class(env.Behaviour)
+				function class:Name()
+					return name
+				end
+				function class:Update()
+					updates[name] = updates[name] + 1
+				end
+				updates[name] = 0
+				unit:AddBehaviour(class())
+			end
+			return unit, updates
+		end
+
+		local function scheduledAI(scheduler)
+			return { id = 4, scheduledBehaviours = { Listed = true, Other = true }, scheduler = scheduler }
+		end
+
+		it("gives a listed behaviour Update only in the turn of its name for its AI, the others every time", function()
+			local scheduler = {}
+			local unit, updates = scheduledUnit({ "Listed", "Other", "Free" }, scheduledAI(scheduler))
+			local turns = {
+				{ 4, "Listed" },
+				{ 5, "Listed" },
+				{ 4, "Other" },
+				{ 4, "Nobody" },
+				{ nil, nil },
+			}
+
+			for _, turn in ipairs(turns) do
+				scheduler.behaviourTeam = turn[1]
+				scheduler.behaviourUpdate = turn[2]
+				unit:Update()
+			end
+
+			assert.same({ Listed = 1, Other = 1, Free = 5 }, updates)
+		end)
+
+		it("gives every behaviour Update every time when the AI lists no behaviours or has no scheduler", function()
+			local plain, plainUpdates = scheduledUnit({ "Listed", "Free" }, { id = 4 })
+			local ai = scheduledAI(nil)
+			local unscheduled, unscheduledUpdates = scheduledUnit({ "Listed", "Free" }, ai)
+
+			for _ = 1, 3 do
+				plain:Update()
+				unscheduled:Update()
+			end
+
+			assert.same({ Listed = 3, Free = 3 }, plainUpdates)
+			assert.same({ Listed = 3, Free = 3 }, unscheduledUpdates)
+		end)
+
+		it("activates a waiting behaviour at every update, in its turn or not", function()
+			local scheduler = { behaviourTeam = 5, behaviourUpdate = "Listed" }
+			local unit = scheduledUnit({ "Listed" }, scheduledAI(scheduler))
+			local behaviour = unit.behaviours[1]
+			behaviour.score = 10
+			function behaviour:Priority()
+				return self.score
+			end
+
+			unit:ElectBehaviour()
+			unit:Update()
+
+			assert.equal(behaviour, unit:ActiveBehaviour())
+		end)
+
+		it("allocates nothing to update the behaviours", function()
+			local scheduler = { behaviourTeam = 4, behaviourUpdate = "Listed" }
+			local unit = scheduledUnit({ "Listed", "Other", "Free" }, scheduledAI(scheduler))
+			unit:Update()
+
+			collectgarbage("collect")
+			collectgarbage("stop")
+			local before = collectgarbage("count")
+			for n = 1, 1000 do
+				scheduler.behaviourTeam = 3 + n % 3
+				scheduler.behaviourUpdate = n % 2 == 0 and "Listed" or "Other"
+				unit:Update()
+			end
+			local after = collectgarbage("count")
+			collectgarbage("restart")
+
+			assert.equal(before, after)
 		end)
 	end)
 end)

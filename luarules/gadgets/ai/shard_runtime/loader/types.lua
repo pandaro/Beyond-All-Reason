@@ -100,11 +100,15 @@ end
 
 -- AI objects ---------------------------------------------------------------------------------------
 
--- an object of a type whose class declares MScheduler gets the list, and the scheduler's state of the turn
+-- an object of a type whose class declares MScheduler gets the list; with MScheduler or BScheduler, the
+-- scheduler's state of the turn
 local function SetSchedule(target, aiType)
-	local names = aiType.class.MScheduler
+	local class = aiType.class
+	local names = class.MScheduler
 	if names ~= nil then
 		target.MScheduler = names
+	end
+	if names ~= nil or class.BScheduler ~= nil then
 		target.scheduler = schedulerState
 	end
 end
