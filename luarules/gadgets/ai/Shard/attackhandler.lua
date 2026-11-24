@@ -61,13 +61,15 @@ function AttackHandler:DoTargetting()
 		local mapdimensions = self.game.map:MapDimensions()
 		--enemies = game:GetEnemies()
 		local enemies = self.game:GetEnemies()
+		-- only the enemies the ally team sees in LOS: ScoreUnit reads the type, which radar does not tell
+		local perception = self.ai.perceptionhandler
 
 		if enemies and #enemies > 0 then
 			-- figure out where all the enemies are!
 			for i = 1, #enemies do
 				local e = enemies[i]
 
-				if e ~= nil then
+				if e ~= nil and perception:Sees(e:ID()) then
 					pos = e:GetPosition()
 					--px = (pos.x - math.fmod(pos.x,400)) / 400
 					--pz = (pos.z - math.fmod(pos.z,400)) / 400
