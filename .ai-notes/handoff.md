@@ -17,28 +17,46 @@
 
 ## Compito attuale
 
-### T8: Shard come AI di esempio, che gioca
+### T10: consegna mirata degli eventi e ramo `shard_null`
 
-**Impegno: medio.** Struttura piccola da sistemare e una prima prova in partita di un'AI che finora non ha mai girato nel nuovo loader; la parte incerta è capire perché eventualmente non gioca, senza mettersi a migliorarla.
+**Impegno: alto.** Cambia chi riceve ogni evento, per tutte le AI: se un modulo che vuole un evento non lo riceve più, l'AI si rompe in silenzio (nessun errore, solo un comportamento diverso). Le insidie sono note (`UnitBuilt` smistato in `MyUnitBuilt` e simili, `UnitGiven` trasformato in `UnitCreated` più `UnitBuilt`, metodi ereditati da classi intermedie), ma vanno coperte tutte dai test.
 
-**Decisione dell'utente (24 novembre 2026)**: il lavoro resta sul framework, e STAI si tocca il meno possibile. `Shard/` diventa la **raccolta di esempi allineati al framework**: un'AI di base, semplice, che mostra come si usa ogni pezzo (struttura, ambiti, ordini, e da T9 lo scheduler). In questo compito: farla girare e darle la struttura giusta, niente di più. **STAI non si tocca.**
+(T9, lo scheduler, è scritto ma in attesa: l'utente ha scelto prima questo.)
+
+**Decisioni**
+
+- Decisione n. 6 di `CLAUDE.local.md`: un evento arriva **solo a chi lo ridefinisce**, subito, senza code; ordine **global → ally → team**, poi l'ordine di `modules.lua`.
+- `Shard/` (l'AI di esempio) resta com'è: l'utente ha lasciato in sospeso i suoi problemi di gioco. **STAI non si tocca.**
 
 **Lavoro**
 
-1. **Struttura come le altre AI** (`<NomeAI>/boot.lua` restituisce `NomeAI()`, la classe in `<NomeAI>/ai.lua`):
-   - `Shard/ai.lua` nuovo, con la classe dell'AI derivata da `ShardAI`, con `Name()` e `internalName()`, sul modello di `STAI/ai.lua` ma ridotto all'essenziale;
-   - `Shard/boot.lua` la include e la restituisce, nello stesso modo di `STAI/boot.lua`; resta il ramo `shard_null` com'è (il problema noto di `shard_include` in quel ramo non fa parte di questo compito);
-   - **nome della classe**: non può essere `Shard`, che è già l'oggetto globale del runtime (`Shard:shardify_unit`…) e verrebbe coperto nell'ambiente del tipo. Usa **`ShardBasic`** (proposta del coordinatore, da confermare con l'utente: scrivilo nei risultati) e controlla che nessun file di `Shard/` usi il globale `Shard` del runtime in un modo che il nome nuovo rompa.
-2. **Una partita**: startscript nuovo in `.ai-notes/tools/startscripts/` con Shard (`ShortName=Shard`, come in `luaai.lua`) contro SimpleAI, sulla stessa mappa di T5c, 15 minuti, con `run_engine_game.sh` e `SHARD_MEM_STATS=1`.
-3. **Cosa guardare**: errori del loader (`[AI Loader] error…` e il riepilogo a fine partita), contatori del relay, e dal gadget di controllo se Shard costruisce (unità, fabbriche, mex per minuto).
-4. **Correzioni**: solo quello che impedisce a Shard di caricarsi o di giocare (errori di caricamento, errori a ogni frame, nomi di unità che in BAR non esistono più), con il cambiamento più piccolo possibile, ognuna con un test che fallisce prima e passa dopo, dove si può. Tutto il resto (gioca male, sceglie male) va **elencato, non corretto**. I commenti e i nomi nelle righe che tocchi diventano inglesi.
-5. Se Shard gioca: una seconda partita breve (5 minuti) **Shard contro STAI**, per vedere che i due tipi convivono (ambienti separati, nessuna classe che si sovrascrive).
+1. **Consegna mirata nel runtime** (`shard_runtime/shardai.lua`, partendo dalla versione di oggi e da quella rimossa):
+   - dopo `Init` (e dopo ogni `AddModule`), per ogni evento l'oggetto (`ShardAI`, `ShardAlly`, `ShardGlobal`) prepara la lista dei suoi moduli che lo vogliono; i callback di `ShardAI` scorrono quella lista invece di `self.modules`;
+   - «lo vuole» = il metodo del modulo (letto sull'istanza, dopo `Init`, così vale anche un metodo assegnato in `Init`) è diverso da quello di `AIBase`;
+   - `UnitBuilt`: lo vuole chi ridefinisce `UnitBuilt` **o** uno fra `MyUnitBuilt`, `FriendlyUnitBuilt`, `EnemyUnitBuilt`, `NeutralUnitBuilt` (perché `AIBase:UnitBuilt` li smista);
+   - `UnitGiven`: lo vuole chi ridefinisce `UnitGiven`, o vuole `UnitCreated` o `UnitBuilt` (perché `AIBase:UnitGiven` li chiama); controlla nel codice ogni altro metodo di `AIBase` che ne chiama un altro e trattalo allo stesso modo;
+   - l'ordine dentro la lista resta quello di `modules.lua`;
+   - le liste si costruiscono una volta, non a ogni evento; nessuna allocazione per evento.
+2. **Consegna mirata nel loader** (`loader/delivery.lua`): un oggetto la cui lista per quell'evento è vuota **non viene chiamato** (niente `Prepare()`, niente `Call`). Ordine global → ally → team per ogni evento: verificalo per tutti i call-in (oggi `DeliverToShared` e poi le AI; `DeliverSight`). Togli dal commento in testa a `delivery.lua` la parte provvisoria «ogni oggetto riceve ogni evento», e lascia scritto cosa resta provvisorio (le tabelle di unità, `Update` a ogni frame).
+3. **Unità `nil`**: da T6b `shardify_unit` può restituire `nil` (ID non valido e non in cache), e in una partita di T8 `UnitDamaged` è arrivato con l'unità `nil` (`shard_runtime/unit.lua:155`). Nei call-in delle unità, se l'unità colpita (non l'attaccante, che può mancare) è `nil`, l'evento non si consegna. Test che riproduce il caso.
+4. **Ramo `shard_null`**: oggi `shard_include` in `shard_runtime/shard_null/boot.lua` usa `require` e non trova i file delle AI. Rendilo capace di caricare **Shard** (l'AI di esempio) fuori dall'engine, con l'API finta di `shard_null`, toccando solo `shard_runtime/shard_null/` (e `Shard/boot.lua` se proprio serve, come esempio). Test busted: Shard si carica con `shard_null`, fa `Init` e alcuni `Update` senza errori. Se lo stesso caricamento con **STAI** richiede modifiche a STAI, non farle: scrivi solo cosa servirebbe.
 
-**Controlli**: StyLua sui file toccati, EmmyLua senza errori nuovi, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
+**Test busted** (oltre ai punti 3 e 4)
 
-**Commit**, in inglese: uno per la struttura (punto 1), uno per ogni correzione, uno per lo startscript.
+- Un modulo che non ridefinisce un evento non lo riceve, uno che lo ridefinisce sì; un oggetto senza moduli interessati non viene chiamato (niente `Prepare`).
+- `MyUnitBuilt` senza `UnitBuilt` → riceve; `UnitGiven` → chi vuole `UnitCreated` e `UnitBuilt` riceve entrambi, gli altri niente.
+- Metodo ereditato da una classe intermedia (`ModA = class(Module)` che ridefinisce, `ModB = class(ModA)` che no) → `ModB` riceve.
+- Metodo assegnato in `Init` → riceve.
+- Ordine: un evento con moduli interessati in global, ally e team arriva in quest'ordine, e nell'ordine di `modules.lua` dentro ogni oggetto.
+- `AddModule` dopo `Init` aggiorna le liste.
+- Nessuna allocazione per evento.
+- Prova delle mutazioni.
 
-**Nei risultati**: righe per file, le righe chiave del log delle partite (unità per minuto di Shard, contatori del relay, riepilogo degli errori, righe della memoria), le correzioni con la causa, l'elenco di ciò che non va ma non hai corretto, il nome della classe scelto.
+**Partite** (`run_engine_game.sh`, `SHARD_MEM_STATS=1`): A (STAI contro SimpleAI, 15 minuti) e C (STAI contro STAI, 15 minuti). Devono andare come in T7: nessuna riga `[AI Loader] error`, numeri del relay e unità per minuto simili. Una differenza grande vuol dire un evento perso: va capita prima di chiudere il compito. Riporta anche la memoria per frame (ci aspettiamo che cali un poco).
+
+**Commit**, in inglese: runtime e spec; loader e spec; unità `nil`; `shard_null`.
+
+**Nei risultati**: righe per file, test e mutazioni, quanti moduli di STAI e di Shard ricevono ogni evento (una tabella), le righe chiave delle due partite confrontate con T7, cosa servirebbe a STAI per girare sotto `shard_null`.
 
 ## Risultati
 
