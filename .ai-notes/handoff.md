@@ -628,3 +628,113 @@ Sono gli ID vecchi di STAI annotati in T6 (`game:GetUnitByID(id)` su unità mort
 
 - Lo scratchpad era stato svuotato fra i compiti: StyLua 2.5.2 ed EmmyLua 0.24.0 riscaricati dalle release di GitHub.
 - Con 1671 ripetizioni in mezz'ora, l'errore di `bomberhst` ora costa una concatenazione di stringhe (la chiave) a ogni ripetizione: accettabile perché gli errori sono rari, ma STAI che sbaglia a ogni frame lo rende un costo per frame.
+
+### T7 (agente locale, 24 novembre 2026)
+
+**Commit** (suite verde dopo ognuno)
+
+1. `2b1fb6e7e7` «memory measure moved to loader/memstats.lua»
+2. `277f814414` «unit tables and dead unit ring moved to loader/unitregistry.lua»
+3. `a44bb61fe6` «protected calls, error list and event delivery moved to loader/delivery.lua»
+4. `4b5fa9bdc4` «loading, start, stop and change of host moved to loader/loader.lua» (con la riscrittura dei call-in unsynced)
+5. `ddb57b7e44` «host registry and order relay moved to loader/hosts.lua and loader/relay.lua»: un solo commit per i due file synced, perché si chiamano a vicenda (`Hosts.Setup(…, Relay.ForgetTeam)`, `Relay.Setup(Hosts.HostOf)`); separarli avrebbe chiesto un gadget intermedio scritto solo per il commit.
+6. `7012d523b1` test nuovi: nessuna funzione del loader nell'ambiente del gadget, dei tipi di AI, di `_G`.
+7. `e35b1955bd` riordino finale: tolto `spGetTeamInfo` non più usato dal gadget, tipi delle funzioni che `loader.lua` riceve da `Setup`.
+
+**Righe**: prima `ShardAILoader.lua` 1194. Dopo:
+
+| File | Lato | Righe |
+| --- | --- | --- |
+| `luarules/gadgets/ShardAILoader.lua` | entrambi | 285 |
+| `shard_runtime/loader/hosts.lua` | synced | 105 |
+| `shard_runtime/loader/relay.lua` | synced | 202 |
+| `shard_runtime/loader/loader.lua` | unsynced | 498 |
+| `shard_runtime/loader/delivery.lua` | unsynced | 230 |
+| `shard_runtime/loader/unitregistry.lua` | unsynced | 100 |
+| `shard_runtime/loader/memstats.lua` | unsynced | 74 |
+
+Totale 1494: le righe in più sono commenti in testa ai file, le tabelle restituite, `Setup` e i `local` delle funzioni usate a ogni frame.
+
+**Come sono legati**: ogni file restituisce una tabella; nessun globale. Il gadget include i file (`local X = VFS.Include(LOADER_PATH .. "x.lua")`, mai come tail call: vedi T5c) e passa le dipendenze con `Setup`: synced `Hosts.Setup(aiTeams, teamList, Relay.ForgetTeam)` e `Relay.Setup(Hosts.HostOf)`; unsynced `Loader.Setup({ gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry })`. `memstats`, `unitregistry`, `delivery` non hanno dipendenze e leggono `Shard` (globale dell'ambiente del gadget, come prima). I globali scritti restano quelli di sempre e solo in `loader.lua` (`ShardSpringLua`, `Shard`, `shard_include`). Il gadget mette in `local` le funzioni usate a ogni frame e a ogni evento.
+
+**`Ready()` diviso** in `Loader.IsHosting()` e `Loader.StartAIsOnce()`, chiamate una dopo l'altra in ogni call-in che prima chiamava `Ready()`; `FeatureDestroyed`, `GameOver` e `GameStart` usano solo `IsHosting()`, come prima.
+
+**`GameFrame` e un call-in di unità, ora:**
+
+```lua
+function gadget:GameFrame(n)
+	if not IsHosting() then
+		return
+	end
+	StartAIsOnce()
+	BeginMemoryFrame()
+	UpdateAll()
+	FlushOrders(n)
+	ExpireDeadUnits(n)
+	EndMemoryFrame(n)
+end
+
+function gadget:UnitDestroyed(unitId, unitDefId, teamId, attackerId, attackerDefId, attackerTeamId)
+	if not IsHosting() then
+		return
+	end
+	StartAIsOnce()
+	local unit = Shard:shardify_unit(unitId)
+	DeliverToAll("UnitDead", unit)
+	RemoveFromUnitTables(unitId)
+	-- kept a while, with its type and name, then dropped: the old loader kept every dead unit forever
+	KeepDeadUnit(unitId, unit, spGetGameFrame())
+end
+```
+
+**Cose spostate con una piccola forma nuova** (stesso comportamento, verificato dalle spec e dalle mutazioni):
+- `UnitCreated`: il blocco «tra le AI solo la proprietaria» è diventato `Delivery.DeliverToOwner(teamID, name, …)`, con il suo commento.
+- `KeepDeadUnit` mette anche `unit.destroyed = true` (prima lo faceva `UnitDestroyed` subito prima).
+- `RecvLuaMsg` è `Relay.Receive`, diviso in `CheckHeader` (tutti i controlli, nello stesso ordine) e `GiveMessageOrders` (il ciclo sugli ordini); `ReadParams` per i parametri; `Reject` non restituisce più `true`, perché è `Receive` a restituire `true` per ogni messaggio col magic.
+- `RegisterHosts` è `Hosts.Register`, diviso in `ChooseHost` e `SetHost`; l'azzeramento di seq e frame del relay quando cambia l'host passa da `onHostChanged` (`Relay.ForgetTeam`), nello stesso punto di prima (dopo `aiHostPlayer`, prima del rules param).
+- `GameOver`: `Delivery.EndGameAll()` e `Delivery.WriteErrorSummary()`; `GameID`: `Loader.SetGameID(gameID)`; `Initialize` unsynced: `Loader.AddHostedAIs()` e `Loader.CatchUpAfterReload()`; `FlushOrders` è in `loader.lua`.
+
+**Modifiche alle spec**
+
+1. `shard_ai_loader_unsynced_spec.lua`, caso del seme: `loader.gadget:HashGameID(gameID)` → `HashGameID` preso da `loader/loader.lua` incluso con il `VFS` della spec, perché non è più un metodo del gadget. Le asserzioni sono le stesse.
+2. Nuovo, unsynced: «leaves no function of the loader in the environment of an AI type, nor in _G»: i nomi esportati dai quattro file unsynced, i nomi delle tabelle (`Loader`, `Delivery`…) e i vecchi metodi del gadget (`AddAI`, `StartAIs`…); nessuno in `rawget(env)`, nell'ambiente di `SpecAI`, in `_G`. Con il gadget di prima di T7 fallisce (i metodi `gadget:AddAI` ecc. erano visibili alle AI); ora passa.
+3. Nuovo, synced: lo stesso per `relay.lua` e `hosts.lua` (nel gadget, nel suo ambiente, in `_G`); la spec ora tiene anche `recorded.env`.
+4. Nuovi, synced: «rejects a first message from the future» e «rejects a first message older than 900 frames». Motivo: la prova delle mutazioni sul nuovo `relay.lua` ha mostrato che **togliendo del tutto il controllo della finestra dei frame nessun test falliva**: dal rinforzo di T5b, nel caso esistente il frame futuro arrivava per primo, veniva accettato, e i due messaggi dopo cadevano per «frame che scende» con gli stessi conteggi. Non dipende dallo spostamento. Con i due casi nuovi la rimozione completa fa fallire 2 casi, le due metà 1 e 2.
+
+Nessuna asserzione tolta o allentata. Suite: `2636 successes / 0 failures / 0 errors / 1 pending` (T6b: 2632 + 4 casi nuovi).
+
+**Mutazioni sui file synced dopo lo spostamento**: mittente, seq, finestra dei frame, frame che scende, limite per frame, numero di ordini, team dell'unità, svuotamento dell'array, magic che non è nostro, azzeramento di seq al cambio di host, rango del successore, `shard_host`: tutte fanno fallire almeno un caso.
+
+**Controlli**: StyLua pulito; EmmyLua 0 warning nei file del loader e nel gadget (22 errori nel repository come prima); `run_engine_tests.sh`: `RESULT: ok`. Partita A di T5c, 15 minuti, `SHARD_MEM_STATS=1`, seme 62732: nessuna riga `[AI Loader] error`, relay `3395 messages, 16896 orders given, 9 orders rejected`, STAI 201 unità, 2 fabbriche, 38 mex. Memoria:
+
+```
+avg 0.17 KB max 26.79 KB over 1801 frames, heap 13.1 MB
+avg 0.20 KB max 22.27 KB over 1800 frames, heap 13.2 MB
+avg 0.28 KB max 29.36 KB over 1800 frames, heap 13.2 MB
+avg 0.27 KB max 24.69 KB over 1800 frames, heap 13.4 MB
+avg 0.29 KB max 17.18 KB over 1800 frames, heap 13.6 MB
+avg 0.39 KB max 15.84 KB over 1800 frames, heap 14.0 MB
+avg 0.36 KB max 20.09 KB over 1800 frames, heap 13.8 MB
+avg 0.37 KB max 24.60 KB over 1800 frames, heap 14.1 MB
+avg 0.38 KB max 22.15 KB over 1800 frames, heap 14.3 MB
+avg 0.38 KB max 27.50 KB over 1800 frames, heap 14.1 MB
+avg 0.38 KB max 27.10 KB over 1800 frames, heap 14.3 MB
+avg 0.53 KB max 199.27 KB over 1800 frames, heap 14.3 MB
+avg 0.52 KB max 37.83 KB over 1800 frames, heap 15.0 MB
+avg 0.49 KB max 27.66 KB over 1800 frames, heap 14.5 MB
+avg 0.51 KB max 28.46 KB over 1800 frames, heap 14.7 MB
+Shard memory record:, 15577
+```
+
+Simili a T6b (medie 0,17–0,53 KB contro 0,18–0,82; heap 13–15 MB). Il massimo di 199 KB al minuto 12 è un frame isolato; in T6b il massimo era 94 KB. Con una sola partita non so dire se sia STAI o il loader.
+
+**Nomi che cambierei** (non cambiati):
+- `loader/loader.lua` → `loader/lifecycle.lua`: «loader/loader» non dice nulla, e il file è caricamento + avvio + arresto + cambio di host.
+- `loader.lua` è il file più lungo (498 righe): si potrebbe dividere in `types.lua` (runtime, tipi, oggetti, seme, fallimenti) e `lifecycle.lua` (avvio, arresto, catch-up, host).
+- `AI_PATH`/`RUNTIME_PATH` in `loader.lua` sono in maiuscolo come costanti ma arrivano da `Setup`; li lascerei così o li passerei come costanti del file.
+- `KeepDeadUnit` ora segna anche l'unità morta: `ForgetDeadUnit` o `UnitDied` direbbe meglio cosa fa.
+
+**Difetti visti spostando il codice** (annotati, non corretti):
+- `EndGameAll` chiama `GameEnd` anche sugli oggetti senza moduli (non passa da `HasModules`, a differenza di `UpdateAll` e `Deliver`): oggi innocuo, `ShardAI:GameEnd` scorre i moduli.
+- `CatchUp` passa dai call-in del gadget: ogni unità rigenera anche `AddToUnitTables` per tutte le AI, non solo per gli oggetti nuovi (idempotente, ma lavoro inutile in un cambio di host).
+- La lacuna della spec sulla finestra dei frame (sopra), chiusa con due casi.
