@@ -15,6 +15,8 @@ local FIXTURE_PATHS = {
 	["luarules/gadgets/ai/BehavAI/modules.lua"] = "spec/fixtures/shard_ai_scheduled/modules.lua",
 	["luarules/gadgets/ai/BehavAI/specmodules.lua"] = "spec/fixtures/shard_ai/specmodules.lua",
 	["luarules/gadgets/ai/BehavAI/behaviourfactory.lua"] = "spec/fixtures/shard_ai/behaviourfactory.lua",
+	["luarules/gadgets/ai/PercAI/"] = "spec/fixtures/shard_ai/",
+	["luarules/gadgets/ai/PercAI/modules.lua"] = "spec/fixtures/shard_ai_perception/modules.lua",
 }
 
 local CMD = { STOP = 0, MOVE = 10, OPT_META = 4, OPT_RIGHT = 16, OPT_SHIFT = 32, OPT_CTRL = 64, OPT_ALT = 128 }
@@ -179,8 +181,10 @@ local function loadLoader(world)
 		GetUnitHealth = function()
 			return 100, 100, 0, 0, 1
 		end,
-		GetUnitLosState = function()
-			return 0
+		-- world.losStates[unitID][allyTeamID], the raw bits: 1 in LOS, 2 on radar
+		GetUnitLosState = function(unitID, allyTeamID)
+			local states = world.losStates and world.losStates[unitID]
+			return states and states[allyTeamID] or 0
 		end,
 		GetAllFeatures = function()
 			return {}
@@ -1391,6 +1395,118 @@ describe("ShardAILoader unsynced side", function()
 			collectgarbage("restart")
 
 			assert.equal(before, after)
+		end)
+	end)
+
+	describe("with the PerceptionHandler of the runtime", function()
+		local function perceptionWorld()
+			local world = defaultWorld()
+			for teamID = 0, 2 do
+				world.teams[teamID].luaAI = "PercAI"
+			end
+			return world
+		end
+
+		local function perceptions(loader)
+			local Shard = loader.env.Shard
+			return Shard.alliesByAllyID[0][1].perceptionhandler, Shard.alliesByAllyID[1][1].perceptionhandler
+		end
+
+		-- the calls of an event to a module instance, counted
+		local function counting(module, event)
+			local calls = { count = 0 }
+			local method = module[event]
+			module[event] = function(self, ...)
+				calls.count = calls.count + 1
+				return method(self, ...)
+			end
+			return calls
+		end
+
+		it("loads one PerceptionHandler per ally team, shared by its AIs", function()
+			local loader = started(perceptionWorld())
+			local Shard = loader.env.Shard
+			local perception0, perception1 = perceptions(loader)
+
+			assert.is_not_nil(perception0)
+			assert.is_not_nil(perception1)
+			assert.are_not.equal(perception0, perception1)
+			assert.equal(perception0, Shard.AIsByTeamID[0].perceptionhandler)
+			assert.equal(perception0, Shard.AIsByTeamID[1].perceptionhandler)
+			assert.equal(perception1, Shard.AIsByTeamID[2].perceptionhandler)
+		end)
+
+		it("hands each sight event once to the PerceptionHandler of the ally team that sees the unit", function()
+			local loader = started(perceptionWorld())
+			local perception0, perception1 = perceptions(loader)
+			local entered = counting(perception0, "UnitEnteredLos")
+			local left = counting(perception0, "UnitLeftLos")
+			local radar = counting(perception0, "UnitEnteredRadar")
+			local otherEntered = counting(perception1, "UnitEnteredLos")
+			loader.world.units[300] = { team = 3 }
+
+			loader.gadget:UnitEnteredRadar(300, 3, 0, 1)
+			loader.gadget:UnitEnteredLos(300, 3, 0, 1)
+
+			assert.equal(1, entered.count)
+			assert.equal(1, radar.count)
+			assert.equal(0, otherEntered.count)
+			assert.is_true(perception0:Sees(300))
+			assert.is_true(perception0:OnRadar(300))
+			assert.is_false(perception1:Sees(300))
+
+			loader.gadget:UnitLeftLos(300, 3, 0, 1)
+
+			assert.equal(1, left.count)
+			assert.is_false(perception0:Sees(300))
+			assert.is_true(perception0:OnRadar(300))
+		end)
+
+		it("forgets a unit that dies in sight", function()
+			local loader = started(perceptionWorld())
+			local perception0 = perceptions(loader)
+			addUnit(loader, 300, 3)
+			loader.gadget:UnitEnteredRadar(300, 3, 0, 1)
+			loader.gadget:UnitEnteredLos(300, 3, 0, 1)
+
+			loader.gadget:UnitDestroyed(300, 1, 3)
+
+			assert.is_false(perception0:Sees(300))
+			assert.is_false(perception0:OnRadar(300))
+		end)
+
+		it("fills the tables with the units already in sight after a reload", function()
+			local world = perceptionWorld()
+			world.frame = 100
+			world.units[200] = { team = 2 }
+			world.units[300] = { team = 3 }
+			world.units[100] = { team = 0 }
+			world.losStates = { [200] = { [0] = 3 }, [300] = { [0] = 2 }, [100] = { [1] = 1 } }
+			local loader = loadLoader(world)
+
+			loader.gadget:Initialize()
+
+			local perception0, perception1 = perceptions(loader)
+			assert.same({ [200] = true }, perception0.los)
+			assert.same({ [200] = true, [300] = true }, perception0.radar)
+			assert.same({ [100] = true }, perception1.los)
+			assert.same({}, perception1.radar)
+		end)
+
+		it("fills the tables of an ally team taken over from another host with the units it sees", function()
+			local world = perceptionWorld()
+			world.hosts[2] = 1
+			local loader = started(world)
+			loader.world.frame = 100
+			loader.world.units[100] = { team = 0 }
+			loader.world.losStates = { [100] = { [1] = 3 } }
+
+			loader.syncActions.shard_host("shard_host", 2, 0)
+
+			local perception0, perception1 = perceptions(loader)
+			assert.same({ [100] = true }, perception1.los)
+			assert.same({ [100] = true }, perception1.radar)
+			assert.same({}, perception0.los)
 		end)
 	end)
 
