@@ -28,11 +28,10 @@
 2. **Via `SchedulerHST`**: `git rm` di `STAI/schedulerHST.lua`; tolti `shard_include("schedulerhst")` e `SchedulerHST` da `STAI/modules.lua`.
 3. **Via i controlli di turno** in testa agli `Update` dei moduli e dei behaviour elencati (`self.ai.schedulerhst.moduleTeam ~= self.ai.id ...`, `behaviourTeam ~= ...`): il runtime chiama solo nel turno. Prima di toglierne uno, guarda se **prima del controllo** c'è codice che gira ogni frame (contatori, timer): se c'è, scrivilo nei risultati e decidi in modo che il comportamento resti uguale (per esempio un contatore che contava i frame deve continuare a contare i frame).
 4. **Casi speciali, da non cambiare nel comportamento**:
-   - `BomberBST` (`bomberbst.lua` r. 63) è creato da `behaviourfactory.lua` ma non è nella lista: oggi il suo controllo non scatta mai, quindi il suo `Update` **non gira mai**. Con il framework un behaviour non elencato riceve `Update` a ogni frame. Tienilo fermo come oggi nel modo più semplice e leggibile (per esempio `Update` che ritorna subito, con un commento in inglese che spiega perché); niente di più.
+   - `BomberBST` e `ScoutBST:Draw`: **restano come sono** (decisione dell'utente). `BomberBST:Update` è tutto commentato; `Draw` dei behaviour non lo chiama nessuno.
    - `MexUpBST` non è creato da nessuno: lascia il file com'è, salvo sostituire `self.ai.schedulerhst` con `self.ai.scheduler` perché non resti un riferimento a un modulo che non esiste.
-   - `ScoutBST:Draw` (r. 246) ha `not a == b` (difetto: la prima metà non conta mai). Passa a `self.ai.scheduler` **lasciando il difetto com'è** e scrivilo nei risultati; si corregge al punto 11.
    - `overviewhst.lua` r. 18: riga commentata, lasciala.
-5. Alla fine `grep -rn schedulerhst luarules/gadgets/ai/STAI` non deve trovare niente fuori dai commenti.
+5. Alla fine `grep -rn schedulerhst luarules/gadgets/ai/STAI` deve trovare solo i commenti e `ScoutBST:Draw`.
 
 **Test**: se ci sono test di STAI che usano `SchedulerHST`, aggiornali; altrimenti niente test nuovi (il comportamento dello scheduler è già coperto dai test del framework). `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
