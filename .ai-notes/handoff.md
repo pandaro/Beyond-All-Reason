@@ -793,7 +793,7 @@ Prima dell'ultima correzione (con `DebugPoint` ancora in errore) Shard aveva cos
 - `shard_runtime/unit.lua:155` (`Unit:UnitDamaged`, `unit` nil), visto una volta in una partita: da T6b `shardify_unit` restituisce `nil` per un ID non valido e non in cache, e il loader consegna l'evento lo stesso. È del runtime/loader, non di Shard: proposta di non consegnare `UnitDamaged` quando l'unità è `nil`, da decidere.
 - `taskqueuebehaviour.lua`: `value` non definito (errore EmmyLua già presente).
 
-### T10 (agente locale, 24 novembre 2026)
+### T10 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
