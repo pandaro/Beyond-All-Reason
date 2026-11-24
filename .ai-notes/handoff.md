@@ -1037,3 +1037,85 @@ A, STAI contro SimpleAI:
 - StyLua 2.5.2 a volte stabilizza una tabella in un `assert.same(...)` solo alla seconda o terza passata: conviene ricontrollare con `--check` dopo aver formattato.
 - `lx test` riscrive ancora `.emmyrc.json`: l'ho ripristinato ogni volta, non è nei commit.
 - `types.SchedAI.class` è la classe, ma `SetSchedule` copia `MScheduler` sulle istanze già a `Initialize`: per provare un tipo con solo `BScheduler` è servita una fixture (`BehavAI`) invece di cambiare la classe nel test.
+
+### T12 (agente locale, 24 novembre 2026)
+
+**Fatto**
+
+1. `shard_runtime/perceptionhandler.lua` (52 righe), classe `PerceptionHandler` (`Module`, `Scope()` `"ally"`): `los` e `radar` `[unitID] = true`, i quattro eventi di vista, `UnitDead` che toglie da tutte e due, `Sees` e `OnRadar` (restituiscono sempre un booleano). Commento in testa di tre righe. Nient'altro.
+2. Tolti `Perception()` e `omniscient` da `loader/types.lua` (4 righe: tipo, globale, ally, team); non comparivano altrove fuori da `.ai-notes/drafts/`. In `unitregistry.lua` il commento in testa ora dice che le tabelle tengono tutte le unità, che la percezione è dell'AI e che il loader le passa gli eventi di vista; tolto anche «(provisional)» dal titolo della sezione.
+3. Shard: `shard_include("perceptionhandler")` e `PerceptionHandler` in testa alla lista di `Shard/modules.lua`. `AttackHandler:DoTargetting` filtra con `Sees`: `if e ~= nil and perception:Sees(e:ID()) then`, più un commento di una riga (radar no, perché `ScoreUnit` legge il tipo). **Perché `Sees` e non lo scorrere di `los`**: `los` contiene anche unità Gaia (il catch-up e l'engine le mandano per ogni ally team diverso), quindi scorrendo `los` servirebbe comunque un controllo «è nemico» sulle tabelle del loader; con `Sees` la definizione di nemico resta una sola (`GetEnemies`) e la modifica è di due righe. Costo: `GetEnemies` crea uno `ShardUnit` per ogni nemico, ma solo quando le reclute superano `counter`, cioè raramente.
+
+**Consegna degli eventi** (già nel loader, verificato con i test): gli oggetti team tengono solo un riferimento ai moduli d'ambito più largo, non li mettono in `self.modules` né in `handlers`, quindi un evento di vista arriva al `PerceptionHandler` una volta sola, tramite l'oggetto ally dell'ally team che vede (`DeliverSight`), anche con due AI Shard nello stesso ally team. Il catch-up (ricarica e cambio di host) rigenera `UnitEnteredRadar`/`UnitEnteredLos` dallo stato `GetUnitLosState` per ogni ally team con AI diverso da quello dell'unità, e solo verso gli oggetti nuovi.
+
+**Righe per file**
+
+| File | Righe |
+| --- | --- |
+| `shard_runtime/perceptionhandler.lua` | +52 (nuovo) |
+| `shard_runtime/loader/types.lua` | −4 |
+| `shard_runtime/loader/unitregistry.lua` | +4 −3 |
+| `Shard/modules.lua` | +2 −1 |
+| `Shard/attackhandler.lua` | +3 −1 |
+| `spec/.../shard_runtime/perceptionhandler_spec.lua` | +91 (nuovo) |
+| `spec/.../Shard/attackhandler_spec.lua` | +94 (nuovo) |
+| `spec/luarules/gadgets/shard_ai_loader_unsynced_spec.lua` | +118 −2 |
+| `spec/fixtures/shard_ai_perception/modules.lua` | +4 (nuovo) |
+
+**Test busted** (`lx --lua-version 5.1 test`: 2707 successi, 0 fallimenti, 1 pending di sempre)
+
+- Modulo (6): ambito e nome; entra/esce da LOS; entra/esce da radar; in LOS e radar, esce da LOS → resta su radar; `UnitDead` pulisce tutte e due e solo quell'unità; ID mai visti → `false`.
+- Loader (5), con un tipo `PercAI` (la fixture `SpecAI` più il `PerceptionHandler` vero del runtime): un modulo per ally team, lo stesso per le due AI dell'ally team 0, diverso per l'ally team 1; ogni evento di vista arriva una volta al modulo dell'ally team che vede e zero volte all'altro; un'unità distrutta in vista sparisce; dopo una ricarica a partita in corso il catch-up riempie `los` e `radar` secondo `GetUnitLosState` (il finto engine ora legge `world.losStates`); al cambio di host l'ally team preso in carico ha le unità che vede, l'altro resta com'era.
+- `AttackHandler` (2), caricato da solo con il `PerceptionHandler` vero: un nemico solo su radar non è attaccato e le reclute restano; con due nemici visti nella stessa cella e uno non visto da solo (che sarebbe il bersaglio più debole) attacca la cella dei visti.
+
+**Mutazioni** (13, tutte prese; numero di test falliti sui tre file di spec)
+
+| Mutazione | falliti |
+| --- | --- |
+| `AttackHandler` senza `Sees` | 2 |
+| `AttackHandler` con `OnRadar` al posto di `Sees` | 2 |
+| `UnitLeftLos` non toglie | 3 |
+| `UnitLeftRadar` non toglie | 1 |
+| `UnitDead` pulisce solo `los` / solo `radar` | 2 / 2 |
+| `UnitLeftLos` toglie anche dal radar | 2 |
+| `Sees` / `OnRadar` restituiscono `nil` per ID ignoti | 6 / 4 |
+| `Scope()` `"team"` | 2 + 4 errori |
+| catch-up senza `UnitEnteredRadar` / senza `UnitEnteredLos` | 2 / 2 |
+| `DeliverSight` a tutti gli ally team | 3 |
+
+**Controlli**: StyLua 2.5.2 pulito su tutti i file toccati (il modulo nuovo in CRLF come gli altri). EmmyLua 0.24.0: 20 errori, gli stessi di prima. Nei file toccati un solo warning nuovo: `attackhandler.lua` da 12 a 13, `undefined-field Sees` su `self.ai.perceptionhandler` (il campo non ha tipo); il modulo nuovo ha 3 hint (`self` non usato in `Name`, `internalName`, `Scope`, come gli altri moduli), le spec nessun warning. `run_engine_tests.sh`: `RESULT: ok`, 3 + 3 file. `lx` ha riscritto ancora `.emmyrc.json`: ripristinato, non è nei commit.
+
+**Partite** (`SHARD_MEM_STATS=1`, 15 minuti; nessuna riga `[AI Loader] error`; solo gli errori di sempre: `gui_pip`, `sensor_ranges_jammer_preview`, groundFX, shader, `AdvSky`, `ceg_test_projectile`)
+
+D, Shard contro SimpleAI, due partite, con un contatore temporaneo in `AttackHandler` (tolto, mai committato) che ogni minuto scriveva le ricerche di bersaglio e, in quel momento, nemici totali, `los`, `radar`, reclute:
+
+| Partita | unità Shard ai minuti 1–10 | distrutto | mex | relay (messaggi / ordini / rifiutati) |
+| --- | --- | --- | --- | --- |
+| T12 #1 | 5 10 11 11 14 12 12 11 0 | min. 9 | 1 solo al min. 1 | 745 / 744 / 1 |
+| T12 #2 | 5 10 11 11 13 14 14 15 13 8 0 | min. 11 | idem | 927 / 926 / 1 |
+| T11 (7 partite) | — | min. 7–9, una viva | idem | 546–1252 |
+
+| Minuto (partita #2) | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11+ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| nemici totali | 5 | 11 | 19 | 24 | 35 | 40 | 41 | 45 | 49 | 56 | 58 → 108 |
+| in `los` | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 1 | 3 | 5 | 0 |
+| su `radar` | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 3 | 4 | 9 | 0 |
+
+In tutte e due le partite **`AttackHandler` non ha mai cercato un bersaglio**: reclute sempre 0, `counter` sempre 8, ricerche 0. Shard in queste partite non arriva ad avere unità d'attacco reclutate, quindi il filtro non cambia niente nel suo gioco attuale; la percezione però lavora: `los` e `radar` seguono le poche unità nemiche che Shard incontra e tornano a 0 quando Shard non ha più unità. Memoria (partita #2) come T11: medie 0,06–13,5 KB per frame, massimi circa 5.950 KB (la spirale di `PlacementHandler`), heap 9–13,6 MB; dopo la distruzione 0,06 KB.
+
+A, STAI contro SimpleAI (controllo per `types.lua`): unità ai minuti 1/5/10/13: 5 / 36 / 100 / 161; a fine partita 194 unità, 2 fabbriche, 36 mex (contro 147–188 e 15 mex di T11); relay 2309 messaggi, 14421 ordini, 8 rifiutati; memoria media 0,17–0,72 KB per frame, massimo 81 KB, heap 13,1–15,1 MB. Nessun segno di cambiamento: STAI non dichiarava `Perception()`, quindi `omniscient` era già `false`.
+
+**Cosa cambia nel gioco di Shard**: quando avrà reclute, attaccherà solo celle con nemici in LOS dell'ally team; se nessun nemico è in vista non attacca e le reclute aspettano (prima andavano verso la cella più debole di tutta la mappa, anche mai vista). Con il gioco attuale di Shard il cambiamento non si vede nelle partite.
+
+**Problemi e domande**
+
+- **`UnitTaken` arriva come `UnitDead`** (il loader fa così da sempre). Un nemico in LOS che passa a un'altra squadra nemica sparisce da `los` e `radar`; se l'engine non manda un nuovo `UnitEnteredLos` dopo il cambio di squadra (non l'ho verificato), resta fuori finché non esce e rientra in vista. Proposta, non fatta: `UnitDead` del modulo toglie l'unità solo se `engineunit.destroyed` o se l'ID non è più valido; oppure il loader distingue `UnitTaken` da `UnitDead`. Da decidere.
+- **`shard_null` non ha oggetti ally**: sotto `shard_null` Shard avvisa «Skipping the loading of PerceptionHandler: no ally object holds it» e `self.ai.perceptionhandler` è `nil`. Non dà errori solo perché il `game` di `shard_null` restituisce `GetEnemies() = {}`. Se `shard_null` deve far girare moduli ally, `ShardNull.Start` dovrebbe creare anche uno `ShardAlly`: non l'ho fatto, fuori dal compito.
+- Nessun test prova che `Shard/modules.lua` includa il modulo: la spec del loader usa la fixture, e sotto `shard_null` il modulo non si carica (punto sopra). Le partite D lo provano (le righe del contatore leggevano `self.ai.perceptionhandler`).
+- Il warning EmmyLua in `attackhandler.lua` si toglierebbe con un `---@type` sul locale, ma `PerceptionHandler = class(Module)` non produce un tipo; lasciato.
+
+**Commit**
+
+1. `fc8996c60d` Shard runtime: PerceptionHandler, an ally team module with the units its ally team sees in LOS and on radar
+2. `1fd69af9f8` Shard loader: no Perception() nor omniscient field; the unit tables hold every unit
+3. `181b7cd799` Shard example: AttackHandler targets only the enemies its ally team sees in LOS
