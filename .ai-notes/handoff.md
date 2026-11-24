@@ -573,3 +573,37 @@ Shard memory record:, 15004
 - La media per frame (0,2–0,8 KB) è probabilmente sottostimata: `collectgarbage("count")` misura tutto lo stato LuaRules unsynced e i passi della GC incrementale dentro il frame la abbassano (il limite è scritto nel commento). Per una misura netta servirebbe fermare la GC durante il frame, che però cambierebbe il comportamento: non l'ho fatto.
 - La media cresce nel corso della partita (0,18 → 0,82 KB) insieme al numero di unità: atteso con STAI, che alloca per unità.
 - `DropFailed` di un global segna il tipo come fallito per tutta la partita: un cambio di host verso un team di quel tipo non riprova.
+
+### T6b (agente locale, 24 novembre 2026)
+
+**Commit**
+
+1. `a282312226` «Shard loader: errors told apart by message, counted, and listed once at the end»: `ShardAILoader.lua`, spec unsynced (+5 casi, uno aggiornato).
+2. `912dfb290c` «Shard runtime: a recycled unit ID gets a new ShardUnit, an ID that never existed gets none» (punti 2 e 3): `spring_lua/shard.lua` +11 −4, `ShardAILoader.lua` −5 (il blocco di T6 in `UnitCreated` non serve più), spec unsynced +29.
+3. `8e690cf374` (strumento): il gadget di controllo misura dopo quanto un ID morto torna in `UnitCreated`.
+4. `33ef1e96da`: annotazioni per EmmyLua (`errorList`, cache delle unità).
+
+**Punto 1**: `ReportError` ha una chiave `"<oggetto>|<call-in>|<prima riga dell'errore>"` (la prima riga contiene file, riga e testo). La prima volta: la riga di sempre con il traceback, subito; poi solo `count` e `last`. Niente più finestra di 900 frame (`ERROR_REPORT_FRAMES` e la tabella per oggetto tolti). Allocazioni solo quando c'è un errore (una stringa chiave a ogni errore, un record al primo). `WriteErrorSummary`, chiamata alla fine di `GameOver` e in `Shutdown`, scrive una volta sola, solo se ci sono stati errori: `[AI Loader] errors in this game, N different:` e poi `[AI Loader] <oggetto>, <call-in>: <n> times, frames <primo> to <ultimo>: <messaggio>`, nell'ordine della prima volta (l'ordine di inserimento). La chiave include il call-in, oltre a oggetto e messaggio: lo stesso messaggio in due call-in diversi conta due volte, come le due righe del riepilogo mostrano. Test (5): due errori diversi in `Update` a 2 frame di distanza → due righe col traceback; lo stesso errore 50 volte → una riga, poi `50 times, frames 1 to 50` una volta sola anche con `GameOver` e `Shutdown`; ordine della prima volta; riepilogo in `GameOver` da solo; nessun riepilogo senza errori. Il caso di T5b ora si aspetta una sola riga anche 900 frame dopo. Contro il loader di prima: 4 fallimenti. Mutazioni (chiave senza messaggio, contatore non incrementato, riepilogo due volte, niente riepilogo in `GameOver`, errore ripetuto scritto, intestazione senza errori): ognuna fa fallire 1–3 casi.
+
+**Punti 2 e 3**: `Shard:shardify_unit(id)`: oggetto in cache e non `destroyed` → quello; altrimenti, se `Spring.ValidUnitID(id)` è falso → quello in cache (l'unità morta nel tempo di grazia) o `nil` (ID mai esistito, nulla in cache); se è vero → `ShardUnit` nuovo al posto del vecchio. `ValidUnitID` si chiama solo per ID non in cache o `destroyed`. La scadenza di T6 toglie solo se in cache c'è ancora lo stesso oggetto, quindi non tocca quello nuovo. Test (2): unità distrutta, ID dato a un'unità di altro tipo prima di `UnitCreated` → `GetUnitByID` restituisce la nuova col suo nome, `UnitCreated` non ne crea un terzo, e dopo la scadenza vecchia è ancora lì; `GetUnitByID(4242)` → `nil` e cache vuota. Contro il codice di prima: 2 fallimenti. Mutazioni: senza `ValidUnitID` 1 fallimento + 1 errore; oggetto `destroyed` sempre tenuto 2 fallimenti. L'engine finto ora ha `ValidUnitID`.
+
+**Punto 4 — riciclo degli ID**: nessun riuso osservato. Partita A di 15 minuti: 128 unità morte, 0 ID riusati. Partita C di 60 minuti di gioco (STAI contro STAI, 265 s reali): 1495 unità morte, 0 ID riusati. In queste partite l'engine non ha mai ridato un ID di un'unità morta entro un'ora di gioco; il caso resta coperto dalle spec.
+
+**Partita A di T5c, 15 minuti, `SHARD_MEM_STATS=1`** (seme 47596): nessun errore, quindi nessun riepilogo; relay `3393 messages, 11492 orders given, 9 orders rejected`; STAI 154 unità, 2 fabbriche, 23 mex; 15 righe di memoria.
+
+**Partita C di 60 minuti**: il riepilogo vero, con due errori di STAI:
+
+```
+[AI Loader] errors in this game, 2 different:
+[AI Loader] STAI team 0, Update: 51 times, frames 74332 to 75532: [string "luarules/gadgets/ai/STAI/buildersbst.lua"]:121: attempt to index a nil value
+[AI Loader] STAI team 1, Update: 1671 times, frames 77955 to 108015: [string "luarules/gadgets/ai/STAI/bomberhst.lua"]:132: attempt to index a nil value
+```
+
+Sono gli ID vecchi di STAI annotati in T6 (`game:GetUnitByID(id)` su unità morte da più di 30 s, ora `nil` invece di un oggetto senza definizione). Relay `18781 messages, 142544 orders given, 45 orders rejected`. Il team 0 è stato distrutto (0 unità a fine partita), il team 1 ha 1335 unità.
+
+**Controlli**: StyLua pulito; EmmyLua 0 warning in `ShardAILoader.lua`, 2 in `spring_lua/shard.lua` su righe non toccate (63 e 73, `ShardSpringDamage()`/`ShardSpringFeature()`, c'erano già); 22 errori nel repository come prima; `lx --lua-version 5.1 test`: `2632 successes / 0 failures / 0 errors / 1 pending` (T6: 2625); `run_engine_tests.sh`: `RESULT: ok`.
+
+**Note**
+
+- Lo scratchpad era stato svuotato fra i compiti: StyLua 2.5.2 ed EmmyLua 0.24.0 riscaricati dalle release di GitHub.
+- Con 1671 ripetizioni in mezz'ora, l'errore di `bomberhst` ora costa una concatenazione di stringhe (la chiave) a ogni ripetizione: accettabile perché gli errori sono rari, ma STAI che sbaglia a ogni frame lo rende un costo per frame.
