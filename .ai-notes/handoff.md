@@ -705,3 +705,27 @@ Simili a T6b (medie 0,17–0,53 KB contro 0,18–0,82; heap 13–15 MB). Il mass
 - `EndGameAll` chiama `GameEnd` anche sugli oggetti senza moduli (non passa da `HasModules`, a differenza di `UpdateAll` e `Deliver`): oggi innocuo, `ShardAI:GameEnd` scorre i moduli.
 - `CatchUp` passa dai call-in del gadget: ogni unità rigenera anche `AddToUnitTables` per tutte le AI, non solo per gli oggetti nuovi (idempotente, ma lavoro inutile in un cambio di host).
 - La lacuna della spec sulla finestra dei frame (sopra), chiusa con due casi.
+
+### T7b (agente locale, 24 novembre 2026)
+
+**Commit**, uno per punto, suite verde dopo ognuno:
+
+1. `920848e188` «loader/loader.lua split into loader/types.lua and loader/lifecycle.lua»
+2. `bd9e7bbd11` «KeepDeadUnit renamed UnitDied» (gadget e `unitregistry.lua`; le spec non lo nominavano)
+3. `0a763c8aa5` «GameEnd only to the objects that have modules, as Update and the events»
+4. `3f804b6f83` «a catch-up writes the unit tables of the AIs it catches up only»
+
+**Punto 1**: `types.lua` (runtime, tipi e loro ambiente, `NewAPI`, `LoadAIType`, `GetAlly`, `SetupAI`, seme, fallimenti del caricamento) e `lifecycle.lua` (`AddAI`, `StopAI`, `StartObject`, `DropFailed`, `StartAIs`, `IsHosting`, `StartAIsOnce`, `CatchUp`, `HostChanged`, `RelayRejected`, `AddHostedAIs`, `CatchUpAfterReload`, `FlushOrders`, `SetGameID`). Scelte dove il posto non era chiaro:
+- il vecchio `AddAI` è diviso: il caricamento con `xpcall` e la gestione dei fallimenti sono `Types.LoadAI(id)`; la registrazione in `Shard.AIs`/`AIsByTeamID` e `hosting = true` sono `AddAI` in `lifecycle.lua`, che possiede `hosting`;
+- `SetGameID` è in `lifecycle.lua` perché dipende da `hosting`; chiama `Types.SetGameHash` (sempre) e `Types.SeedAIs` (solo se ospita), come prima;
+- `RemoveValue` e `RemoveAlly` stanno in `types.lua` (li usa la pulizia dei fallimenti) e sono esportati per `StopAI` e `DropFailed`;
+- `DropFailed` segna un tipo fallito con `Types.MarkTypeFailed`, perché `failedTypes` è di `types.lua`.
+Gadget: `Types.Setup(...)` e `Lifecycle.Setup(...)` al posto di `Loader.Setup`; i call-in usano `Lifecycle.*`. Spec: `HashGameID` preso da `loader/types.lua`; il test «nessuna funzione del loader visibile» scorre `types` e `lifecycle` al posto di `loader`, e controlla anche i nomi `Types`, `Lifecycle`, `LoadAI`. Righe: `types.lua` 305, `lifecycle.lua` 245.
+
+**Punto 3**: `EndGameAll` passa da `EndGameObject`, che controlla `HasModules`. Test: un ally con `modules` vuoto e `GameEnd` sostituito non viene chiamato a `GameOver`, l'altro ally sì; fallisce sul codice di prima.
+
+**Punto 4**: `UnitRegistry.SetUnitTableTargets(targets)`, chiamata da `CatchUp` insieme a `SetCatchUpTargets` e azzerata alla fine: durante il catch-up `AddToUnitTables` salta le AI che non sono fra le nuove. Test: AI del team 0 attiva con unità propria e alleata, cambio di host che porta qui il team 2; le cinque tabelle del team 0 sono sostituite da tabelle che contano le scritture: 0 scritture, e il team 2 ha l'unità 100 fra le nemiche e la 300 fra le alleate. Sul codice di prima: 1 fallimento.
+
+**Controlli**: StyLua pulito; EmmyLua 0 warning nei file del loader e nel gadget, 22 errori nel repository come prima; `lx --lua-version 5.1 test`: `2638 successes / 0 failures / 0 errors / 1 pending` (T7: 2636 + 2 casi nuovi); `run_engine_tests.sh`: `RESULT: ok`; partita A di 5 minuti: nessuna riga `[AI Loader] error`, relay `362 messages, 757 orders given, 0 orders rejected`, STAI 37 unità, 1 fabbrica, 6 mex.
+
+**Nota di metodo**: ho scritto i quattro punti insieme e poi li ho separati nei commit, ricostruendo lo stato del solo punto 1 prima del primo commit; ogni commit è stato provato con la suite completa.
