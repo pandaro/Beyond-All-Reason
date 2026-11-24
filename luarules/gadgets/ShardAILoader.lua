@@ -300,6 +300,11 @@ else
 	-- UNSYNCED CODE: the AIs, only on the client that hosts them
 
 	local MemStats = VFS.Include(LOADER_PATH .. "memstats.lua")
+	local UnitRegistry = VFS.Include(LOADER_PATH .. "unitregistry.lua")
+	local AddToUnitTables = UnitRegistry.AddToUnitTables
+	local RemoveFromUnitTables = UnitRegistry.RemoveFromUnitTables
+	local KeepDeadUnit = UnitRegistry.KeepDeadUnit
+	local ExpireDeadUnits = UnitRegistry.ExpireDeadUnits
 
 	local spGetMyPlayerID = Spring.GetMyPlayerID
 	local spGetTeamRulesParam = Spring.GetTeamRulesParam
@@ -312,14 +317,11 @@ else
 	local spGetUnitAllyTeam = Spring.GetUnitAllyTeam
 	local spGetUnitHealth = Spring.GetUnitHealth
 	local spGetUnitLosState = Spring.GetUnitLosState
-	local gaiaTeamID = Spring.GetGaiaTeamID()
 	local traceback = debug and debug.traceback
 
 	-- Lua numbers are single precision floats in the engine: seeds stay below 2^24 at every step,
 	-- as 65520 * 31 + 255 does
 	local SEED_MODULUS = 65521 -- the largest prime below 2^16
-	-- a dead unit's ShardUnit stays for 30 s of game: the AIs still ask the game for units they saw die
-	local DEAD_UNIT_FRAMES = 900
 
 	local myPlayerID = spGetMyPlayerID()
 	local hosting = false -- this client runs at least one AI
@@ -519,78 +521,6 @@ else
 		DeliverToAIs(name, unitID, unitTeam, allyTeam, unitDefID)
 	end
 
-	-- Provisional, as the old loader kept them: the units of every AI split into own, allied, enemy and
-	-- neutral, for game:GetUnits(), GetFriendlies() and GetEnemies(); omniscient, whatever the AI sees.
-	local function AddToUnitTables(unitID, teamID)
-		local AIs = Shard.AIs
-		for i = 1, #AIs do
-			local thisAI = AIs[i]
-			if teamID == thisAI.id then
-				thisAI.ownUnitIds[unitID] = true
-				thisAI.friendlyUnitIds[unitID] = true
-			elseif thisAI.alliedTeamIds[teamID] then
-				thisAI.alliedUnitIds[unitID] = true
-				thisAI.friendlyUnitIds[unitID] = true
-			elseif teamID == gaiaTeamID then
-				thisAI.neutralUnitIds[unitID] = true
-			else
-				thisAI.enemyUnitIds[unitID] = true
-			end
-		end
-	end
-
-	local function RemoveFromUnitTables(unitID)
-		local AIs = Shard.AIs
-		for i = 1, #AIs do
-			local thisAI = AIs[i]
-			thisAI.ownUnitIds[unitID] = nil
-			thisAI.friendlyUnitIds[unitID] = nil
-			thisAI.alliedUnitIds[unitID] = nil
-			thisAI.enemyUnitIds[unitID] = nil
-			thisAI.neutralUnitIds[unitID] = nil
-		end
-	end
-
-	-- dead units ------------------------------------------------------------------------------------
-	-- A ring of three parallel arrays (unit ID, ShardUnit, frame it leaves the cache), in the order the
-	-- units died; it grows by doubling when full and is never rebuilt otherwise.
-
-	local deadIDs, deadUnits, deadExpiry = {}, {}, {}
-	local deadCapacity, deadHead, deadCount = 0, 1, 0
-
-	local function GrowDeadRing()
-		local capacity = math.max(64, deadCapacity * 2)
-		local ids, units, expiry = {}, {}, {}
-		for k = 1, deadCount do
-			local i = (deadHead + k - 2) % deadCapacity + 1
-			ids[k], units[k], expiry[k] = deadIDs[i], deadUnits[i], deadExpiry[i]
-		end
-		deadIDs, deadUnits, deadExpiry = ids, units, expiry
-		deadCapacity, deadHead = capacity, 1
-	end
-
-	local function KeepDeadUnit(unitID, unit, frame)
-		if deadCount == deadCapacity then
-			GrowDeadRing()
-		end
-		local i = (deadHead + deadCount - 1) % deadCapacity + 1
-		deadIDs[i], deadUnits[i], deadExpiry[i] = unitID, unit, frame + DEAD_UNIT_FRAMES
-		deadCount = deadCount + 1
-	end
-
-	-- drops from the cache the dead units whose time is over, unless their ID already belongs to a new unit
-	local function ExpireDeadUnits(frame)
-		while deadCount > 0 and deadExpiry[deadHead] <= frame do
-			local unitID = deadIDs[deadHead]
-			if Shard.unitsByID[unitID] == deadUnits[deadHead] then
-				Shard:unshardify_unit(unitID)
-			end
-			deadUnits[deadHead] = nil
-			deadHead = deadHead % deadCapacity + 1
-			deadCount = deadCount - 1
-		end
-	end
-
 	-- AI setup -------------------------------------------------------------------------------------
 
 	-- api.lua builds a new game and map for every object, as before: it must not go through the AI
@@ -700,11 +630,7 @@ else
 		end
 		thisAI.alliedTeamIds = alliedTeamIds
 		thisAI.enemyTeamIds = enemyTeamIds
-		thisAI.ownUnitIds = {}
-		thisAI.friendlyUnitIds = {}
-		thisAI.alliedUnitIds = {}
-		thisAI.enemyUnitIds = {}
-		thisAI.neutralUnitIds = {}
+		UnitRegistry.NewUnitTables(thisAI)
 
 		local allyAIs = thisAI.ally.AIs
 		allyAIs[#allyAIs + 1] = thisAI
@@ -1037,7 +963,6 @@ else
 		DeliverToAll("UnitDead", unit)
 		RemoveFromUnitTables(unitId)
 		-- kept a while, with its type and name, then dropped: the old loader kept every dead unit forever
-		unit.destroyed = true
 		KeepDeadUnit(unitId, unit, spGetGameFrame())
 	end
 
