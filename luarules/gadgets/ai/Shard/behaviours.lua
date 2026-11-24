@@ -1,3 +1,5 @@
+-- behaviours by unit name, read by BehaviourFactory:AddBehaviours; none, so every unit gets defaultBehaviours
+behaviours = {}
 
 shard_include("taskqueues")
 shard_include("taskqueuebehaviour")
@@ -21,4 +23,4 @@ function defaultBehaviours(unit, ai)
 	return b
 end
 
-return {}
+return behaviours
