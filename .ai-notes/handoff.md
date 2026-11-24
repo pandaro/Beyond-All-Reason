@@ -1162,7 +1162,7 @@ A, STAI contro SimpleAI (controllo per `types.lua`): unità ai minuti 1/5/10/13:
 
 1. `9cc285d311` Shard null: Start builds a ShardGlobal and a ShardAlly and prepares global, ally, team as the loader does
 
-### T14 (agente locale, 24 novembre 2026)
+### T14 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Dove stava la `collect` e dove sta ora**
 

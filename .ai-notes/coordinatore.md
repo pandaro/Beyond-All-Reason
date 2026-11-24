@@ -105,7 +105,7 @@ Claude-Session: <link della sessione>
 | T11 | strumenti fissati in `~/.local/bin`, elezione dei behaviour (solo priorità > 0) con `legacyElection` per STAI, turni dei behaviour (`BScheduler`) |
 | T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
 | T13 | `shard_null` crea anche gli oggetti d'alleanza e globale, prepara global → ally → team |
-| **T14** | **in corso**: `collect` del vecchio loader rimessa com'era; `maxInstances` per tipo (costante, 2) |
+| T14 | rete di sicurezza della GC rimessa (in `memstats.lua`, stessi valori, ogni 121 frame); `MAX_INSTANCES_PER_AI_TYPE = 2` per client host. Aperti: la `collect` senza condizione di `Initialize` (r. 276 del vecchio loader) non rimessa; limite per client o per partita |
 
 **Prossimi passi** (ordine proposto all'utente)
 
