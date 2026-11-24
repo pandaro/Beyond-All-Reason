@@ -70,10 +70,10 @@ Claude-Session: <link della sessione>
 
 - `luarules/gadgets/ShardAILoader.lua` (circa 300 righe): ricerca dei team AI e call-in dell'engine, ognuno una «macro» di poche righe.
 - `luarules/gadgets/ai/shard_runtime/loader/`: un file per compito, ognuno restituisce una tabella, nessun globale.
-  - synced: `hosts.lua` (host per ally team, successore), `relay.lua` (controllo e consegna degli ordini);
+  - synced: `hosts.lua` (host per ally team, successore), `relay.lua` (controllo e consegna degli ordini); `admission.lua` (quali team AI partono, letto anche dall'unsynced);
   - unsynced: `types.lua` (runtime, tipi di AI, oggetti, seme, fallimenti), `lifecycle.lua` (avvio, arresto, catch-up, cambio di host, invio ordini), `delivery.lua` (chiamate protette, elenco errori, consegna degli eventi), `unitregistry.lua` (tabelle di unità provvisorie, unità morte), `memstats.lua` (memoria per frame), `scheduler.lua` (turni).
 - `shard_runtime/`: classi (`AIBase`, `ShardAI`, `ShardAlly`, `ShardGlobal`, `Module`, `Behaviour`, `Unit`), `ordercodec.lua`, `spring_lua/` (API vera, `outbox.lua`), `shard_null/` (API finta per i test).
-- `shard_runtime/perceptionhandler.lua`: modulo di percezione offerto, non obbligatorio (il framework non filtra).
+- `shard_runtime/perceptionhandler.lua` e `shard_runtime/tablepool.lua`: moduli offerti, non obbligatori.
 - `Shard/`: AI di esempio, classe `ShardBasic` (nome proposto, non ancora confermato dall'utente). `STAI/`: l'AI dell'utente.
 
 **Cosa fa**
@@ -81,7 +81,7 @@ Claude-Session: <link della sessione>
 - Tre ambiti con `Scope()` obbligatorio: `"team"`, `"ally"`, `"global"`; dipendenze solo verso l'alto.
 - Include per tipo di AI con ambiente proprio e cache (ogni file gira una volta per tipo).
 - AI solo nell'unsynced del client host; un host per ally team (`aiHostPlayer`), successore deterministico.
-- Ordini: `game:GiveOrder(id, cmd, params, options, method)` con i codici di STAI, coda per AI, messaggio binario (formato v1), al massimo 25 ordini per messaggio, un messaggio per frame. Relay synced con tutti i controlli (mittente, seq, frame, limiti, team delle unità).
+- Ordini: `game:GiveOrder(id, cmd, params, options, method)` con i codici di STAI, coda per AI, messaggio binario (formato v1), al massimo 20 ordini per messaggio (`MAX_ORDERS_PER_MESSAGE` in `ordercodec.lua`; una chiamata con più di 20 ordini è rifiutata intera), un messaggio per frame. Relay synced con tutti i controlli (mittente, seq, frame, limiti, team delle unità).
 - Eventi solo ai moduli che li ridefiniscono, ordine global → ally → team.
 - Scheduler di base: con `MScheduler` nella classe, i moduli elencati a turni (un turno per frame); gli altri a ogni frame; senza liste, tutti a ogni frame. STAI tiene il suo `SchedulerHST`.
 - Errori: elenco per messaggio, riepilogo a fine partita. Unità morte tenute 900 frame; ID riciclati e ID mai esistiti gestiti.
@@ -105,34 +105,34 @@ Claude-Session: <link della sessione>
 | T11 | strumenti fissati in `~/.local/bin`, elezione dei behaviour (solo priorità > 0) con `legacyElection` per STAI, turni dei behaviour (`BScheduler`) |
 | T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
 | T13 | `shard_null` crea anche gli oggetti d'alleanza e globale, prepara global → ally → team |
-| T14 | rete di sicurezza della GC rimessa (in `memstats.lua`, stessi valori, ogni 121 frame); `MAX_INSTANCES_PER_AI_TYPE = 2` per client host. Aperti: la `collect` senza condizione di `Initialize` (r. 276 del vecchio loader) non rimessa; limite per client o per partita |
+| T14 | rete di sicurezza della GC rimessa (in `memstats.lua`, stessi valori, ogni 121 frame); `MAX_INSTANCES_PER_AI_TYPE = 2` (per client; per partita da T16) |
 | T15 | `collect` d'avvio rimessa; `MAX_ORDERS_PER_MESSAGE` unico in `ordercodec.lua`; `shard_runtime/tablepool.lua` |
 | T16 | `maxInstances` per partita (`loader/admission.lua`, primi 2 team per tipo, per ID; il relay rifiuta gli esclusi); 20 ordini per messaggio |
 
-**Prossimi passi** (ordine proposto all'utente)
+**Stato**: il framework è fermo dopo T16. Il porting di STAI va avanti in un'altra chat, sul branch `stai/porting` (`.ai-notes/stai/`, compiti S1, S2, …). Questa chat riprende solo se serve toccare il framework: un cambio chiesto dal porting si fa su `shard/fase1` e poi si porta su `stai/porting`.
 
-1. Fatto: guida aggiornata con elezione, `BScheduler` e percezione.
-2. Rinviato per scelta dell'utente: `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
-3. **Latenza in multiplayer**: partita vera con due client, da organizzare con l'utente; poi la scelta synced/unsynced come modalità predefinita.
-4. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`, branch pulito senza `.ai-notes/` e con commit riordinati, prove di partita per `AI_POLICY.md`.
+**Prossimi passi del framework** (nessuno urgente)
 
-**Decisioni e appunti dell'utente (24 novembre 2026, sera)**
-- `QueueActivation` e `Job`: **eliminati** dalla proposta. Restano solo come risposta ipotetica se un giorno servissero (100 unità insieme nascono solo con `/give`).
-- Ordini per frame: **numero personalizzabile** (costante nel framework, usata da outbox e relay), **partire da 10** (oggi 25). Dato: STAI fa circa 15.000 ordini in 15 minuti, meno di 1 per frame in media; un giocatore fortissimo fa circa 100 azioni al minuto.
-- Pool di tabelle: **nel framework**, un piccolo modulo con le sue funzioni, facile da raggiungere, per chi vuole usarlo. Toglierlo da STAI solo al porting e se costa poco.
-- Griglia di `LosHST`: **non va più bene così**; se ne parla al porting. Idea dell'utente: **una griglia unica** per tutto, ogni cella una tabella con i dati, più **liste delle celle «vere»** per tema (celle con nemici, con metallo, con unità mie, ecc.).
-- T15 scritto: `collect` d'avvio rimessa, ordini per messaggio a 10 (costante unica), `shard_runtime/tablepool.lua`.
-- T15 verificato. T16 scritto: `maxInstances` per partita, deterministico (primi N team AI per ID), con il relay che rifiuta i team esclusi.
-- Aperto da T15: un gruppo di ordini con più di 10 ordini (un `GiveOrder` a 11+ unità, o 11+ comandi in coda) va da solo e il relay lo **rifiuta intero**. Decisione dell'utente: niente spezzatura, limite alzato a 20 (extra di T16). **Nota**: gli ordini troppo grandi (gruppi oltre 20) possono essere persi; in teoria per quei casi si può usare `GiveOrderArrayToUnitArray` (un solo comando per molte unità).
-- Porting di STAI preparato in `.ai-notes/stai/` (`nuovo-stai.md`, `coordinatore.md`, `handoff.md`). Branch `stai/porting` creato da `shard/fase1` dopo la verifica di T16; il porting lo segue un'altra chat con lo stesso metodo (compiti S1, S2, …).
+1. **Latenza in multiplayer**: rinviata finché l'utente non vuole montare SkyLobby; poi la scelta synced/unsynced come modalità predefinita.
+2. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`; branch pulito senza `.ai-notes/` e con commit riordinati; per `AI_POLICY.md` qualche partita guardata dall'utente, con screenshot, più i numeri headless.
+3. **Shard di esempio** (bassa priorità, impegno basso): non costruisce mex, non arriva mai ad attaccare, `PlacementHandler:GenerateSpiral` alloca circa 6 MB in un frame.
 
-**In sospeso per scelta dell'utente**
+**Decisioni dell'utente (24 novembre 2026)**
 
-- Shard di base: non costruisce mex; `PlacementHandler:GenerateSpiral` alloca circa 6 MB in un frame.
-- Decisioni del 24 novembre 2026 (utente): nomi `ShardBasic` e `UnitHandler` confermati; `maxInstances` è un numero nostro (ora 2, alla release 1 o 2); la `collect` del vecchio loader torna esattamente dov'era e com'era (era già stato detto: non riproporre di toglierla); multiplayer rinviato (solo con SkyLobby, quando l'utente vorrà); Shard di esempio a bassa priorità, impegno basso.
-- Decisioni aperte (prima di queste): rete di sicurezza della GC (`collect` del vecchio loader: per l'utente è una sicurezza contro il crash) e pool di tabelle; `maxInstances` per tipo e «un solo cervello per alleanza»; nomi da confermare (`ShardBasic`, `UnitHandler`, `Perception()`, `QueueActivation`, `Job`); banco di prova intensivo ed estensivo.
+- Nomi confermati: `ShardBasic`, `UnitHandler`.
+- `QueueActivation` e `Job` eliminati dalla proposta: idee da riprendere solo se servissero.
+- La `collect` del vecchio loader (rete di sicurezza ogni 121 frame e quella d'avvio) è rimessa esattamente com'era: **non riproporre di toglierla**.
+- `maxInstances`: un numero nostro, per partita, ora 2 (alla release 1 o 2).
+- Ordini: 20 per messaggio; niente spezzatura dei gruppi; oltre 20 in una chiamata l'ordine si perde (in teoria `GiveOrderArrayToUnitArray` lo evita, non verificato).
+- Pool di tabelle: nel framework (`tablepool.lua`), facoltativo.
+- Percezione: il framework non filtra; `PerceptionHandler` facoltativo; un'AI che bara è ammessa.
 
-**Porting di STAI** (dopo il framework; appunti nel documento): adeguarla allo scheduler di base (liste nella classe, togliere `SchedulerHST`); MapHST `"global"`, LosHST `"ally"`; ID vecchi in `buildersbst` e `bomberhst`; `EchoDebug` con argomenti costosi; stallo di metallo; farla girare sotto `shard_null` (boot, maiuscole dei file, `Spring` finto).
+**In sospeso o rinviato**
+
+- `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
+- Richieste di percorso (`Spring.RequestPath`).
+- «Un solo cervello per alleanza».
+- Banco di prova intensivo ed estensivo.
 
 ## 6. Cose imparate (non ripetere gli errori)
 
