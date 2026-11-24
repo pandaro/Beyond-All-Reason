@@ -792,3 +792,69 @@ Prima dell'ultima correzione (con `DebugPoint` ancora in errore) Shard aveva cos
 - Allocazioni di circa 6 MB in un frame: con buona probabilità `PlacementHandler:GenerateSpiral` (raggio 1500, passo 16: una spirale di circa 190 × 190 posizioni a ogni nuovo lavoro di piazzamento).
 - `shard_runtime/unit.lua:155` (`Unit:UnitDamaged`, `unit` nil), visto una volta in una partita: da T6b `shardify_unit` restituisce `nil` per un ID non valido e non in cache, e il loader consegna l'evento lo stesso. È del runtime/loader, non di Shard: proposta di non consegnare `UnitDamaged` quando l'unità è `nil`, da decidere.
 - `taskqueuebehaviour.lua`: `value` non definito (errore EmmyLua già presente).
+
+### T10 (agente locale, 24 novembre 2026)
+
+**Commit**
+
+1. `a571c66fec` runtime e spec: consegna mirata in `shardai.lua`.
+2. `28395e3ade` loader e spec: un oggetto senza moduli interessati non viene chiamato.
+3. `b26bc57697` unità `nil`.
+4. `96f2dcef82` `shard_null`.
+5. `393f0ba29e` annotazioni per EmmyLua.
+
+In tutto 9 file, +449 −34. `shardai.lua` 530 righe, `shard_null/boot.lua` 63.
+
+**Runtime**: `EVENTS` (i 14 callback, compreso `UnitGiven`) ed `EVENTS_CALLED` (`UnitBuilt` → `My/Friendly/Enemy/NeutralUnitBuilt`; `UnitGiven` → `UnitCreated`, `UnitBuilt`, quindi per ricorsione anche i quattro `*UnitBuilt`). `WantsEvent(module, event)`: `module[event] ~= AIBase[event]`, letto sull'istanza, oppure uno degli eventi chiamati. Gli altri metodi di `AIBase` che ne chiamano altri: solo questi due (gli altri sono vuoti o di servizio). `ShardAI:BuildHandlers()` costruisce `self.handlers[evento]` alla fine di `Init` (dopo l'`Init` dei moduli, così vale anche un metodo assegnato lì) e in `AddModule`; i callback scorrono `self.handlers.<evento>`. `ShardAI:WantsEvent(event)` (vero anche prima di `Init`). Aggiunto `ShardAI:UnitGiven`, che scorre la sua lista: il loader oggi non lo usa, perché consegna `UnitGiven` dell'engine come `UnitCreated` (come il vecchio loader).
+
+**Loader**: `HasModules` sostituito da `Wants(target, name)` = `target:WantsEvent(name)` in `Deliver`, `UpdateObject` (`Update`) ed `EndGameObject` (`GameEnd`). Ordine verificato call-in per call-in: `DeliverToShared` (global, poi ally) e poi le AI per `UnitCreated` (solo l'owner fra le AI), `UnitBuilt`, `UnitDead`, `UnitDamaged`, `UnitIdle`, `UnitTaken`, `UnitGiven`; `Update` e `GameEnd` uguale (`GameEnd` va team → ally → global, come da T5b); `DeliverSight` va agli ally di quell'ally team e alle AI, mai ai global (scelta di T5b, non cambiata). Commento in testa a `delivery.lua` aggiornato.
+
+**Unità `nil`**: nei call-in `UnitCreated`, `UnitFinished`, `UnitDestroyed`, `UnitDamaged`, `UnitIdle`, `UnitTaken`, `UnitGiven`, se `Shard:shardify_unit(unitId)` è `nil` l'evento non si consegna; le tabelle di unità si aggiornano lo stesso; `UnitDestroyed` consegna `UnitDead` prima di toglierle, come prima. L'attaccante di `UnitDamaged` può restare `nil`.
+
+**`shard_null`**: `shard_null/boot.lua` ha un `shard_include` che cerca prima nella cartella dell'AI e poi in `shard_runtime/` (leggendo `package.path` senza eseguire nulla), e restituisce `{ SetAIFolder, Start }`; `Start(ai, nome)` imposta `api` (quella di `shard_null` da `api.lua`), `fullname`, `id`, `allyId` e chiama `Prepare()`. `shard_null/game.lua`: `DrawDisplay`, che `ShardAI:Init` chiama. `Shard/boot.lua` (come esempio): nel ramo `shard_null`, `SetAIFolder("Shard")` e `Start(ai, "Shard")`. Il `require` in `shard_include` non è una tail call: lo `spec_helper` di BAR lo rifiuta, come l'engine con `VFS.Include` (T5c).
+
+**Test**
+
+- Runtime (6 casi in `shardai_spec.lua`): un modulo senza l'evento non lo riceve, gli altri sì, nell'ordine di `modules.lua`; `MyUnitBuilt` da solo → `UnitBuilt`; `UnitGiven` → chi vuole `UnitCreated`/`UnitBuilt`/`EnemyUnitBuilt`, nessun altro; metodo ereditato da una classe intermedia e metodo assegnato in `Init`; `AddModule` dopo `Init`; 1000 `UnitDead` senza allocazioni. Sul runtime di prima: 4 errori. Mutazioni (`UnitBuilt` senza smistamento, `UnitGiven` senza chiamati, tutti vogliono tutto, metodo letto sulla classe, `AddModule` senza ricostruire): tutte prese.
+- Loader (3 casi): un ally i cui moduli non vogliono `UnitIdle` non viene chiamato (`Prepare` contato: 0) mentre gli altri sì (fallisce con il `delivery.lua` di prima); ordine global, ally, ally, team ×3; 500 `UnitIdle` a tutti gli oggetti senza allocazioni.
+- Unità `nil` (1 caso): `UnitDamaged`, `UnitIdle`, `UnitFinished`, `UnitDestroyed` per un ID mai esistito → nessun evento; `UnitDamaged` con attaccante inesistente → consegnato con attaccante `nil`. Prima: errore.
+- `shard_null` (1 caso): `require("Shard/boot")` con `package.path` su `luarules/gadgets/ai/`, `Init` con 5 moduli, 5 `Update` senza errori. Prima: errore.
+- **Modifica a una spec esistente**: «ends the game only for the objects that have modules» (T7b) svuota `modules` a mano dopo `Init`; ora chiama anche `o.ally1:BuildHandlers()`, come fanno `Init` e `AddModule`. Asserzioni invariate. La spec unsynced ha anche `WeaponDefs` finto (serve a `shardify_damage`).
+- Suite: `2654 successes / 0 failures / 0 errors / 1 pending`. `run_engine_tests.sh`: `RESULT: ok`.
+
+**Chi riceve cosa** (Shard: liste vere sotto `shard_null`; STAI: dai metodi definiti nelle 20 classi `class(Module)`, comprese quelle che `modules.lua` non carica)
+
+| Evento | Shard | STAI |
+| --- | --- | --- |
+| Update | 4 (unithandler, attackhandler, placementhandler, sleep) | 13 |
+| GameMessage | 0 | 0 |
+| UnitCreated | 1 (unithandler) | 3 (BuildingsHST, LosHST, UnitHST) |
+| UnitBuilt | 1 | 2 (BuildingsHST, UnitHST) |
+| UnitGiven | 1 | 3 |
+| UnitDead | 3 | 5 (BuildingsHST, CleanHST, DamageHST, LosHST, UnitHST) |
+| UnitIdle | 1 | 1 (UnitHST) |
+| UnitDamaged | 1 | 3 (DamageHST, LosHST, UnitHST) |
+| UnitEntered/LeftLos, UnitEntered/LeftRadar | 0 | 1 (LosHST) |
+| UnitMoveFailed | 0 | 0 |
+| GameEnd | 1 | 1 (UnitHST) |
+
+**Partite** (`SHARD_MEM_STATS=1`, 15 minuti, Comet Catcher): nessuna riga `[AI Loader] error` in nessuna delle due.
+
+| | T10 | T7 / T5c |
+| --- | --- | --- |
+| A, STAI a fine partita | 182 unità, 2 fabbriche, 32 mex | 201 / 2 / 38 (T7) |
+| A, unità ai minuti 1/5/10/13 | 6 / 40 / 86 / 142 | 6 / 34 / 84 / 125 (T5c) |
+| A, relay | 3638 messaggi, 12169 ordini, 10 rifiutati | 3395 / 16896 / 9 (T7) |
+| A, memoria media per frame | 0,18–0,62 KB, max fino a 172 KB, heap 13–14,4 MB | 0,17–0,53, max 199, heap 13–15 (T7) |
+| C, STAI a fine partita | 159 e 156 unità, 24 e 25 mex | 146 e 153 (T5c) |
+| C, relay | 4255 / 24662 / 34 | 3886 / 23906 / 14 (T5c) |
+| C, memoria media per frame | 0,28–1,01 KB, heap 18,7–22,7 MB | — |
+
+Le partite stanno nella variabilità vista in T5c (fra 146 e 201 unità a fine partita); nessun segno di eventi persi. La memoria per frame non cala in modo visibile: gli eventi che STAI non ascolta erano chiamate vuote, senza allocazioni.
+
+**Cosa servirebbe a STAI per girare sotto `shard_null`** (non fatto, STAI non si tocca):
+1. `STAI/boot.lua` come `Shard/boot.lua`: `ShardNull.SetAIFolder("STAI")` e `ShardNull.Start(ai, "STAI")`; oggi l'AI parte senza `api` (`shardai.lua:173: attempt to index field 'api'`).
+2. Nomi dei file e degli include con le stesse maiuscole: `modules.lua` include `schedulerhst`, il file è `schedulerHST.lua` (il VFS dell'engine non distingue, il file system sì).
+3. `Spring`, `UnitDefs`, `Game` finti: 14 file di STAI li usano direttamente.
+
+**Note**: EmmyLua senza errori nuovi; in `shardai.lua` un warning in più (28 contro 27), dello stesso tipo di quelli già presenti nei callback.
