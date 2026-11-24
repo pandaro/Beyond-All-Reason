@@ -42,6 +42,24 @@
 
 ## Risultati
 
+### T16 (agente locale, 24 novembre 2026)
+
+**Commit**: `05f3c46453` (`maxInstances` per partita), `a816f926b9` (20 ordini per messaggio).
+
+**1. `maxInstances` per partita**
+
+- File nuovo `shard_runtime/loader/admission.lua`, puro (nessuna chiamata `Spring.*`), includibile dal synced: `Admission.MAX_INSTANCES_PER_AI_TYPE = 2` (unico posto da cambiare) e `Admission.Admitted(aiTeams, maxInstances?)` → `teamID -> true`. Ordina per ID i team di `aiTeams` (la stessa tabella da cui `SetupAI` legge il tipo, costruita da `Spring.GetTeamLuaAI` identica su tutti i client) e ammette i primi N di ogni tipo. Il synced non serve: l'input è lo stesso ovunque e non cambia durante la partita, quindi nessun messaggio né rules param.
+- `types.lua`: tolta la costante locale; `Setup` calcola `admitted` una volta; `AtInstanceLimit` guarda solo `admitted[id]`. Il cambio di host passa da `LoadAI` → stessa tabella, quindi chi è escluso resta escluso e chi è ammesso resta ammesso. Riga di log: `[AI Loader] AI team 2 not started: 2 SpecAI AIs already in this game, the most one AI type may have`.
+- `relay.lua`: `Setup(hostOf, admitted)`; in `CheckHeader`, dopo il controllo `sender`, un team non ammesso dà `Reject("excluded")` (compare nella riga di chiusura come gli altri motivi). `ShardAILoader.lua` synced: `Relay.Setup(Hosts.HostOf, Admission.Admitted(aiTeams))`.
+- Il registro degli host non cambia: anche un team escluso riceve `aiHostPlayer`, ma non parte e i suoi messaggi sono rifiutati.
+
+**Test** (nuovi): unsynced — conta la partita e non il client (client che ospita solo il team 2: non parte); ammessi i primi per ID anche con tipi misti (team 0 PercAI, 1-3 SpecAI → 1 e 2 sì, 3 no); escluso resta escluso quando l'host arriva qui; ammesso resta ammesso quando arriva qui (team 0 arriva su un client che ha già 1; con la vecchia regola il client faceva girare 1 e 2 e rifiutava lo 0). Synced — il relay rifiuta il team 2 escluso anche dal suo host (`excluded = 1`); tipi diversi contano separati anche nel relay.
+Mutazioni: codice vecchio → 4 falliti; relay senza controllo → 1; senza ordinamento → 6; un conteggio unico per tutti i tipi → 2. Il test «escluso resta escluso» passa anche col codice vecchio (lì il client aveva già 2 AI): lo tengo perché fissa il requisito 2.
+
+**2. 20 ordini per messaggio**: `MAX_ORDERS_PER_MESSAGE = 20`. Test aggiornati: 21 ordini → 20 + 1; gruppo di 6 dopo 15 → 15 poi 7; gruppo di 21 da solo; relay accetta 20 e rifiuta 21 (`count`); '2-1' dopo 19 ordini va nel messaggio dopo. Con la costante a 10 falliscono 4 test.
+
+**Controlli**: `lx --lua-version 5.1 test` 2728 successi, 0 falliti, 1 pending di sempre. StyLua 2.5.2 pulito sui file toccati. EmmyLua 0.24.0: 20 errori, gli stessi; `admission.lua`, `relay.lua`, `types.lua` 0 diagnostiche. `run_engine_tests.sh`: `RESULT: ok`. `.emmyrc.json` ripristinato. Nessuna partita (il codice di gioco è cambiato come previsto).
+
 ### T15 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**: `45b8a1529f` (collect d'avvio), `00e5c38bae` (10 ordini per messaggio), `bcb1cd83be` (tablepool).
