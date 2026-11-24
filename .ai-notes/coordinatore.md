@@ -105,6 +105,7 @@ Claude-Session: <link della sessione>
 | T11 | strumenti fissati in `~/.local/bin`, elezione dei behaviour (solo priorità > 0) con `legacyElection` per STAI, turni dei behaviour (`BScheduler`) |
 | T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
 | T13 | `shard_null` crea anche gli oggetti d'alleanza e globale, prepara global → ally → team |
+| **T14** | **in corso**: `collect` del vecchio loader rimessa com'era; `maxInstances` per tipo (costante, 2) |
 
 **Prossimi passi** (ordine proposto all'utente)
 
@@ -116,7 +117,8 @@ Claude-Session: <link della sessione>
 **In sospeso per scelta dell'utente**
 
 - Shard di base: non costruisce mex; `PlacementHandler:GenerateSpiral` alloca circa 6 MB in un frame.
-- Decisioni aperte: rete di sicurezza della GC (`collect` del vecchio loader: per l'utente è una sicurezza contro il crash) e pool di tabelle; `maxInstances` per tipo e «un solo cervello per alleanza»; nomi da confermare (`ShardBasic`, `UnitHandler`, `Perception()`, `QueueActivation`, `Job`); banco di prova intensivo ed estensivo.
+- Decisioni del 24 novembre 2026 (utente): nomi `ShardBasic` e `UnitHandler` confermati; `maxInstances` è un numero nostro (ora 2, alla release 1 o 2); la `collect` del vecchio loader torna esattamente dov'era e com'era (era già stato detto: non riproporre di toglierla); multiplayer rinviato (solo con SkyLobby, quando l'utente vorrà); Shard di esempio a bassa priorità, impegno basso.
+- Decisioni aperte (prima di queste): rete di sicurezza della GC (`collect` del vecchio loader: per l'utente è una sicurezza contro il crash) e pool di tabelle; `maxInstances` per tipo e «un solo cervello per alleanza»; nomi da confermare (`ShardBasic`, `UnitHandler`, `Perception()`, `QueueActivation`, `Job`); banco di prova intensivo ed estensivo.
 
 **Porting di STAI** (dopo il framework; appunti nel documento): adeguarla allo scheduler di base (liste nella classe, togliere `SchedulerHST`); MapHST `"global"`, LosHST `"ally"`; ID vecchi in `buildersbst` e `bomberhst`; `EchoDebug` con argomenti costosi; stallo di metallo; farla girare sotto `shard_null` (boot, maiuscole dei file, `Spring` finto).
 

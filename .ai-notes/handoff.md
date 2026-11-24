@@ -18,34 +18,30 @@
 
 ## Compito attuale
 
-### T13: oggetti d'alleanza e globale sotto `shard_null`
+### T14: rete di sicurezza della GC rimessa com'era, `maxInstances`
 
-**Impegno: basso.** Un cambio piccolo e isolato in `shard_null/boot.lua`, senza toccare il loader né l'engine.
+**Impegno: basso.** Due cambi piccoli nel loader.
 
-**Problema** (da T12): `ShardNull.Start` crea solo l'AI di team. Sotto `shard_null` i moduli con `Scope()` `"ally"` o `"global"` non si caricano («Skipping the loading of PerceptionHandler: no ally object holds it») e `self.ai.perceptionhandler` è `nil`. Così questi moduli non si possono provare senza engine.
+**Decisioni dell'utente (24 novembre 2026)**
+- La `collectgarbage("collect")` del vecchio loader è una **rete di sicurezza contro il crash**: va rimessa **esattamente dov'era e com'era** (stessa condizione, stessi valori, stesso momento). Non è la `collect` di `MapHST:Init` di STAI: quella non si tocca in questo compito.
+- `maxInstances`: **un numero che impostiamo noi**, nel loader, per tipo di AI. Per ora 2; alla release probabilmente 1 o 2.
+- Nomi confermati: `ShardBasic`, `UnitHandler`.
 
 **Lavoro**
 
-1. `ShardNull.Start(ai, name)` crea anche **un `ShardGlobal` e un `ShardAlly`** (ally team 0), con gli stessi campi che dà loro il loader (`loader/types.lua`: `LoadAIType`, `GetAlly`, `SetupAI`): `loaded`, `fullname`, `api`, `allyId`, `AIs`, i collegamenti `ai.global`, `ai.ally`, `ally.global`, e l'AI dentro `AIs` di tutti e due. Poi `Prepare()` nello stesso ordine del loader: **global, ally, team**. Le parti che servono al solo loader (scheduler condiviso, host, outbox) restano fuori, salvo che senza di loro qualcosa non funzioni: in quel caso scrivi cosa e perché.
-2. I due oggetti si raggiungono come `ai.global` e `ai.ally`. **Niente funzioni nuove** per consegnare eventi o fare `Update`: chi scrive un test chiama gli oggetti nell'ordine global → ally → team. Se ti sembra indispensabile un aiuto, scrivilo nei risultati invece di aggiungerlo.
-3. Funzioni piccole in `boot.lua` (per esempio una che crea il globale, una l'ally), composte in `Start`, che si legge come passi. Commento breve in testa a `Start`: cosa crea e in che ordine.
-4. Shard e STAI non si toccano. `Shard/boot.lua` resta uguale.
+1. **GC**: trova la `collectgarbage` del vecchio loader con `git show 3ad8f3fb^:<percorso>` (cerca il file del loader rimosso nel commit `3ad8f3fb`; il clone può essere shallow: `git fetch --depth=50 origin 3ad8f3fb` se serve). Rimettila nel punto corrispondente del loader di oggi, identica. Se il punto corrispondente non esiste più com'era (per esempio era nel call-in che oggi è in un file di `loader/`), mettila dove fa la stessa cosa nello stesso momento, e scrivi nei risultati il prima e il dopo, righe vere. Commento di una riga: «safety net against out-of-memory crashes, as in the old loader».
+2. **`maxInstances`**: una costante con nome chiaro in testa al file del loader che crea le AI (per esempio `MAX_INSTANCES_PER_AI_TYPE = 2`). Le AI di quel tipo oltre il numero non partono: una riga di log che dice quale team resta fermo e perché. Le altre AI e la battle vanno avanti. Funzione piccola, chiamata in `SetupAI` o subito prima.
+3. Niente altro. Shard e STAI non si toccano.
 
-**Test busted** (`shard_null_spec.lua`)
+**Test busted**: con il limite a 2 e tre team dello stesso tipo, il terzo non parte e c'è la riga di log; due tipi diversi contano separati; la `collectgarbage` è chiamata dove e quando lo era nel vecchio loader (spia su `collectgarbage`). Mutazioni.
 
-- Shard sotto `shard_null`: `ai.perceptionhandler` esiste ed è lo stesso oggetto di `ai.ally.perceptionhandler`; nessun avviso «Skipping the loading»; `ai.modules` resta di 5 moduli di team; l'ally ha il suo modulo.
-- Ordine di `Init`: global, poi ally, poi team.
-- Un evento di vista dato a `ai.ally` (`UnitEnteredLos`, poi `UnitLeftLos`) cambia `Sees` come atteso.
-- I test che c'erano passano senza modifiche.
-- Prova delle mutazioni (per esempio: ally non creato, ordine di `Prepare` invertito, `ai.ally` non collegato, AI non in `AIs`).
-
-**Partite**: nessuna (il codice dell'engine non cambia).
+**Partite**: una A (STAI contro SimpleAI, `SHARD_MEM_STATS=1`, 15 minuti): confronta memoria e numeri con T12.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno solo, `shard_null` e spec.
+**Commit**, in inglese: uno per la GC, uno per `maxInstances`.
 
-**Nei risultati**: righe per file, test e mutazioni, cosa hai lasciato fuori dal loader e perché.
+**Nei risultati**: dove stava la `collect` e dove sta ora (righe vere, prima e dopo), righe per file, test, mutazioni, la partita A.
 
 ## Risultati
 
