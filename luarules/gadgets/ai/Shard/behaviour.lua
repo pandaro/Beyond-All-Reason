@@ -13,6 +13,8 @@ function Behaviour:GameEnd() end
 
 function Behaviour:UnitCreated(unit) end
 
+function Behaviour:OwnerCreated(unit, unitDefId, teamId, builderId) end
+
 function Behaviour:UnitBuilt(unit) end
 
 function Behaviour:OwnerBuilt() end
