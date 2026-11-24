@@ -264,6 +264,24 @@ describe("ShardAILoader synced relay", function()
 		assert.same({ rate = 1 }, rejections(loader))
 	end)
 
+	it("rejects a first message from the future", function()
+		local loader = started()
+
+		receive(loader, 0, message(loader, 0, 1, 1001, { { 100, CMD_STOP } }))
+
+		assert.equal(0, #loader.orders)
+		assert.same({ frame = 1 }, rejections(loader))
+	end)
+
+	it("rejects a first message older than 900 frames", function()
+		local loader = started()
+
+		receive(loader, 0, message(loader, 0, 1, 99, { { 100, CMD_STOP } }))
+
+		assert.equal(0, #loader.orders)
+		assert.same({ frame = 1 }, rejections(loader))
+	end)
+
 	it("rejects an emission frame below the last accepted one", function()
 		local loader = started()
 
