@@ -43,6 +43,46 @@
 
 ## Risultati
 
+### T15 (agente locale, 24 novembre 2026)
+
+**Commit**: `45b8a1529f` (collect d'avvio), `00e5c38bae` (10 ordini per messaggio), `bcb1cd83be` (tablepool).
+
+**1. `collect` d'avvio**
+
+- Vecchia, `AILoader.lua` r. 276, in `gadget:Initialize` dopo il catch-up, senza condizione: `collectgarbage('collect')`.
+- Nuova, `loader/lifecycle.lua` `CatchUpAfterReload`, dopo l'`if spGetGameFrame() > 0`, quindi senza condizione come la vecchia: `-- clean start, as in the old loader` / `collectgarbage("collect")`. Gira solo sui client che ospitano AI (`Initialize` esce prima negli altri), come la vecchia nel suo ramo.
+- Test: una sola `collect` in `Initialize` dopo un reload, chiamata quando le AI sono già partite. Il test della rete di sicurezza «solo su frame divisibili per 121» ora svuota il log dopo l'avvio (contava anche questa).
+
+**2. Ordini per messaggio**
+
+- Costante unica `MAX_ORDERS_PER_MESSAGE = 10` in `shard_runtime/ordercodec.lua`, nella tabella `OrderCodec`. Motivo: è già il file del formato incluso da entrambi i lati (outbox unsynced e relay synced), puro e includibile dal synced; nessun file nuovo, nessun `GG`/globale. `outbox.lua` e `relay.lua` fanno `local MAX_ORDERS_PER_MESSAGE = OrderCodec.MAX_ORDERS_PER_MESSAGE`. Il relay prima accettava fino a 4000.
+- **Regola tenuta**: un gruppo (gli ordini di una chiamata `GiveOrder` '2-1' o '1-2') non si spezza. Con più di 10 ordini va da solo in un messaggio, e il relay lo **rifiuta intero** (`count`): per esempio un ordine '1-2' a 11+ unità, o una coda di 11+ comandi a una unità, si perde tutto. Prima succedeva solo oltre 4000. Nella partita sotto i rifiutati sono 10 (T14: 13), ma il conteggio per motivo non esce nella riga di chiusura: non so quanti siano `count`. Da decidere: spezzare i gruppi grandi o scartarli nell'outbox con un `Warn`.
+- Test: 11 ordini → due messaggi (10 + 1); gruppo di 6 dopo 5 ordini → 5 poi 7; gruppo di 11 inviato da solo; il relay accetta 10 e rifiuta 11 (`count`). Senza la modifica: 5 falliti + 1 errore.
+
+**3. `tablepool`**
+
+- `shard_runtime/tablepool.lua`: `TablePool.New()`, `pool:Get()` (una tabella vuota, riusata o nuova), `pool:Release(t)` (svuota con `pairs` e la tiene). Niente limiti né misure. Commento in testa: conviene con centinaia di tabelle brevi per frame, non per poche o per tabelle che vivono a lungo.
+- Accesso: `local TablePool = shard_include("tablepool")`. Motivo: la `shard_include` di ogni AI cerca già in `shard_runtime/` dopo la cartella dell'AI, quindi funziona da moduli e behaviour senza toccare il boot né aggiungere globali; con l'ambiente per tipo il file gira una volta per tipo di AI.
+- Test: tabella vuota, riuso svuotato (array e hash), ogni tabella data una volta sola, nessuna allocazione dopo il riscaldamento (`collectgarbage("count")` uguale su 5000 Get/Release). Mutazioni: Get sempre nuova → 3 falliti; Release senza svuotare → 1 fallito. Nessun modulo lo usa.
+
+**Controlli**: `lx --lua-version 5.1 test` 2722 successi, 0 falliti, 1 pending di sempre. StyLua 2.5.2 pulito sui file toccati. EmmyLua 0.24.0: 20 errori, gli stessi; `tablepool.lua` 0 diagnostiche (aggiunto `---@class TablePool`), gli altri file toccati come prima; il totale dei warning nel resto dell'albero oscilla fra due esecuzioni sullo stesso codice. `run_engine_tests.sh`: `RESULT: ok`. `.emmyrc.json` ripristinato.
+
+**Partita A** (STAI contro SimpleAI, `SHARD_MEM_STATS=1`, 15 minuti, uscita 0; nessuna riga `[AI Loader] error`, solo gli errori di sempre)
+
+| | T15 | T14 |
+| --- | --- | --- |
+| unità STAI min. 1/5/10/13 | 6 / 36 / 74 / 123 | 6 / 31 / 90 / 134 |
+| a fine partita (min. 14) | 145 unità, 2 fabbriche, 25 mex | 185, 2, 28 |
+| relay: messaggi | **4071** | 2658 |
+| relay: ordini dati | 15062 | 15057 |
+| relay: ordini rifiutati | 10 | 13 |
+| ordini per messaggio, media | 3,7 | 5,7 |
+| memoria per frame, medie | 0,18–0,55 KB | 0,18–0,70 KB |
+| memoria per frame, massimo | 74 KB (min. 13) | 159 KB (min. 11) |
+| heap | 13,1–14,9 MB | |
+
+Lettura: stessi ordini, +53 % di messaggi (i picchi oltre 10 ora vanno sui frame dopo). Unità a fine partita più basse, ma è una partita sola: le differenze di gioco sono nel rumore fra due partite, non ho modo di attribuirle al limite.
+
 ### T1 (agente locale, 23 novembre 2026) — verificato dal coordinatore: 95 file identici a `3ad8f3fb^`, nessun file fuori posto
 
 **Fatto**
