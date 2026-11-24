@@ -85,9 +85,43 @@ local function report(label)
 	end
 end
 
+-- how long the engine waits before it gives a dead unit's ID to a new unit
+local deadAt = {}
+local reuses, reuseMin, reuseMax, reuseSum = 0, nil, nil, 0
+local deaths = 0
+
+function gadget:UnitDestroyed(unitID)
+	deadAt[unitID] = Spring.GetGameFrame()
+	deaths = deaths + 1
+end
+
+function gadget:UnitCreated(unitID)
+	local died = deadAt[unitID]
+	if died == nil then
+		return
+	end
+	deadAt[unitID] = nil
+	local gap = Spring.GetGameFrame() - died
+	reuses = reuses + 1
+	reuseSum = reuseSum + gap
+	reuseMin = math.min(reuseMin or gap, gap)
+	reuseMax = math.max(reuseMax or gap, gap)
+end
+
 function gadget:GameFrame(n)
 	if n == END_FRAME then
 		report("SUMMARY")
+		Spring.Echo(
+			string.format(
+				"%s SUMMARY unit IDs: %d deaths, %d IDs reused, after %s to %s frames (average %s)",
+				TAG,
+				deaths,
+				reuses,
+				tostring(reuseMin),
+				tostring(reuseMax),
+				reuses > 0 and string.format("%.0f", reuseSum / reuses) or "-"
+			)
+		)
 	elseif n > 0 and n % FRAMES_PER_MINUTE == 0 and n < END_FRAME then
 		report(string.format("minute %2d", n / FRAMES_PER_MINUTE))
 	end
