@@ -17,46 +17,48 @@
 
 ## Compito attuale
 
-### T10: consegna mirata degli eventi e ramo `shard_null`
+### T9: lo scheduler di base
 
-**Impegno: alto.** Cambia chi riceve ogni evento, per tutte le AI: se un modulo che vuole un evento non lo riceve più, l'AI si rompe in silenzio (nessun errore, solo un comportamento diverso). Le insidie sono note (`UnitBuilt` smistato in `MyUnitBuilt` e simili, `UnitGiven` trasformato in `UnitCreated` più `UnitBuilt`, metodi ereditati da classi intermedie), ma vanno coperte tutte dai test.
+**Impegno: medio.** Un pezzo nuovo ma piccolo, con una regola già decisa; la cura serve nel non cambiare niente per chi non lo usa (STAI) e nel non allocare a ogni frame.
 
-(T9, lo scheduler, è scritto ma in attesa: l'utente ha scelto prima questo.)
+**Decisione dell'utente (24 novembre 2026)**: il framework offre una base **semplice e intuitiva**; chi vuole uno scheduler diverso se lo scrive nella sua AI. **Niente budget di tempo**: un turno per frame, «se finisce finisce». STAI tiene il suo `SchedulerHST` e **non si tocca**.
 
-**Decisioni**
+**La regola**
 
-- Decisione n. 6 di `CLAUDE.local.md`: un evento arriva **solo a chi lo ridefinisce**, subito, senza code; ordine **global → ally → team**, poi l'ordine di `modules.lua`.
-- `Shard/` (l'AI di esempio) resta com'è: l'utente ha lasciato in sospeso i suoi problemi di gioco. **STAI non si tocca.**
+- La classe dell'AI (quella di `ai.lua`) **dichiara** le liste dei turni: `ShardBasic.MScheduler = { "AttackHandler", ... }`, con i nomi restituiti da `Name()` dei moduli.
+- Se le dichiara: i moduli elencati girano **a turni**, chiamati direttamente dallo scheduler; i moduli **non elencati** ricevono `Update` a ogni frame, come oggi.
+- Se non le dichiara (oggi STAI, perché le sue liste stanno dentro `SchedulerHST`): `Update` a tutti a ogni frame, esattamente come oggi.
 
-**Lavoro**
+**Lo scheduler**
 
-1. **Consegna mirata nel runtime** (`shard_runtime/shardai.lua`, partendo dalla versione di oggi e da quella rimossa):
-   - dopo `Init` (e dopo ogni `AddModule`), per ogni evento l'oggetto (`ShardAI`, `ShardAlly`, `ShardGlobal`) prepara la lista dei suoi moduli che lo vogliono; i callback di `ShardAI` scorrono quella lista invece di `self.modules`;
-   - «lo vuole» = il metodo del modulo (letto sull'istanza, dopo `Init`, così vale anche un metodo assegnato in `Init`) è diverso da quello di `AIBase`;
-   - `UnitBuilt`: lo vuole chi ridefinisce `UnitBuilt` **o** uno fra `MyUnitBuilt`, `FriendlyUnitBuilt`, `EnemyUnitBuilt`, `NeutralUnitBuilt` (perché `AIBase:UnitBuilt` li smista);
-   - `UnitGiven`: lo vuole chi ridefinisce `UnitGiven`, o vuole `UnitCreated` o `UnitBuilt` (perché `AIBase:UnitGiven` li chiama); controlla nel codice ogni altro metodo di `AIBase` che ne chiama un altro e trattalo allo stesso modo;
-   - l'ordine dentro la lista resta quello di `modules.lua`;
-   - le liste si costruiscono una volta, non a ogni evento; nessuna allocazione per evento.
-2. **Consegna mirata nel loader** (`loader/delivery.lua`): un oggetto la cui lista per quell'evento è vuota **non viene chiamato** (niente `Prepare()`, niente `Call`). Ordine global → ally → team per ogni evento: verificalo per tutti i call-in (oggi `DeliverToShared` e poi le AI; `DeliverSight`). Togli dal commento in testa a `delivery.lua` la parte provvisoria «ogni oggetto riceve ogni evento», e lascia scritto cosa resta provvisorio (le tabelle di unità, `Update` a ogni frame).
-3. **Unità `nil`**: da T6b `shardify_unit` può restituire `nil` (ID non valido e non in cache), e in una partita di T8 `UnitDamaged` è arrivato con l'unità `nil` (`shard_runtime/unit.lua:155`). Nei call-in delle unità, se l'unità colpita (non l'attaccante, che può mancare) è `nil`, l'evento non si consegna. Test che riproduce il caso.
-4. **Ramo `shard_null`**: oggi `shard_include` in `shard_runtime/shard_null/boot.lua` usa `require` e non trova i file delle AI. Rendilo capace di caricare **Shard** (l'AI di esempio) fuori dall'engine, con l'API finta di `shard_null`, toccando solo `shard_runtime/shard_null/` (e `Shard/boot.lua` se proprio serve, come esempio). Test busted: Shard si carica con `shard_null`, fa `Init` e alcuni `Update` senza errori. Se lo stesso caricamento con **STAI** richiede modifiche a STAI, non farle: scrivi solo cosa servirebbe.
+1. Uno per client, nel loader (`shard_runtime/loader/scheduler.lua`, stesso stile di T7: tabella restituita, nessun globale, commento in testa).
+2. Un turno per frame: una coppia (AI, modulo). Ordine dei turni come `SchedulerHST` di STAI: per ogni modulo della lista, tutte le AI ospitate qui che la dichiarano, poi il modulo successivo; finita la lista si ricomincia.
+3. Fra **AI ospitate su questo client**, di qualunque tipo che dichiari le liste. Un'AI fermata o tolta (fallimento, cambio di host) esce dalla rotazione; una nuova entra.
+4. **Moduli condivisi** (`"ally"`, `"global"`) nella lista: ricevono il loro turno **una volta per giro** per contenitore, non una volta per AI.
+5. Campi di compatibilità, aggiornati a ogni turno su un oggetto raggiungibile da ogni AI (proponi tu dove: per esempio `self.ai.scheduler`): `moduleTeam`, `moduleUpdate`.
+6. `BScheduler` (i behaviour) **non fa parte di questo compito**: i behaviour li fa girare `UnitHandler`, che è un modulo dell'AI; i turni dei behaviour vanno con il compito sull'elezione. Se una classe dichiara `BScheduler`, per ora non succede niente: scrivilo in un commento.
+7. **Con la consegna mirata di T10**: i moduli elencati escono dalla lista `Update` di ogni frame (`handlers.Update`) e li chiama solo lo scheduler; un oggetto la cui lista `Update` resta vuota non viene chiamato a ogni frame (come in T10). Le liste si costruiscono insieme a quelle di T10, non a ogni frame.
+8. Nessuna tabella nuova a ogni frame. `GameFrame` resta leggibile: un passo in più, per esempio `RunScheduledTurn()` accanto a `UpdateAll()`.
 
-**Test busted** (oltre ai punti 3 e 4)
+**Shard come esempio**: `Shard/ai.lua` dichiara `MScheduler` con i suoi moduli che fanno lavoro periodico; i moduli che devono girare a ogni frame (`UnitHandler`) restano fuori dalla lista. Un commento breve in `ai.lua` spiega la regola a chi legge l'esempio.
 
-- Un modulo che non ridefinisce un evento non lo riceve, uno che lo ridefinisce sì; un oggetto senza moduli interessati non viene chiamato (niente `Prepare`).
-- `MyUnitBuilt` senza `UnitBuilt` → riceve; `UnitGiven` → chi vuole `UnitCreated` e `UnitBuilt` riceve entrambi, gli altri niente.
-- Metodo ereditato da una classe intermedia (`ModA = class(Module)` che ridefinisce, `ModB = class(ModA)` che no) → `ModB` riceve.
-- Metodo assegnato in `Init` → riceve.
-- Ordine: un evento con moduli interessati in global, ally e team arriva in quest'ordine, e nell'ordine di `modules.lua` dentro ogni oggetto.
-- `AddModule` dopo `Init` aggiorna le liste.
-- Nessuna allocazione per evento.
-- Prova delle mutazioni.
+**Test busted**
 
-**Partite** (`run_engine_game.sh`, `SHARD_MEM_STATS=1`): A (STAI contro SimpleAI, 15 minuti) e C (STAI contro STAI, 15 minuti). Devono andare come in T7: nessuna riga `[AI Loader] error`, numeri del relay e unità per minuto simili. Una differenza grande vuol dire un evento perso: va capita prima di chiudere il compito. Riporta anche la memoria per frame (ci aspettiamo che cali un poco).
+- Senza liste: ogni modulo riceve `Update` a ogni frame (come oggi).
+- Con liste: un solo modulo elencato chiamato per frame, nell'ordine giusto, ciclico; i non elencati a ogni frame; i moduli elencati **non** ricevono l'`Update` di ogni frame.
+- Due AI con liste: alternanza come in `SchedulerHST`; un'AI fermata esce dalla rotazione senza saltare o ripetere turni delle altre.
+- Due tipi diversi, uno con liste e uno senza: il secondo non cambia.
+- Modulo condiviso nella lista: un turno per giro per contenitore.
+- `moduleTeam`/`moduleUpdate` aggiornati.
+- Nessuna allocazione per frame (stesso metodo di T6).
 
-**Commit**, in inglese: runtime e spec; loader e spec; unità `nil`; `shard_null`.
+**Partite** (`run_engine_game.sh`, `SHARD_MEM_STATS=1`):
+- Shard contro SimpleAI, 15 minuti: gioca come in T8 (unità per minuto simili, anche se Shard resta debole: i suoi problemi di gioco sono in sospeso per scelta dell'utente), nessun errore;
+- STAI contro SimpleAI, 15 minuti: come in T10 (nessun errore, numeri simili): conferma che per STAI non è cambiato niente.
 
-**Nei risultati**: righe per file, test e mutazioni, quanti moduli di STAI e di Shard ricevono ogni evento (una tabella), le righe chiave delle due partite confrontate con T7, cosa servirebbe a STAI per girare sotto `shard_null`.
+**Commit**, in inglese: scheduler e spec; esempio in Shard; eventuale startscript.
+
+**Nei risultati**: righe per file, test e mutazioni, le righe chiave delle due partite (unità per minuto, relay, memoria), dove hai messo i campi di compatibilità e perché.
 
 ## Risultati
 
