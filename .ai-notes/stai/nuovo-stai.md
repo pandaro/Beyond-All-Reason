@@ -1,6 +1,6 @@
 # Nuovo STAI — porting di STAI sul nuovo framework Shard
 
-Stato al 24 novembre 2026. Il framework è sul branch `shard/fase1` (compiti T1–T16, in `.ai-notes/handoff.md`), fermo dopo T16. Il porting si fa sul branch **`stai/porting`**, creato da `shard/fase1` dopo la verifica di T16.
+Stato al 25 novembre 2026. Il framework è sul branch `shard/fase1` (compiti T1–T16, in `.ai-notes/handoff.md`), fermo dopo T16. Il porting si fa sul branch **`stai/porting`**, creato da `shard/fase1` dopo la verifica di T16.
 
 Questo documento raccoglie in modo essenziale ciò che si sa del porting. È il punto di partenza: le righe «da verificare» sono ipotesi, non decisioni.
 
@@ -36,10 +36,10 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 | # | Punto | Dove | Cosa si sa | Stato |
 | --- | --- | --- | --- | --- |
 | 1 | Scheduler | `STAI/schedulerHST.lua`; i controlli di turno in testa all'`Update` dei moduli e dei behaviour | le liste di `SchedulerHST` passano nella classe (`STAI.MScheduler`, `STAI.BScheduler`); i controlli `self.ai.schedulerhst.moduleTeam ~= self.ai.id ...` si tolgono; `SchedulerHST` sparisce | deciso |
-| 2 | Ambiti globali | `armyhst.lua`, `maphst.lua` | `ArmyHST` e `MapHST` diventano `"global"`: oggi l'analisi della mappa si rifà per ogni AI. Le funzioni di `MapHST` che dipendono dal team (`ClosestFreeMex` usa `buildingshst`, `loshst`, `targethst`; i costi dei percorsi usano `game:GetTeamID()`) ricevono l'AI come parametro o passano in un modulo di team | da verificare |
+| 2 | Ambiti globali | `armyhst.lua`, `maphst.lua` | `ArmyHST` e `MapHST` diventano `"global"`: oggi l'analisi della mappa si rifà per ogni AI. Le funzioni di `MapHST` che dipendono dal team (`ClosestFreeMex` usa `buildingshst`, `loshst`, `targethst`; i costi dei percorsi usano `game:GetTeamID()`) ricevono l'AI come parametro o passano in un modulo di team. Decisione del 25 novembre 2026 (utente): `MapHST` si occupa solo della mappa (analisi una volta per partita e domande sulla mappa); la geometria della griglia passa in `GridHST` (punto 5); `ClosestFreeMex` e `UnitMexMoveTest`/`trampled` vanno in `BuildingsHST` (un `CommanderHST` non esiste). Per diventare `"global"` `MapHST` deve smettere di usare moduli di team (`self.ai.armyhst`, `self.ai.tool`) | deciso (S3: pulizia) |
 | 3 | Ambiti d'alleanza | `loshst.lua`, `targethst.lua`, `damagehst.lua` | `LosHST` diventa `"ally"`; `self.ai.friendlyTeamID` (scritto da `LosHST:Init`, letto da `DamageHST`) passa su `ShardAlly`; `UnitCreated` riconosce le unità proprie con `self.ai.id`; `TargetHST` e `DamageHST` probabilmente `"ally"` | da verificare |
 | 4 | `self.ai.id` nei moduli condivisi | tutti i moduli che diventano global o ally | in un modulo condiviso `self.ai` è l'oggetto ally o global, non un team | da controllare a ogni modulo spostato |
-| 5 | Griglia | `loshst.lua` (griglie `ENEMY`, `OWN`, `ALLIES`, pool di celle) | **l'utente non vuole più la griglia così**. Idea dell'utente: una griglia unica per tutto, ogni cella una tabella di dati, più liste delle celle «vere» per tema (nemici, metallo, unità proprie…). Difetto noto: `Update` libera `"ALLY"`, ma le griglie sono `ALLY` e `ALLIES`; il controllo su `loshst.ALLY` in `ScoutHST` non scatta mai | **da discutere con l'utente prima di toccarla** |
+| 5 | Griglia | `loshst.lua` (griglie `ENEMY`, `OWN`, `ALLIES`, pool di celle) | **l'utente non vuole più la griglia così**. Idea dell'utente: una griglia unica per tutto, ogni cella una tabella di dati, più liste delle celle «vere» per tema (nemici, metallo, unità proprie…). Difetto noto: `Update` libera `"ALLY"`, ma le griglie sono `ALLY` e `ALLIES`; il controllo su `loshst.ALLY` in `ScoutHST` non scatta mai. Decisione del 25 novembre 2026 (utente): **una geometria, tanti strati**. `GridHST` (`"global"`) tiene la geometria: celle fisse e persistenti con indice unico `i = (X-1)·sideZ + Z` (al contrario `X = floor((i-1)/sideZ)+1`, `Z = (i-1)%sideZ+1`; ogni cella tiene `X`, `Z`, `POS`), conversioni posizione ↔ indice, vicini (`i ± 1`, `i ± sideZ`). Ogni modulo ha il suo **strato**, nel suo ambito, con lo stesso indice: dati per cella creati quando servono, **lista delle celle vere** in un array con ordine fisso, azzeramento solo delle celle della lista (via il pool di `LosHST`). Scrive solo il padrone dello strato, leggono tutti | deciso |
 | 6 | Percezione | `loshst.lua`; letture dirette `Spring.*` (circa 26 in `maphst.lua`, 10 in `loshst.lua`, 6 in `damagehst.lua`) | tre strade: tenere `LosHST`, usare `PerceptionHandler`, o barare | aperto |
 | 7 | Elezione | `STAI/ai.lua` (`legacyElection`); `bootbst.lua`, `cleanerbst.lua` | con la regola nuova: `BootBST` è spesso primo e a priorità zero; vanno controllati i behaviour che fanno qualcosa in `Activate`; `CleanerBST:Priority` è vuota (vale zero) | aperto: tenere `legacyElection` o passare alla regola nuova |
 | 8 | Gestore delle unità | `unithst.lua` | la proposta diceva: `UnitHST` lascia il posto a `UnitHandler`. Oggi `UnitHandler` sta in `Shard/` (l'esempio), non nel runtime | aperto |
@@ -48,11 +48,12 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 | 11 | Difetti noti | `buildersbst.lua`, `bomberhst.lua`; `EchoDebug` in tutti i file | ID di unità vecchi; `EchoDebug` con argomenti costosi calcolati anche a debug spento; stallo di metallo | da fare |
 | 12 | `shard_null` | `STAI/boot.lua`; nomi dei file | boot da sistemare; maiuscole (`schedulerHST.lua` incluso come `"schedulerhst"`); serve uno `Spring` finto per le letture dirette | da fare |
 | 13 | Un solo cervello per alleanza | — | idea dell'utente: più STAI nella stessa alleanza comandate da una sola AI; passo naturale dopo gli ambiti | futuro |
+| 15 | Difetti delle griglie e di `MapHST` (trovati il 25 novembre 2026) | `loshst.lua`, `maphst.lua` | `LosHST`: `OWN`, `ALLIES`, `ALLY` mai riempite (i controlli di `ScoutHST` e `AttackHST` su queste non scattano mai); in `setCellLos` e `setCellRadar` `CELL.unarmAI = CELL.unarmAM + M` (e `SI`, `GI`): copia il mobile nell'immobile. `MapHST`: `metalScan`/`geoScan` fanno `return` su una cella mancante (si ferma tutto il giro); `SimplifyMetalSpots` scorre `z` fino a `elmoMapSizeX` e fa `table.remove` dentro `pairs`; `RawPosIsInMap` usa `pos` inesistente nel debug; `GridToNodeIndex` usa `gridSideX` al posto di `gridSideZ` | da fare: un commit per difetto, con partite, dopo gli strati |
 | 14 | Percorsi | `maphst.lua` r. 595 e 883, `attackhst.lua` r. 310 | `map:RequestPath` sincrono, senza cache | **rinviato** dall'utente |
 
 ## 4. Decisioni aperte (le prende l'utente)
 
-1. Griglia: forma nuova (punto 5).
+1. ~~Griglia: forma nuova (punto 5).~~ Decisa il 25 novembre 2026: una geometria, tanti strati.
 2. Percezione: `LosHST`, `PerceptionHandler` o barare (punto 6).
 3. Elezione: tenere `legacyElection` o passare alla regola nuova, e quando (punto 7).
 4. `UnitHST`: resta in STAI o diventa un `UnitHandler` del runtime (punto 8).
@@ -64,13 +65,24 @@ Un compito per riga, come per il framework; l'impegno si decide compito per comp
 
 1. **Partenza**: branch `stai/porting`; tre partite A di riferimento (la variabilità fra partite è grande: 146–201 unità, 15–37 mex); controllo che STAI giri com'è oggi.
 2. **Scheduler** (punto 1): liste nella classe, via `SchedulerHST` e i controlli di turno. Confronto con le partite di riferimento.
-3. **Ambiti globali** (punti 2 e 4): `ArmyHST`, poi `MapHST`.
-4. **Discussione con l'utente sulla griglia** (punto 5), poi **ambiti d'alleanza** (punti 3 e 4) con la griglia nuova.
-5. **Percezione** (punto 6), secondo la decisione.
-6. **Elezione** (punto 7), secondo la decisione.
-7. **Difetti noti e ordini grandi** (punti 10 e 11).
-8. **`shard_null`** (punto 12).
-9. **Chiusura**: guida per STAI, partite finali, branch pulito.
+3. ~~**Ambiti globali** (punti 2 e 4): `ArmyHST`, poi `MapHST`.~~
+4. ~~**Discussione con l'utente sulla griglia** (punto 5), poi **ambiti d'alleanza** (punti 3 e 4) con la griglia nuova.~~
+
+Ordine del 25 novembre 2026 (utente: «prima si parte dai fondamenti»; separare quello che non cambia il gioco da quello che lo cambia):
+
+3. **Pulizia di `MapHST`** (S3): via il codice morto; `ClosestFreeMex` e `trampled` in `BuildingsHST`. Gioco invariato.
+4. **`GridHST`**: geometria, indice, strati; `MapHST` la usa. Gioco invariato salvo l'ordine fisso al posto di `pairs`.
+5. **Ambiti globali**: `ArmyHST`, ciò che `MapHST` usa di `Tool`, poi `MapHST` e `GridHST` `"global"`.
+6. **Strati negli altri moduli**, uno alla volta (`LosHST`, `DamageHST`, `ScoutHST`, `TargetHST` e chi li legge), poi **ambiti d'alleanza** (punti 3 e 4).
+7. **Difetti delle griglie e di `MapHST`** (punto 15): un commit per difetto, con partite.
+
+Poi, come prima:
+
+8. **Percezione** (punto 6), secondo la decisione.
+9. **Elezione** (punto 7), secondo la decisione.
+10. **Difetti noti e ordini grandi** (punti 10 e 11).
+11. **`shard_null`** (punto 12).
+12. **Chiusura**: guida per STAI, partite finali, branch pulito.
 
 ## 6. Come si verifica
 

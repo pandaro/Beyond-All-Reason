@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026.
 
 Messaggio d'avvio per la chat:
 
@@ -66,3 +66,4 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | --- | --- |
 | S1 | partenza: istruzioni locali dell'esecutore su `stai/porting`, tre partite A di riferimento dopo T16 — verificato |
 | S2 | scheduler: liste nella classe, via `SchedulerHST` e i controlli di turno — verificato. Decisione del 24 novembre 2026 (utente): `AntinukeBST` resta nella lista dei turni |
+| S3 | pulizia di `MapHST`: codice morto, `ClosestFreeMex` e `trampled` in `BuildingsHST`; gioco invariato (prova con le stesse righe prima e dopo) — scritto, da eseguire |

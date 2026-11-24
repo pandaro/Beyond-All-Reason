@@ -18,31 +18,37 @@
 
 ## Compito attuale
 
-### S2: scheduler — le liste nella classe, via `SchedulerHST`
+### S3: pulizia di `MapHST`
 
-**Impegno: medio.** Punto 1 di `nuovo-stai.md` (deciso). STAI passa allo scheduler del framework (`shard_runtime/loader/scheduler.lua`, guida §Scheduler) **senza cambiare cosa gira e quando**.
+**Impegno: medio.** Primo passo dei «fondamenti» (`nuovo-stai.md` §5 n. 3, punto 2). `MapHST` resta `"team"`; **il gioco non deve cambiare**: si toglie solo codice che nessuno chiama e si spostano due funzioni che non sono di mappa. I difetti trovati (punto 15) **non** si correggono qui.
 
-**Lavoro**
+**1. Codice morto da togliere da `maphst.lua`** (il coordinatore ha controllato con grep che nessuno li chiama; ricontrolla prima di togliere ciascuno, anche nei file fuori da `STAI/`)
 
-1. **Liste nella classe**: `STAI.MScheduler` e `STAI.BScheduler` in `STAI/ai.lua`, con gli stessi nomi e lo stesso ordine di `SchedulerHST.MScheduler` / `BScheduler` (anche le righe commentate, `OverviewHST` e `BomberBST`, restano commentate come oggi).
-2. **Via `SchedulerHST`**: `git rm` di `STAI/schedulerHST.lua`; tolti `shard_include("schedulerhst")` e `SchedulerHST` da `STAI/modules.lua`.
-3. **Via i controlli di turno** in testa agli `Update` dei moduli e dei behaviour elencati (`self.ai.schedulerhst.moduleTeam ~= self.ai.id ...`, `behaviourTeam ~= ...`): il runtime chiama solo nel turno. Prima di toglierne uno, guarda se **prima del controllo** c'è codice che gira ogni frame (contatori, timer): se c'è, scrivilo nei risultati e decidi in modo che il comportamento resti uguale (per esempio un contatore che contava i frame deve continuare a contare i frame).
-4. **Casi speciali, da non cambiare nel comportamento**:
-   - `BomberBST` e `ScoutBST:Draw`: **restano come sono** (decisione dell'utente). `BomberBST:Update` è tutto commentato; `Draw` dei behaviour non lo chiama nessuno.
-   - `MexUpBST` non è creato da nessuno: lascia il file com'è, salvo sostituire `self.ai.schedulerhst` con `self.ai.scheduler` perché non resti un riferimento a un modulo che non esiste.
-   - `overviewhst.lua` r. 18: riga commentata, lasciala.
-5. Alla fine `grep -rn schedulerhst luarules/gadgets/ai/STAI` deve trovare solo i commenti e `ScoutBST:Draw`.
+- funzioni: `PosToHeightMap`, `HeightMapToPos`, `PosToNodeIndex`, `NodeIndexToGrid`, `NormalizeHeighMapIndex`, `NodeIndexToPos`, `NodeIndexToHeighMap`, `InitPathCost` (e la sua chiamata commentata in `Init`), `SetStartLocation`, `GuessStartLocations`, `MergePositions`, `GetPathGraph` (con `local pathGraphs` e `local mCeil`; in `attackhst.lua` r. 110 e `raidhst.lua` r. 112 ci sono solo chiamate commentate: togli anche quelle righe), `ClosestFreeGeo`, `MobilitynetworkSizeHere`, `AccessibleMetalSpotsHere`, `AccessibleGeoSpotsHere`, `IsUnderWater`;
+- campi mai letti: `waterMetals`, `groundMetals` (con il ramo `map:CanBuildHere` in `metalScan` che li riempie e l'assegnazione `self.ai.armyhst.UWMetalSpotCheckUnitType` in `Init`, usata solo lì), `startLocations`;
+- il controllo `map_loaded` in `Init` (ogni istanza è nuova: non scatta mai);
+- blocchi commentati: l'`Update` (r. 101–121), `gridThePathBackup` in fondo al file, la vecchia versione commentata dentro `ClosestFreeMex`;
+- in `damagehst.lua` le righe commentate che citano funzioni tolte (r. 101–108 circa).
 
-**Test**: se ci sono test di STAI che usano `SchedulerHST`, aggiornali; altrimenti niente test nuovi (il comportamento dello scheduler è già coperto dai test del framework). `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
+**Restano** (servono a qualcuno): `GridToNodeIndex` (la usa `DamageHST`; la sostituirà l'indice di `GridHST`), `isInMap`, `RawPosIsInMap`, `GridToRawPos`, `getPath`, `gridThePath`, `topology`, `TopologyFooded`, tutte le funzioni di griglia, `MobilityNetworkHere`, `MobilityOfUnit`, `UnitCanGoHere`, `UnitCanGetToUnit`, `AccessibleSpotsHere`, `DrawDebug`, `basicMapInfo` com'è. `astarclass.lua` e `UWMetalSpotCheckUnit` in `armyhst.lua` restano anche se dopo questo compito nessuno li usa: scrivilo nei risultati.
 
-**Partite**:
-- tre partite A come in S1; tabella con le stesse righe di S1, più una colonna con l'intervallo di S1 per confronto;
-- una partita C (`c_stai_vs_stai.txt`, 15 minuti): due STAI sullo stesso host, per vedere che la rotazione fra due team funzioni (unità e mex di **tutte e due** le STAI a fine partita, errori).
-- Se le partite A vanno chiaramente peggio di S1 (tutte e tre sotto il minimo di S1 in unità o mex) **fermati** e scrivi cosa vedi, senza correggere.
+**2. Funzioni che passano in `BuildingsHST`** (decisione dell'utente)
 
-**Controlli**: StyLua 2.5.2 e EmmyLua 0.24.0 sui file toccati (EmmyLua: nessun errore nuovo rispetto ai 20 di sempre). `.emmyrc.json` ripristinato.
+- `ClosestFreeMex` → `BuildingsHST:ClosestFreeMex`, stessa firma e stesso corpo; le chiamate a `self:MobilityOfUnit`, `self:GetCell`, `self:UnitCanGoHere` diventano `self.ai.maphst:…`, `self.ai.buildingshst:PlansOverlap` diventa `self:PlansOverlap`. Chiamante: `buildersbst.lua` r. 295.
+- `UnitMexMoveTest` → `BuildingsHST:UnitMexMoveTest`; chiamante: `commanderbst.lua` r. 14. Il valore `trampled` **esce dalle celle di `MapHST`** (via `cell.trampled = 0` da `NewCell`, via le righe di `trampled` da `MapHST:DrawDebug`) e va in una tabella di `BuildingsHST`, `self.trampled[X][Z]`, con 0 in ogni cella prima del conteggio. Per non cambiare niente:
+  - scorri le celle **nello stesso ordine** di oggi: `X` da 1 a `gridSideX`, dentro `Z` da 1 a `gridSideZ` (oggi `pairs` su tabelle-array, che va in quest'ordine);
+  - `self.trampledCells` si crea **in `BuildingsHST:Init`** (`{}`) e `UnitMexMoveTest` ci **aggiunge** le posizioni (`self.ai.maphst.GRID[X][Z].POS`) senza sostituire la tabella: `TasksHST` ne tiene il riferimento (`taskshst.lua` r. 653, 1094, 1104, da cambiare in `self.ai.buildingshst.trampledCells`). Controlla che `BuildingsHST:Init` giri prima del punto in cui `TasksHST` legge il riferimento;
+  - stesse formule, stessa soglia (`average * 1.5`), stesso `nil` sulle celle sotto soglia; `self.ttt` può diventare locale.
 
-**Commit**, in inglese: uno per il codice di STAI («STAI: …»), uno per i risultati.
+**3. Prova che il gioco non cambia** (modifica temporanea, **non committata**)
+
+Aggiungi in fondo a `UnitMexMoveTest` un `Spring.Echo` con: numero di `trampledCells`, somma delle `x` e delle `z` delle posizioni, `average`; e in fondo a `MapHST:Init` uno con `#self.METALS`, `#self.GEOS`, `#self.hotSpots` e il numero di zone per ogni `layer` di `self.networks`. Fai **una partita A col codice di prima** (`git stash` o il commit di partenza) e **una col codice nuovo**, stessa partita: le righe devono essere identiche. Riporta le righe nei risultati, poi togli gli `Echo`.
+
+**Partite**: oltre alle due della prova, una partita C (`c_stai_vs_stai.txt`): unità e mex di tutte e due le STAI, righe `[AI Loader] error`. Le tre partite A non servono (il gioco non cambia); se la prova del punto 3 dà righe diverse, **fermati** e scrivi cosa cambia.
+
+**Controlli**: `grep` finale dei nomi tolti in tutto il repository (solo `.ai-notes/` può citarli); `lx --lua-version 5.1 test`, `run_engine_tests.sh`; StyLua 2.5.2 ed EmmyLua 0.24.0 sui file toccati (nessun errore nuovo). `.emmyrc.json` ripristinato.
+
+**Commit**, in inglese: uno per il codice morto («STAI MapHST: remove unused code»), uno per lo spostamento in `BuildingsHST`, uno per i risultati. Righe tolte e aggiunte per file nei risultati.
 
 ## Risultati
 
