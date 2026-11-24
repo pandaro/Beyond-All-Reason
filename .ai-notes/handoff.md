@@ -18,30 +18,28 @@
 
 ## Compito attuale
 
-### T14: rete di sicurezza della GC rimessa com'era, `maxInstances`
+### T15: `collect` d'avvio, ordini per frame a 10, pool di tabelle nel framework
 
-**Impegno: basso.** Due cambi piccoli nel loader.
+**Impegno: basso.** Tre cambi piccoli e separati.
 
 **Decisioni dell'utente (24 novembre 2026)**
-- La `collectgarbage("collect")` del vecchio loader è una **rete di sicurezza contro il crash**: va rimessa **esattamente dov'era e com'era** (stessa condizione, stessi valori, stesso momento). Non è la `collect` di `MapHST:Init` di STAI: quella non si tocca in questo compito.
-- `maxInstances`: **un numero che impostiamo noi**, nel loader, per tipo di AI. Per ora 2; alla release probabilmente 1 o 2.
-- Nomi confermati: `ShardBasic`, `UnitHandler`.
+- La `collectgarbage("collect")` senza condizione del vecchio `AILoader.lua` (r. 276, in `gadget:Initialize` dopo il catch-up) **torna**: a inizio partita non si nota e si parte puliti.
+- Ordini per frame: **un numero che impostiamo noi**, una costante sola, **10** (oggi 25).
+- Pool di tabelle: **nel framework**, un piccolo modulo con le sue funzioni, facile da raggiungere, per chi vuole usarlo. Nessuno è obbligato.
 
 **Lavoro**
 
-1. **GC**: trova la `collectgarbage` del vecchio loader con `git show 3ad8f3fb^:<percorso>` (cerca il file del loader rimosso nel commit `3ad8f3fb`; il clone può essere shallow: `git fetch --depth=50 origin 3ad8f3fb` se serve). Rimettila nel punto corrispondente del loader di oggi, identica. Se il punto corrispondente non esiste più com'era (per esempio era nel call-in che oggi è in un file di `loader/`), mettila dove fa la stessa cosa nello stesso momento, e scrivi nei risultati il prima e il dopo, righe vere. Commento di una riga: «safety net against out-of-memory crashes, as in the old loader».
-2. **`maxInstances`**: una costante con nome chiaro in testa al file del loader che crea le AI (per esempio `MAX_INSTANCES_PER_AI_TYPE = 2`). Le AI di quel tipo oltre il numero non partono: una riga di log che dice quale team resta fermo e perché. Le altre AI e la battle vanno avanti. Funzione piccola, chiamata in `SetupAI` o subito prima.
-3. Niente altro. Shard e STAI non si toccano.
+1. **`collect` d'avvio**: alla fine di `Lifecycle.CatchUpAfterReload` (il punto corrispondente indicato in T14), identica, con il commento «clean start, as in the old loader». Nei risultati: riga vecchia e riga nuova.
+2. **Ordini per frame**: oggi 25 ordini per messaggio, un messaggio per frame per AI. Una **sola costante** con nome chiaro (per esempio `MAX_ORDERS_PER_MESSAGE = 10`) letta da outbox e relay synced, così i due lati non possono divergere. Dove sta e come la leggono i due lati: scegli la forma più semplice e motivala. Una chiamata con più ordini di quanti ne stanno in un messaggio: oggi non si spezza; tieni la regola e scrivi nei risultati cosa succede con 10 (per esempio un ordine a una lista di unità).
+3. **Pool di tabelle**: `shard_runtime/tablepool.lua`, elementare: crea un pool, prende una tabella (vuota), la restituisce (svuotata). Niente misure automatiche, niente dimensioni massime, salvo che servano davvero. Raggiungibile da moduli e behaviour con una riga (`shard_include("tablepool")` o simile: scegli e motiva). Commento in testa: quando conviene (centinaia di tabelle per frame) e quando no. Nessun modulo di Shard o STAI lo usa in questo compito.
 
-**Test busted**: con il limite a 2 e tre team dello stesso tipo, il terzo non parte e c'è la riga di log; due tipi diversi contano separati; la `collectgarbage` è chiamata dove e quando lo era nel vecchio loader (spia su `collectgarbage`). Mutazioni.
+**Test busted**: `collect` chiamata una volta alla fine del catch-up; il limite di 10 rispettato da outbox e relay (11 ordini → due messaggi; il relay rifiuta un messaggio con 11); il pool restituisce tabelle vuote, riusa quelle restituite, nessuna allocazione dopo il riscaldamento. Mutazioni.
 
-**Partite**: una A (STAI contro SimpleAI, `SHARD_MEM_STATS=1`, 15 minuti): confronta memoria e numeri con T12.
+**Partita**: una A (STAI contro SimpleAI, `SHARD_MEM_STATS=1`, 15 minuti), confronto con T14: soprattutto ordini, messaggi e rifiutati.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno per la GC, uno per `maxInstances`.
-
-**Nei risultati**: dove stava la `collect` e dove sta ora (righe vere, prima e dopo), righe per file, test, mutazioni, la partita A.
+**Commit**, in inglese: uno per cambio.
 
 ## Risultati
 

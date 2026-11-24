@@ -119,7 +119,8 @@ Claude-Session: <link della sessione>
 - Ordini per frame: **numero personalizzabile** (costante nel framework, usata da outbox e relay), **partire da 10** (oggi 25). Dato: STAI fa circa 15.000 ordini in 15 minuti, meno di 1 per frame in media; un giocatore fortissimo fa circa 100 azioni al minuto.
 - Pool di tabelle: **nel framework**, un piccolo modulo con le sue funzioni, facile da raggiungere, per chi vuole usarlo. Toglierlo da STAI solo al porting e se costa poco.
 - Griglia di `LosHST`: **non va più bene così**; se ne parla al porting. Idea dell'utente: **una griglia unica** per tutto, ogni cella una tabella con i dati, più **liste delle celle «vere»** per tema (celle con nemici, con metallo, con unità mie, ecc.).
-- Prossimo compito proposto (T15, dopo T14): ordini per frame personalizzabili a 10; pool di tabelle nel framework. Impegno basso o medio.
+- T15 scritto: `collect` d'avvio rimessa, ordini per messaggio a 10 (costante unica), `shard_runtime/tablepool.lua`.
+- Da fare poi: `maxInstances` **per partita** (contato nel synced), come l'utente lo intendeva; oggi è per client host.
 
 **In sospeso per scelta dell'utente**
 
