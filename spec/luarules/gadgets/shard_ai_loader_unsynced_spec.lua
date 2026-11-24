@@ -37,6 +37,8 @@ local function defaultWorld()
 			[GAIA_TEAM] = { allyId = 2 },
 		},
 		units = {},
+		-- three SpecAI teams: above the loader's limit per AI type, which the specs of the limit restore with nil
+		maxInstancesPerAIType = 3,
 	}
 end
 
@@ -77,7 +79,15 @@ local function loadLoader(world)
 	local vfs = newVFS(env)
 	local include = vfs.Include
 	vfs.Include = function(path, includeEnv)
-		return include(realPath(path), includeEnv)
+		local result = include(realPath(path), includeEnv)
+		if path == "luarules/gadgets/ai/shard_runtime/loader/types.lua" then
+			local setup = result.Setup
+			result.Setup = function(context)
+				context.maxInstancesPerAIType = world.maxInstancesPerAIType
+				return setup(context)
+			end
+		end
+		return result
 	end
 	vfs.FileExists = function(path)
 		return fileExists(realPath(path))
@@ -1777,6 +1787,41 @@ describe("ShardAILoader unsynced side", function()
 			assert.equal(1, echoesWith(loader, "avg 3.00 KB max 3.00 KB over 1800 frames"))
 		end)
 	end)
+	describe("with the limit of AIs per type", function()
+		it("leaves the third team of a type without AI and writes why", function()
+			local world = defaultWorld()
+			world.maxInstancesPerAIType = nil
+			local loader = started(world)
+			loader.gadget:GameFrame(1)
+
+			local Shard = loader.env.Shard
+			assert.equal(2, #Shard.AIs)
+			assert.is_table(Shard.AIsByTeamID[0])
+			assert.is_table(Shard.AIsByTeamID[1])
+			assert.is_nil(Shard.AIsByTeamID[2])
+			assert.is_nil(Shard.alliesByAllyID[1])
+			assert.equal(
+				1,
+				echoesWith(
+					loader,
+					"[AI Loader] AI team 2 not started: 2 SpecAI AIs already run on this client, the most one AI type may have"
+				)
+			)
+			assert.equal(0, echoesWith(loader, "AI team 0 not started"))
+			assert.equal(0, echoesWith(loader, "AI team 1 not started"))
+		end)
+
+		it("counts each AI type on its own", function()
+			local world = defaultWorld()
+			world.maxInstancesPerAIType = nil
+			world.teams[2].luaAI = "PercAI"
+			local loader = started(world)
+
+			assert.equal(3, #loader.env.Shard.AIs)
+			assert.equal(0, echoesWith(loader, "not started"))
+		end)
+	end)
+
 	describe("with the garbage collection safety net", function()
 		local function collections(loader)
 			return #heard(loader, "collectgarbage")

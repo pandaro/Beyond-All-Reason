@@ -13,6 +13,9 @@ local spAreTeamsAllied = Spring.AreTeamsAllied
 -- as 65520 * 31 + 255 does
 local SEED_MODULUS = 65521 -- the largest prime below 2^16
 
+-- the AIs of one type this client runs; the teams beyond it stay without AI
+local MAX_INSTANCES_PER_AI_TYPE = 2
+
 local runtimeInclude = nil -- boot.lua's shard_include: runtime files only
 local gameHash = nil
 local failedTypes = {} -- AI name -> the error that stopped the type from loading
@@ -28,8 +31,10 @@ local RUNTIME_PATH ---@type string
 local WithTraceback ---@type fun(err: any): string
 local NewUnitTables ---@type fun(thisAI: table)
 local schedulerState ---@type table
+local maxInstances = MAX_INSTANCES_PER_AI_TYPE
 
---- context = { gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry, Scheduler }
+--- context = { gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry, Scheduler,
+--- maxInstancesPerAIType }; the last one, for the specs, replaces MAX_INSTANCES_PER_AI_TYPE
 local function Setup(context)
 	gadget = context.gadget
 	aiTeams = context.aiTeams
@@ -39,6 +44,7 @@ local function Setup(context)
 	WithTraceback = context.Delivery.WithTraceback
 	NewUnitTables = context.UnitRegistry.NewUnitTables
 	schedulerState = context.Scheduler.state
+	maxInstances = context.maxInstancesPerAIType or MAX_INSTANCES_PER_AI_TYPE
 end
 
 -- runtime and seeds ---------------------------------------------------------------------------------
@@ -182,9 +188,35 @@ local function GetAlly(aiType, allyId)
 	return ally
 end
 
+--- Whether this client already runs as many AIs of the type as it may; if so, writes which team stays without AI
+local function AtInstanceLimit(id, aiName)
+	local running = 0
+	for _, thisAI in ipairs(Shard.AIs) do
+		if thisAI.fullname == aiName then
+			running = running + 1
+		end
+	end
+	if running < maxInstances then
+		return false
+	end
+	spEcho(
+		"[AI Loader] AI team "
+			.. id
+			.. " not started: "
+			.. running
+			.. " "
+			.. aiName
+			.. " AIs already run on this client, the most one AI type may have"
+	)
+	return true
+end
+
 local function SetupAI(id)
 	local aiInfo = aiTeams[id]
 	spEcho("AI Player " .. id .. " is a " .. aiInfo)
+	if AtInstanceLimit(id, aiInfo) then
+		return nil
+	end
 	local aiType = LoadAIType(aiInfo)
 	if aiType == nil then
 		return nil
