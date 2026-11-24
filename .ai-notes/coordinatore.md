@@ -114,6 +114,13 @@ Claude-Session: <link della sessione>
 3. **Latenza in multiplayer**: partita vera con due client, da organizzare con l'utente; poi la scelta synced/unsynced come modalità predefinita.
 4. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`, branch pulito senza `.ai-notes/` e con commit riordinati, prove di partita per `AI_POLICY.md`.
 
+**Decisioni e appunti dell'utente (24 novembre 2026, sera)**
+- `QueueActivation` e `Job`: **eliminati** dalla proposta. Restano solo come risposta ipotetica se un giorno servissero (100 unità insieme nascono solo con `/give`).
+- Ordini per frame: **numero personalizzabile** (costante nel framework, usata da outbox e relay), **partire da 10** (oggi 25). Dato: STAI fa circa 15.000 ordini in 15 minuti, meno di 1 per frame in media; un giocatore fortissimo fa circa 100 azioni al minuto.
+- Pool di tabelle: **nel framework**, un piccolo modulo con le sue funzioni, facile da raggiungere, per chi vuole usarlo. Toglierlo da STAI solo al porting e se costa poco.
+- Griglia di `LosHST`: **non va più bene così**; se ne parla al porting. Idea dell'utente: **una griglia unica** per tutto, ogni cella una tabella con i dati, più **liste delle celle «vere»** per tema (celle con nemici, con metallo, con unità mie, ecc.).
+- Prossimo compito proposto (T15, dopo T14): ordini per frame personalizzabili a 10; pool di tabelle nel framework. Impegno basso o medio.
+
 **In sospeso per scelta dell'utente**
 
 - Shard di base: non costruisce mex; `PlacementHandler:GenerateSpiral` alloca circa 6 MB in un frame.
