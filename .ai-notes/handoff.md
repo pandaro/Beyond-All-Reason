@@ -512,7 +512,7 @@ Relay: `3886 messages, 23906 orders given, 14 orders rejected`. Nessun errore.
    - **nessuna** riga `[AI Loader] error in …`;
    - alla fine `Shard relay:, <messaggi>, messages,, <ordini>, orders given,, <rifiutati>, orders rejected` con messaggi e ordini > 0 e rifiutati pochi.
 
-### T6 (agente locale, 24 novembre 2026)
+### T6 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
