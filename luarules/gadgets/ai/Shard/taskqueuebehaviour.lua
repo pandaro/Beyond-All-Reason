@@ -79,19 +79,22 @@ function TaskQueueBehaviour:GetQueue()
 end
 
 function TaskQueueBehaviour:Update()
+	-- countdown counts frames: in the turns of BScheduler, Update does not come every frame
+	local f = self.game:Frame() ---@type integer
+	local elapsed = f - (self.lastUpdateFrame or f - 1)
+	self.lastUpdateFrame = f
 	if not self:IsActive() then
 		self:DebugPoint("nothing")
 		return
 	end
-	local f = self.game:Frame()
 	if self.progress == true then
 		if self.countdown > 14 then
 			self:ProgressQueue()
 		else
 			if self.countdown == nil then
-				self.countdown = 1
+				self.countdown = elapsed
 			else
-				self.countdown = self.countdown + 1
+				self.countdown = self.countdown + elapsed
 			end
 		end
 	end
