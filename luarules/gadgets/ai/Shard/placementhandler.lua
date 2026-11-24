@@ -1,5 +1,12 @@
 PlacementHandler = class(Module)
 
+-- debug marks for the shard_help_draw widget; the AIs run in unsynced code, where SendToUnsynced does not exist
+local function DebugPosition(x, z, kind)
+	if Script.LuaUI("shard_debug_position") then
+		Script.LuaUI.shard_debug_position(x, z, kind)
+	end
+end
+
 function PlacementHandler:Name()
 	return "PlacementHandler"
 end
@@ -182,7 +189,7 @@ function PlacementHandler:IterateJob(job)
 		-- we found a place!
 		job.result = pos
 		job.status = "cleanup"
-		SendToUnsynced("shard_debug_position", pos.x, pos.z, "final_choice")
+		DebugPosition(pos.x, pos.z, "final_choice")
 		job.onSuccess(job, pos)
 	end
 
@@ -199,10 +206,10 @@ end
 function PlacementHandler:CanBuildAt(unittype, pos)
 	local buildable = self.ai.map:CanBuildHere(unittype, pos)
 	if not buildable then
-		SendToUnsynced("shard_debug_position", pos.x, pos.z, "main_bad")
+		DebugPosition(pos.x, pos.z, "main_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", pos.x, pos.z, "main_good")
+	DebugPosition(pos.x, pos.z, "main_good")
 
 	-- check spacing
 	-- we're going to do this in a hacky way for now until a blocking
@@ -224,80 +231,80 @@ function PlacementHandler:CanBuildAt(unittype, pos)
 	testpos.z = pz - fixed_spacing
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if false == buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- North East
 	testpos.x = px + fixed_spacing
 	testpos.z = pz - fixed_spacing
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if false == buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- North West
 	testpos.x = px - fixed_spacing
 	testpos.z = pz - fixed_spacing
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if false == buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- South
 	testpos.x = px
 	testpos.z = pz + fixed_spacing
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if not buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- South East
 	testpos.x = px + fixed_spacing
 	testpos.z = pz + fixed_spacing
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if not buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- South West
 	testpos.x = px - fixed_spacing
 	testpos.z = pz + fixed_spacing
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if not buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- East
 	testpos.x = px + fixed_spacing
 	testpos.z = pz
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if not buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	-- West
 	testpos.x = px - fixed_spacing
 	testpos.z = pz
 	buildable = aimap:CanBuildHere(unittype, testpos)
 	if not buildable then
-		SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_bad")
+		DebugPosition(testpos.x, testpos.z, "secondary_bad")
 		return false
 	end
-	SendToUnsynced("shard_debug_position", testpos.x, testpos.z, "secondary_good")
+	DebugPosition(testpos.x, testpos.z, "secondary_good")
 
 	return true
 end
