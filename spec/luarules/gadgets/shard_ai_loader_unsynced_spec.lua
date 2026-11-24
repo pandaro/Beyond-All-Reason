@@ -85,13 +85,25 @@ local function loadLoader(world)
 	env.VFS = vfs
 	world.config = world.config or {}
 	world.countCalls = 0
-	-- collectgarbage("count") reads world.heap when the spec sets it, in KB
+	-- collectgarbage("count") and gcinfo() read world.heap when the spec sets it, in KB; then a full collection
+	-- only goes to SpecLog and leaves world.heapAfterCollect
 	env.collectgarbage = function(option, ...)
 		if option == "count" and world.heap ~= nil then
 			world.countCalls = world.countCalls + 1
 			return world.heap
 		end
+		if option == "collect" and world.heap ~= nil then
+			env.SpecLog[#env.SpecLog + 1] = { "collectgarbage", world.heap }
+			world.heap = world.heapAfterCollect or world.heap
+			return 0
+		end
 		return collectgarbage(option, ...)
+	end
+	env.gcinfo = function()
+		if world.heap ~= nil then
+			return world.heap
+		end
+		return gcinfo()
 	end
 	env.Game = { maxUnits = 32000, gameShortName = "BAR", mapName = "Spec Map" }
 	env.WeaponDefs = { [1] = { name = "specweapon" } }
@@ -1763,6 +1775,80 @@ describe("ShardAILoader unsynced side", function()
 
 			assert.equal(1, echoesWith(loader, "memory per frame"))
 			assert.equal(1, echoesWith(loader, "avg 3.00 KB max 3.00 KB over 1800 frames"))
+		end)
+	end)
+	describe("with the garbage collection safety net", function()
+		local function collections(loader)
+			return #heard(loader, "collectgarbage")
+		end
+
+		it("raises the limit by 50 MB from 200 MB for every AI, as the old loader did", function()
+			local loader = started()
+
+			assert.equal(1, echoesWith(loader, "AI 0 (SpecAI) using 200 MB RAM, adjusting limit to 250 MB"))
+			assert.equal(1, echoesWith(loader, "AI 1 (SpecAI) using 200 MB RAM, adjusting limit to 300 MB"))
+			assert.equal(1, echoesWith(loader, "AI 2 (SpecAI) using 200 MB RAM, adjusting limit to 350 MB"))
+		end)
+
+		it("collects only on frames divisible by 121 with the memory above the limit", function()
+			local world = defaultWorld()
+			world.heap = 350000
+			local loader = started(world)
+			loader.gadget:GameFrame(121)
+			assert.equal(0, collections(loader))
+
+			world.heap = 350001
+			loader.gadget:GameFrame(120)
+			loader.gadget:GameFrame(122)
+			assert.equal(0, collections(loader))
+			loader.gadget:GameFrame(242)
+			assert.equal(1, collections(loader))
+		end)
+
+		it("collects after the AIs' Update of the frame and sets the limit from what is left", function()
+			local world = defaultWorld()
+			local loader = started(world)
+			world.heap = 350001
+			world.heapAfterCollect = 100000
+			for i = #loader.log, 1, -1 do
+				loader.log[i] = nil
+			end
+			loader.gadget:GameFrame(121)
+
+			local lastUpdate, collect = 0, nil
+			for i, entry in ipairs(loader.log) do
+				if entry[1] == "Update" then
+					lastUpdate = i
+				elseif entry[1] == "collectgarbage" then
+					collect = i
+				end
+			end
+			assert.is_true(lastUpdate > 0)
+			assert.is_true(collect > lastUpdate)
+			assert.equal(
+				1,
+				echoesWith(
+					loader,
+					"3 STAIs using 350 MB RAM > 350 MB limit, performing garbage collection and adjusting limit to 450 MB"
+				)
+			)
+
+			world.heap = 450000
+			loader.gadget:GameFrame(242)
+			assert.equal(1, collections(loader))
+			world.heap = 450001
+			loader.gadget:GameFrame(363)
+			assert.equal(2, collections(loader))
+		end)
+
+		it("keeps the limit at 1 GB at most", function()
+			local world = defaultWorld()
+			local loader = started(world)
+			world.heap = 2000000
+			world.heapAfterCollect = 900000
+			loader.gadget:GameFrame(121)
+
+			assert.equal(1, echoesWith(loader, "adjusting limit to 1000 MB"))
 		end)
 	end)
 end)

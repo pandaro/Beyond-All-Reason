@@ -111,6 +111,7 @@ else
 		Delivery = Delivery,
 		UnitRegistry = UnitRegistry,
 		Scheduler = Scheduler,
+		MemStats = MemStats,
 	})
 	Scheduler.Setup({ Delivery = Delivery })
 
@@ -131,6 +132,7 @@ else
 	local ExpireDeadUnits = UnitRegistry.ExpireDeadUnits
 	local BeginMemoryFrame = MemStats.BeginFrame
 	local EndMemoryFrame = MemStats.EndFrame
+	local SafetyNet = MemStats.SafetyNet
 
 	function gadget:Initialize()
 		spEcho("Looking for AIs")
@@ -159,6 +161,7 @@ else
 		NextBehaviourTurn()
 		UpdateAll()
 		RunScheduledTurn()
+		SafetyNet(n)
 		FlushOrders(n)
 		ExpireDeadUnits(n)
 		EndMemoryFrame(n)

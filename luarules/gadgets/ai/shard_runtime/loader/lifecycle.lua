@@ -34,8 +34,9 @@ local RemoveValue ---@type fun(list: table, value: any)
 local RemoveAlly ---@type fun(ally: table)
 local Types ---@type table
 local Changed ---@type fun()
+local AIAdded ---@type fun(thisAI: table)
 
---- context = { gadget, aiTeams, teamList, Types, Delivery, UnitRegistry, Scheduler }
+--- context = { gadget, aiTeams, teamList, Types, Delivery, UnitRegistry, Scheduler, MemStats }
 local function Setup(context)
 	gadget = context.gadget
 	aiTeams = context.aiTeams
@@ -49,6 +50,7 @@ local function Setup(context)
 	SetCatchUpTargets = context.Delivery.SetCatchUpTargets
 	SetUnitTableTargets = context.UnitRegistry.SetUnitTableTargets
 	Changed = context.Scheduler.Changed
+	AIAdded = context.MemStats.AIAdded
 end
 
 --- Loads the AI of team id and hosts it here; nil when it failed to load
@@ -60,6 +62,7 @@ local function AddAI(id)
 		thisAI.index = #Shard.AIs
 		hosting = true
 		Changed()
+		AIAdded(thisAI)
 	end
 	return thisAI
 end
