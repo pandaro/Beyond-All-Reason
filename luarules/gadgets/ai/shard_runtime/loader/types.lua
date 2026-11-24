@@ -9,12 +9,11 @@ local spEcho = Spring.Echo
 local spGetTeamInfo = Spring.GetTeamInfo
 local spAreTeamsAllied = Spring.AreTeamsAllied
 
+local Admission = VFS.Include("luarules/gadgets/ai/shard_runtime/loader/admission.lua")
+
 -- Lua numbers are single precision floats in the engine: seeds stay below 2^24 at every step,
 -- as 65520 * 31 + 255 does
 local SEED_MODULUS = 65521 -- the largest prime below 2^16
-
--- the AIs of one type this client runs; the teams beyond it stay without AI
-local MAX_INSTANCES_PER_AI_TYPE = 2
 
 local runtimeInclude = nil -- boot.lua's shard_include: runtime files only
 local gameHash = nil
@@ -31,10 +30,11 @@ local RUNTIME_PATH ---@type string
 local WithTraceback ---@type fun(err: any): string
 local NewUnitTables ---@type fun(thisAI: table)
 local schedulerState ---@type table
-local maxInstances = MAX_INSTANCES_PER_AI_TYPE
+local maxInstances ---@type integer
+local admitted ---@type table<integer, true> the teams of the game that may run their AI
 
 --- context = { gadget, aiTeams, teamList, aiPath, runtimePath, Delivery, UnitRegistry, Scheduler,
---- maxInstancesPerAIType }; the last one, for the specs, replaces MAX_INSTANCES_PER_AI_TYPE
+--- maxInstancesPerAIType }; the last one, for the specs, replaces Admission.MAX_INSTANCES_PER_AI_TYPE
 local function Setup(context)
 	gadget = context.gadget
 	aiTeams = context.aiTeams
@@ -44,7 +44,8 @@ local function Setup(context)
 	WithTraceback = context.Delivery.WithTraceback
 	NewUnitTables = context.UnitRegistry.NewUnitTables
 	schedulerState = context.Scheduler.state
-	maxInstances = context.maxInstancesPerAIType or MAX_INSTANCES_PER_AI_TYPE
+	maxInstances = context.maxInstancesPerAIType or Admission.MAX_INSTANCES_PER_AI_TYPE
+	admitted = Admission.Admitted(aiTeams, maxInstances)
 end
 
 -- runtime and seeds ---------------------------------------------------------------------------------
@@ -188,25 +189,19 @@ local function GetAlly(aiType, allyId)
 	return ally
 end
 
---- Whether this client already runs as many AIs of the type as it may; if so, writes which team stays without AI
+--- Whether the game already has as many AIs of the type as it may; if so, writes which team stays without AI
 local function AtInstanceLimit(id, aiName)
-	local running = 0
-	for _, thisAI in ipairs(Shard.AIs) do
-		if thisAI.fullname == aiName then
-			running = running + 1
-		end
-	end
-	if running < maxInstances then
+	if admitted[id] then
 		return false
 	end
 	spEcho(
 		"[AI Loader] AI team "
 			.. id
 			.. " not started: "
-			.. running
+			.. maxInstances
 			.. " "
 			.. aiName
-			.. " AIs already run on this client, the most one AI type may have"
+			.. " AIs already in this game, the most one AI type may have"
 	)
 	return true
 end

@@ -1833,11 +1833,66 @@ describe("ShardAILoader unsynced side", function()
 				1,
 				echoesWith(
 					loader,
-					"[AI Loader] AI team 2 not started: 2 SpecAI AIs already run on this client, the most one AI type may have"
+					"[AI Loader] AI team 2 not started: 2 SpecAI AIs already in this game, the most one AI type may have"
 				)
 			)
 			assert.equal(0, echoesWith(loader, "AI team 0 not started"))
 			assert.equal(0, echoesWith(loader, "AI team 1 not started"))
+		end)
+
+		it("counts the AIs of the whole game, not of this client", function()
+			local world = defaultWorld()
+			world.maxInstancesPerAIType = nil
+			world.hosts = { [0] = 1, [1] = 1, [2] = 0 }
+			local loader = started(world)
+
+			assert.equal(0, #loader.env.Shard.AIs)
+			assert.equal(1, echoesWith(loader, "AI team 2 not started: 2 SpecAI AIs already in this game"))
+		end)
+
+		it("admits the teams with the lowest IDs, whatever their order on this client", function()
+			local world = defaultWorld()
+			world.maxInstancesPerAIType = nil
+			world.teams[0].luaAI = "PercAI"
+			world.teams[3].luaAI = "SpecAI"
+			world.hosts[3] = 0
+			local loader = started(world)
+
+			local Shard = loader.env.Shard
+			assert.same({ 0, 1, 2 }, { Shard.AIs[1].id, Shard.AIs[2].id, Shard.AIs[3].id })
+			assert.is_nil(Shard.AIsByTeamID[3])
+			assert.equal(1, echoesWith(loader, "AI team 3 not started"))
+		end)
+
+		it("keeps an excluded team excluded when its host moves here", function()
+			local world = defaultWorld()
+			world.maxInstancesPerAIType = nil
+			world.hosts[2] = 1
+			local loader = started(world)
+			loader.gadget:GameFrame(1)
+
+			loader.syncActions.shard_host("shard_host", 2, 0)
+			loader.gadget:GameFrame(2)
+
+			local Shard = loader.env.Shard
+			assert.equal(2, #Shard.AIs)
+			assert.is_nil(Shard.AIsByTeamID[2])
+			assert.equal(1, echoesWith(loader, "AI team 2 not started"))
+		end)
+
+		it("keeps an admitted team admitted when its host moves here", function()
+			local world = defaultWorld()
+			world.maxInstancesPerAIType = nil
+			world.hosts = { [0] = 1, [1] = 0, [2] = 0 }
+			local loader = started(world)
+
+			loader.syncActions.shard_host("shard_host", 0, 0)
+
+			local Shard = loader.env.Shard
+			assert.is_table(Shard.AIsByTeamID[0])
+			assert.is_table(Shard.AIsByTeamID[1])
+			assert.is_nil(Shard.AIsByTeamID[2])
+			assert.equal(0, echoesWith(loader, "AI team 0 not started"))
 		end)
 
 		it("counts each AI type on its own", function()

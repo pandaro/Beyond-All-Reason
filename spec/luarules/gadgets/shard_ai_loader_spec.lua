@@ -211,6 +211,26 @@ describe("ShardAILoader synced relay", function()
 		assert.same({ sender = 3 }, rejections(loader))
 	end)
 
+	it("rejects the messages of a team beyond the limit of AIs per type in the game, from its own host", function()
+		local loader = started()
+
+		assert.is_true(receive(loader, 1, message(loader, 2, 1, 1000, { { 300, CMD_STOP } })))
+
+		assert.equal(0, #loader.orders)
+		assert.same({ excluded = 1 }, rejections(loader))
+	end)
+
+	it("counts each AI type on its own in the relay", function()
+		local world = defaultWorld()
+		world.teams[2].luaAI = "OtherAI"
+		local loader = started(world)
+
+		receive(loader, 1, message(loader, 2, 1, 1000, { { 300, CMD_STOP } }))
+
+		assert.equal(1, #loader.orders)
+		assert.same({}, rejections(loader))
+	end)
+
 	it("drops only the orders for units of another team or not valid, and reports how many", function()
 		local loader = started()
 

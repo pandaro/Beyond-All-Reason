@@ -31,10 +31,13 @@ local cmdPool = {} ---@type table[]
 
 -- given by Setup
 local hostOf ---@type fun(teamID: integer): integer?
+local admitted ---@type table<integer, true>
 
---- hostOf(teamID): the only playerID whose messages give orders to that team
-local function Setup(hostOfTeam)
+--- hostOf(teamID): the only playerID whose messages give orders to that team; admittedTeams: teamID -> true for
+--- the AI teams that may run, from admission.lua
+local function Setup(hostOfTeam, admittedTeams)
 	hostOf = hostOfTeam
+	admitted = admittedTeams
 end
 
 --- A new host counts its messages from 1
@@ -104,6 +107,9 @@ local function CheckHeader(msg, playerID)
 	-- playerID comes from the server: a client cannot fake it
 	if hostOf(teamID) ~= playerID then
 		return Reject("sender")
+	end
+	if not admitted[teamID] then
+		return Reject("excluded")
 	end
 	if seq <= (lastSeq[teamID] or 0) then
 		return Reject("seq")

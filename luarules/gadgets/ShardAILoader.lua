@@ -58,7 +58,8 @@ if gadgetHandler:IsSyncedCode() then
 	local Relay = VFS.Include(LOADER_PATH .. "relay.lua")
 	local Hosts = VFS.Include(LOADER_PATH .. "hosts.lua")
 	Hosts.Setup(aiTeams, teamList, Relay.ForgetTeam)
-	Relay.Setup(Hosts.HostOf)
+	local Admission = VFS.Include(LOADER_PATH .. "admission.lua")
+	Relay.Setup(Hosts.HostOf, Admission.Admitted(aiTeams))
 
 	function gadget:Initialize()
 		-- before the game starts players may still be connecting: keep the hosts chosen in the lobby
