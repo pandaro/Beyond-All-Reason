@@ -264,7 +264,7 @@ describe("ShardAILoader unsynced side", function()
 		local env = loader.env
 		local aiEnv = env.Shard.types.SpecAI.env
 		local names = {
-			-- the gadget methods of before, now functions of loader/loader.lua
+			-- the gadget methods of before, now functions of loader/types.lua and loader/lifecycle.lua
 			"NewAPI",
 			"LoadAIType",
 			"GetAlly",
@@ -279,9 +279,11 @@ describe("ShardAILoader unsynced side", function()
 			"MemStats",
 			"UnitRegistry",
 			"Delivery",
-			"Loader",
+			"Types",
+			"Lifecycle",
+			"LoadAI",
 		}
-		for _, file in ipairs({ "memstats", "unitregistry", "delivery", "loader" }) do
+		for _, file in ipairs({ "memstats", "unitregistry", "delivery", "types", "lifecycle" }) do
 			local exported = env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/" .. file .. ".lua")
 			for name in pairs(exported) do
 				names[#names + 1] = name
@@ -643,8 +645,8 @@ describe("ShardAILoader unsynced side", function()
 	it("hashes the GameID into the same seed every time, below 2^24 at every step", function()
 		local loader = started()
 		local gameID = string.rep("\255", 16) .. "\0\127\200abc"
-		-- HashGameID is a function of loader/loader.lua, not of the gadget
-		local HashGameID = loader.env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/loader.lua").HashGameID
+		-- HashGameID is a function of loader/types.lua, not of the gadget
+		local HashGameID = loader.env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/types.lua").HashGameID
 
 		local reference = 0
 		for i = 1, #gameID do

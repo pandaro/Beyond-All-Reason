@@ -90,8 +90,9 @@ else
 	local MemStats = VFS.Include(LOADER_PATH .. "memstats.lua")
 	local UnitRegistry = VFS.Include(LOADER_PATH .. "unitregistry.lua")
 	local Delivery = VFS.Include(LOADER_PATH .. "delivery.lua")
-	local Loader = VFS.Include(LOADER_PATH .. "loader.lua")
-	Loader.Setup({
+	local Types = VFS.Include(LOADER_PATH .. "types.lua")
+	local Lifecycle = VFS.Include(LOADER_PATH .. "lifecycle.lua")
+	Types.Setup({
 		gadget = gadget,
 		aiTeams = aiTeams,
 		teamList = teamList,
@@ -100,11 +101,19 @@ else
 		Delivery = Delivery,
 		UnitRegistry = UnitRegistry,
 	})
+	Lifecycle.Setup({
+		gadget = gadget,
+		aiTeams = aiTeams,
+		teamList = teamList,
+		Types = Types,
+		Delivery = Delivery,
+		UnitRegistry = UnitRegistry,
+	})
 
 	-- the functions of every frame and every unit event
-	local IsHosting = Loader.IsHosting
-	local StartAIsOnce = Loader.StartAIsOnce
-	local FlushOrders = Loader.FlushOrders
+	local IsHosting = Lifecycle.IsHosting
+	local StartAIsOnce = Lifecycle.StartAIsOnce
+	local FlushOrders = Lifecycle.FlushOrders
 	local UpdateAll = Delivery.UpdateAll
 	local DeliverToShared = Delivery.DeliverToShared
 	local DeliverToOwner = Delivery.DeliverToOwner
@@ -119,19 +128,19 @@ else
 
 	function gadget:Initialize()
 		spEcho("Looking for AIs")
-		gadgetHandler:AddSyncAction("shard_host", Loader.HostChanged)
-		gadgetHandler:AddSyncAction("shard_relay_rejected", Loader.RelayRejected)
-		Loader.AddHostedAIs()
+		gadgetHandler:AddSyncAction("shard_host", Lifecycle.HostChanged)
+		gadgetHandler:AddSyncAction("shard_relay_rejected", Lifecycle.RelayRejected)
+		Lifecycle.AddHostedAIs()
 		if not IsHosting() then
 			spEcho("[AI Loader] no AI hosted on this client")
 			return
 		end
-		Loader.CatchUpAfterReload()
+		Lifecycle.CatchUpAfterReload()
 	end
 
 	function gadget:GameStart()
 		if IsHosting() then
-			Loader.StartAIs()
+			Lifecycle.StartAIs()
 		end
 	end
 
@@ -272,7 +281,7 @@ else
 	end
 
 	function gadget:GameID(gameID)
-		Loader.SetGameID(gameID)
+		Lifecycle.SetGameID(gameID)
 	end
 
 	function gadget:Shutdown()
