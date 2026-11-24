@@ -1,5 +1,8 @@
 STAI = class(ShardAI)
 
+-- keeps the election rule STAI was written for
+STAI.legacyElection = true
+
 function STAI:Name()
 	return "STAI"
 end

@@ -34,6 +34,32 @@ if tracy and not tracy then
 	end
 end
 
+-- The election rule STAI was written for: the first behaviour of the list wins unless a later one has a
+-- priority above zero and above the best so far, so a unit always has a behaviour, even when all of them
+-- return zero or less. A nil priority after the first one is an error.
+local function LegacyElection(self)
+	local bestBehaviour = nil
+	local bestScore = -1
+
+	for k, behaviour in pairs(self.behaviours) do
+		local score = behaviour:Priority()
+		if bestBehaviour == nil or (score > 0 and score > bestScore) then
+			bestScore = score
+			bestBehaviour = behaviour
+		end
+	end
+
+	if bestBehaviour ~= nil then
+		if (self.activeBehaviour ~= bestBehaviour) and (self.nextBehaviour ~= bestBehaviour) then
+			if self.activeBehaviour ~= nil then
+				self.activeBehaviour:PreDeactivate()
+				self.activeBehaviour:Deactivate()
+			end
+			self.nextBehaviour = bestBehaviour
+		end
+	end
+end
+
 function Unit:Init()
 	-- check if we were set up correctly
 	if self.engineUnit == nil then
@@ -229,38 +255,48 @@ end
 
 --- Picks and activates the best behaviour to control this unit!
 --
--- If there are no behaviours or all behaviours have a
--- negative/zero priority no behaviour is activated.
+-- Only a priority above zero wins; a nil priority counts as zero, and on a tie the first in the list wins.
+-- If no behaviour has a priority above zero, no behaviour is active: the active one is deactivated and a
+-- behaviour waiting to be activated is dropped.
 --
 -- The elected behaviour will be activated on the next update,
--- the currently activated behaviour is deactivated immediatley.
+-- the currently activated behaviour is deactivated immediately.
 --
 -- If the current behaviour is elected, there is no change
 -- The active behaviour has full control of the unit
+--
+-- An AI class with legacyElection = true elects with LegacyElection instead.
 function Unit:ElectBehaviour()
 	-- Check if we have any behaviours to elect
 	if self:HasBehaviours() == false then
 		return -- exit early
 	end
+	local ai = self.ai
+	if ai ~= nil and ai.legacyElection == true then
+		LegacyElection(self)
+		return
+	end
 
 	local bestBehaviour = nil
-	local bestScore = -1
-
-	for k, behaviour in pairs(self.behaviours) do
-		local score = behaviour:Priority()
-		if bestBehaviour == nil or (score > 0 and score > bestScore) then
+	local bestScore = 0
+	for _, behaviour in ipairs(self.behaviours) do
+		local score = behaviour:Priority() or 0
+		if score > bestScore then
 			bestScore = score
 			bestBehaviour = behaviour
 		end
 	end
 
-	if bestBehaviour ~= nil then
-		if (self.activeBehaviour ~= bestBehaviour) and (self.nextBehaviour ~= bestBehaviour) then
-			if self.activeBehaviour ~= nil then
-				self.activeBehaviour:PreDeactivate()
-				self.activeBehaviour:Deactivate()
-			end
-			self.nextBehaviour = bestBehaviour
-		end
+	-- the active behaviour and the one waiting for the next update are never both set
+	self.nextBehaviour = nil
+	local active = self.activeBehaviour
+	if bestBehaviour == active then
+		return
+	end
+	self.nextBehaviour = bestBehaviour
+	if active ~= nil then
+		self.activeBehaviour = nil
+		active:PreDeactivate()
+		active:Deactivate()
 	end
 end
