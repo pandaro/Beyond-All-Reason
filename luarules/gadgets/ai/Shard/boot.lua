@@ -16,5 +16,6 @@ if ShardSpringLua then
 	return ShardBasic()
 else
 	ai = ShardBasic()
+	---@diagnostic disable-next-line: need-check-nil
 	ShardNull.Start(ai, "Shard")
 end

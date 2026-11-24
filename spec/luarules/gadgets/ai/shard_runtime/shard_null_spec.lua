@@ -1,4 +1,4 @@
----@diagnostic disable: undefined-global, undefined-field
+---@diagnostic disable: undefined-global, undefined-field, global-in-non-module
 
 -- Shard, the example AI, outside the engine with shard_null: require finds the AI and the runtime through
 -- package.path, as a test or a tool outside the engine would run it.

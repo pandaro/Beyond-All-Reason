@@ -51,6 +51,7 @@ end
 --- Sets on the AI what the engine's loader sets (its api, name and team), then Prepare(), which runs Init()
 function ShardNull.Start(ai, name)
 	local api = require("shard_runtime/api")
+	---@diagnostic disable-next-line: inject-field
 	api.shard_include = shard_include
 	ai.api = api
 	ai.fullname = name

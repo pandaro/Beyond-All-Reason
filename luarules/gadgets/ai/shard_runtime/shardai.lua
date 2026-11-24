@@ -44,7 +44,6 @@ function ShardAI:Scope()
 	return "team"
 end
 
----@type table<string, integer>
 -- The events a module can hear, and the events of AIBase that call others: a module that redefines one of those
 -- wants the event too (AIBase:UnitBuilt sorts a unit into MyUnitBuilt and the like, AIBase:UnitGiven calls
 -- UnitCreated and UnitBuilt).
@@ -86,6 +85,7 @@ local function WantsEvent(module, event)
 	return false
 end
 
+---@type table<string, integer>
 local SCOPE_RANKS = { team = 1, ally = 2, global = 3 }
 
 -- Module classes already warned about for their Scope(), so that every AI of a type warns once.
