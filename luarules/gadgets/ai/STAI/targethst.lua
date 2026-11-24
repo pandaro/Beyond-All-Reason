@@ -63,7 +63,7 @@ function TargetHST:GetBlobs(_blobs_, param) --reset all the old blobs
 		blob.position.x = blob.position.x / #blob.cells
 		blob.position.z = blob.position.z / #blob.cells
 		blob.position.y = map:GetGroundHeight(blob.position.x, blob.position.z)
-		blob.targetCell.X, blob.targetCell.Z = self.ai.maphst:PosToGrid(blob.position)
+		blob.targetCell.X, blob.targetCell.Z = self.ai.gridhst:PosToGrid(blob.position)
 	end
 	self:EchoDebug("selfblob", _blobs_, self[_blobs_])
 end
@@ -137,7 +137,7 @@ end
 
 function TargetHST:NearbyVulnerable(position)
 	local danger, subValues, cells =
-		self.ai.maphst:getCellsFields(position, { "ARMED", "UNARM" }, 1, self.ai.loshst.ENEMY)
+		self.ai.gridhst:getCellsFields(position, { "ARMED", "UNARM" }, 1, self.ai.loshst.ENEMY)
 	if subValues.armed == 0 and subValues.unarm > 0 then
 		for index, cell in pairs(cells) do
 			for id, name in pairs(cell.units) do
@@ -159,7 +159,7 @@ function TargetHST:IsSafeCell(position, unitName, threshold, adjacent) --TODO mo
 	-- 		layer = self.ai.armyhst.unitTable[unitName].LAYER
 	-- 	end
 	--WARNING here implement a count of danger per layer, but now we count all danger layer as dangerous
-	local danger = self.ai.maphst:getCellsFields(position, { "ARMED" }, adjacent, self.ai.loshst.ENEMY)
+	local danger = self.ai.gridhst:getCellsFields(position, { "ARMED" }, adjacent, self.ai.loshst.ENEMY)
 	return danger <= threshold
 end
 
@@ -167,7 +167,7 @@ function TargetHST:GetPathModifierFunc(unitName, adjacent)
 	local divisor = self.ai.armyhst.unitTable[unitName].metalCost * self.pathModParam
 	local modifier_node_func = function(node, distanceToGoal, distanceStartToGoal)
 		local threatMod =
-			self.ai.maphst:getCellsFields(node.position, { "defenderThreat" }, 1, self.ai.damagehst.DAMAGED) --/ divisor
+			self.ai.gridhst:getCellsFields(node.position, { "defenderThreat" }, 1, self.ai.damagehst.DAMAGED) --/ divisor
 		self:EchoDebug("threatMod", threatMod)
 		if distanceToGoal then
 			if distanceToGoal <= 500 then
@@ -200,7 +200,7 @@ function TargetHST:drawDBG()
 	for i,cell in pairs(self.enemyFrontList) do
 		map:DrawCircle(cell.POS, cellElmosHalf/2, colours.f, 'front', true, ch)
 	end]]
-	local cellElmosHalf = self.ai.maphst.gridSizeHalf
+	local cellElmosHalf = self.ai.gridhst.gridSizeHalf
 	for i, blob in pairs(self.MOBILE_BLOBS) do
 
 		for ref, cell in pairs(blob.cells) do

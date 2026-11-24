@@ -1,4 +1,5 @@
 shard_include("armyhst")
+shard_include("gridhst")
 shard_include("maphst")
 shard_include("buildingshst")
 shard_include("engineerhst")
@@ -20,6 +21,7 @@ shard_include("tool")
 return {
 	SleepST,
 	ArmyHST,
+	GridHST,
 	MapHST,
 	EcoHST,
 	AttackHST,

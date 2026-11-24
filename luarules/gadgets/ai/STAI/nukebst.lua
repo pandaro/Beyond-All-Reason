@@ -71,7 +71,7 @@ function NukeBST:GetBestNukeCell()
 	local bestValueThreat = 0
 	for X, cells in pairs(self.ai.loshst.ENEMY) do
 		for Z, cell in pairs(cells) do
-			local areaCell = self.ai.maphst:getCellsFields(cell.POS, { "ENEMY" }, 2, self.ai.loshst.ENEMY)
+			local areaCell = self.ai.gridhst:getCellsFields(cell.POS, { "ENEMY" }, 2, self.ai.loshst.ENEMY)
 			if areaCell and areaCell > bestValueThreat then
 				best = cell
 				bestValueThreat = areaCell

@@ -82,7 +82,7 @@ function LabsHST:factoriesRating()
 			end
 		end
 		if self.ai.armyhst.factoryMobilities[i][1] == "veh" then
-			local areaRatio = self.ai.maphst.gridArea / (64 * 64) --the ratio of max teoric  map dimension
+			local areaRatio = self.ai.gridhst.gridArea / (64 * 64) --the ratio of max teoric  map dimension
 			t[i] = t[i] * 1 + (areaRatio * 0.1)
 		end
 	end
@@ -346,7 +346,7 @@ end
 function LabsHST:PostPositionalFilter(p, factoryName)
 	for i, mtype in pairs(self.ai.armyhst.factoryMobilities[factoryName]) do
 		local network = self.ai.maphst:MobilityNetworkHere(mtype, p)
-		if (self.ai.maphst.networks[mtype][network].area / self.ai.maphst.gridArea) < 0.05 then --5% of the maphst
+		if (self.ai.maphst.networks[mtype][network].area / self.ai.gridhst.gridArea) < 0.05 then --5% of the maphst
 			self:EchoDebug("area to small to build lab: ", factoryName)
 			return
 		end

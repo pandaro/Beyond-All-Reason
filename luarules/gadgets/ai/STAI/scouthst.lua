@@ -28,7 +28,7 @@ end
 function ScoutHST:ScoutTargetAlreadyHandled(X, Z, refScout)
 	for id, scout in pairs(self.scouts) do
 		if scout.target then
-			local scoutX, scoutZ = self.ai.maphst:PosToGrid(scout.target)
+			local scoutX, scoutZ = self.ai.gridhst:PosToGrid(scout.target)
 			if scoutX == X and scoutZ == Z and refScout ~= id then
 				return id
 			end
@@ -39,7 +39,7 @@ end
 function ScoutHST:PerimetralCells()
 	for X, cells in pairs(self.ai.maphst.GRID) do
 		for Z, cell in pairs(cells) do
-			if X == 1 or Z == 1 or X == self.ai.maphst.gridSideX or Z == self.ai.maphst.gridSideZ then
+			if X == 1 or Z == 1 or X == self.ai.gridhst.gridSideX or Z == self.ai.gridhst.gridSideZ then
 				table.insert(self.perimetralCells, cell.POS)
 			end
 		end
@@ -62,7 +62,7 @@ function ScoutHST:ClosestSpot2(scoutbst)
 		self.lastSpotCheck[self.ai.tool:distance(scoutPos, spot)] = index
 	end
 	for distance, index in pairs(self.lastSpotCheck) do
-		local X, Z = self.ai.maphst:PosToGrid(networkSpots[index])
+		local X, Z = self.ai.gridhst:PosToGrid(networkSpots[index])
 		if self:TargetAvailable(X, Z, scoutbst.id) then
 			if self.ai.maphst:UnitCanGoHere(scout, networkSpots[index]) then
 				return networkSpots[index]

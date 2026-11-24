@@ -34,7 +34,7 @@ function ScoutBST:Update()
 	end
 
 	self.position.x, self.position.y, self.position.z = self.unit:Internal():GetRawPos()
-	local X, Z = self.ai.maphst:PosToGrid(self.position)
+	local X, Z = self.ai.gridhst:PosToGrid(self.position)
 	self.ai.scouthst.SCOUTED[X] = self.ai.scouthst.SCOUTED[X] or {}
 	self.ai.scouthst.SCOUTED[X][Z] = game:Frame()
 	self:EchoDebug("scout", self.id, "scoutCell", X, Z, game:Frame())
@@ -58,7 +58,7 @@ function ScoutBST:Update()
 		self.target = self.ai.scouthst:ClosestSpot2(self)
 	end
 	if self.target then
-		local X, Z = self.ai.maphst:PosToGrid(self.target)
+		local X, Z = self.ai.gridhst:PosToGrid(self.target)
 		self:EchoDebug(self.id, "target:", self.target, X, Z)
 		if not self.ai.scouthst:TargetAvailable(X, Z, self.id) then
 			self.target = nil
@@ -191,8 +191,8 @@ end
 
 function ScoutBST:bestAdjacentPos(unit, target)
 	local upos = self.position
-	local X, Z = self.ai.maphst:PosToGrid(upos)
-	local areacells = self.ai.maphst:areaCells(X, Z, 1, self.ai.loshst.ENEMY)
+	local X, Z = self.ai.gridhst:PosToGrid(upos)
+	local areacells = self.ai.gridhst:areaCells(X, Z, 1, self.ai.loshst.ENEMY)
 	local risky = {}
 	local greedy = {}
 	local neutral = {}

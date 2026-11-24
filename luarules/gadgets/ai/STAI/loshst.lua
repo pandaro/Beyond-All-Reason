@@ -58,11 +58,11 @@ end
 
 function LosHST:buildPools(GRID)
 	self[GRID] = {}
-	for X = 1, self.ai.maphst.gridSideX do
+	for X = 1, self.ai.gridhst.gridSideX do
 		if not self[GRID][X] then
 			self[GRID][X] = {}
 		end
-		for Z = 1, self.ai.maphst.gridSideZ do
+		for Z = 1, self.ai.gridhst.gridSideZ do
 			self[GRID][X][Z] = {}
 		end
 	end
@@ -92,7 +92,7 @@ function LosHST:Update()
 		elseif not x or not unit:IsAlive() then
 			self:cleanEnemy(id)
 		else
-			local X, Z = self.ai.maphst:RawPosToGrid(x, y, z)
+			local X, Z = self.ai.gridhst:RawPosToGrid(x, y, z)
 			self:setCellLos(self.ENEMY, unit, X, Z)
 		end
 	end
@@ -106,7 +106,7 @@ function LosHST:Update()
 		elseif not x or not unit:IsAlive() then
 			self:cleanEnemy(id)
 		else
-			local X, Z = self.ai.maphst:RawPosToGrid(x, y, z)
+			local X, Z = self.ai.gridhst:RawPosToGrid(x, y, z)
 			self:setCellRadar(self.ENEMY, unit, X, Z)
 		end
 	end
@@ -279,7 +279,7 @@ function LosHST:setupCell(grid, X, Z) --GAS are 3 layer. Unit of measure is usua
 	local CELL = self:GetCellFromPool(X, Z, grid)
 	CELL.X = X
 	CELL.Z = Z
-	CELL.POS = self.ai.maphst.GRID[X][Z].POS --self.ai.maphst:GridToPos(X,Z)
+	CELL.POS = self.ai.maphst.GRID[X][Z].POS --self.ai.gridhst:GridToPos(X,Z)
 
 	CELL.metal = 0
 	if CELL.units then
@@ -355,10 +355,10 @@ end
 
 function LosHST:setCellRadar(grid, unit, X, Z)
 
-	-- 	if not self.ai.maphst:GridToPos(X,Z) then
+	-- 	if not self.ai.gridhst:GridToPos(X,Z) then
 	-- 		return
 	-- 	end
-	if not self.ai.maphst:IsCellInGrid(X, Z) then
+	if not self.ai.gridhst:IsCellInGrid(X, Z) then
 		return
 	end
 
@@ -426,10 +426,10 @@ end
 
 function LosHST:setCellLos(grid, unit, X, Z)
 
-	-- 	if not self.ai.maphst:GridToPos(X,Z) then
+	-- 	if not self.ai.gridhst:GridToPos(X,Z) then
 	-- 		return
 	-- 	end
-	if not self.ai.maphst:IsCellInGrid(X, Z) then
+	if not self.ai.gridhst:IsCellInGrid(X, Z) then
 		return
 	end
 	grid[X] = grid[X] or {}
@@ -554,7 +554,7 @@ function LosHST:Draw()
 		map:DrawPoint(self.enemyBasePosition, { 1, 1, 1, 1 }, "BASE", ch)
 	end
 	map:DrawPoint(self.CENTER, { 1, 1, 1, 1 }, "BASE", ch)
-	local cellElmosHalf = self.ai.maphst.gridSizeHalf
+	local cellElmosHalf = self.ai.gridhst.gridSizeHalf
 	for X, cells in pairs(self.ENEMY) do
 		for Z, cell in pairs(cells) do
 			local p = cell.POS

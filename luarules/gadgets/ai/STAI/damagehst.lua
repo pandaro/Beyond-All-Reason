@@ -52,7 +52,7 @@ end
 
 function DamageHST:AddBadPosition(position, mtype, attackerThreat, defenderThreat, duration)
 	duration = duration or 1800
-	local X, Z = self.ai.maphst:PosToGrid(position)
+	local X, Z = self.ai.gridhst:PosToGrid(position)
 	--local gas = self.ai.tool:WhatHurtsUnit(nil, mtype, position)
 	local f = self.game:Frame()
 	--for groundAirSubmerged, yes in pairs(gas) do
@@ -61,13 +61,13 @@ function DamageHST:AddBadPosition(position, mtype, attackerThreat, defenderThrea
 		X = X,
 		Z = Z,
 
-		POS = self.ai.maphst:GridToPos(X, Z),
+		POS = self.ai.gridhst:GridToPos(X, Z),
 		groundAirSubmerged = groundAirSubmerged,
 		frame = f,
 		attackerThreat = attackerThreat,
 		defenderThreat = defenderThreat,
 		duration = duration,
-		nodeCostIndex = self.ai.maphst:GridToNodeIndex(X, Z),
+		nodeCostIndex = self.ai.gridhst:GridToIndex(X, Z),
 	}
 
 	self.DAMAGED[X] = self.DAMAGED[X] or {}
@@ -139,7 +139,7 @@ function DamageHST:VisualDBG()
 		damaged:EraseHighlight(nil, nil, ch)
 		damaged:DrawHighlight(colours.green, nil, ch)
 	end
-	local cellElmosHalf = self.ai.maphst.gridSizeHalf
+	local cellElmosHalf = self.ai.gridhst.gridSizeHalf
 	for X, cells in pairs(self.DAMAGED) do
 		for Z, cell in pairs(cells) do
 			local p = cell.POS

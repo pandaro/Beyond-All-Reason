@@ -243,7 +243,7 @@ function BuildingsHST:CheckBuildPos(
 	if not pos then
 		return
 	end
-	if not self.ai.maphst:isInMap(pos) then
+	if not self.ai.gridhst:isInMap(pos) then
 		return
 	end
 	-- sanity check: is it REALLY possible to build here?
@@ -762,7 +762,7 @@ function BuildingsHST:ClosestFreeMex(unittype, builder, position) --get the clos
 			spotPosition = false
 		end
 
-		CELL = self.ai.maphst:GetCell(spot, self.ai.loshst.ENEMY)
+		CELL = self.ai.gridhst:GetCell(spot, self.ai.loshst.ENEMY)
 		if spotPosition and (not CELL or CELL.ENEMY == 0) then
 			self:EchoDebug(spot.x, spot.z, "no enemy")
 		else
@@ -799,9 +799,9 @@ function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i c
 	local waypoints
 	local total = 0
 	self.TRAMPLED = {} --how many times each cell is trampled by non-flying units
-	for X = 1, self.ai.maphst.gridSideX do
+	for X = 1, self.ai.gridhst.gridSideX do
 		self.TRAMPLED[X] = {}
-		for Z = 1, self.ai.maphst.gridSideZ do
+		for Z = 1, self.ai.gridhst.gridSideZ do
 			self.TRAMPLED[X][Z] = 0
 		end
 	end
@@ -812,9 +812,9 @@ function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i c
 			first = table.remove(waypoints)
 
 			for i, v in pairs(waypoints) do
-				firstX, firstZ = self.ai.maphst:PosToGrid(first)
+				firstX, firstZ = self.ai.gridhst:PosToGrid(first)
 				wpos = table.remove(waypoints)
-				wposX, wposZ = self.ai.maphst:PosToGrid(wpos)
+				wposX, wposZ = self.ai.gridhst:PosToGrid(wpos)
 				if firstX ~= wposX or firstZ ~= wposZ then
 					self.TRAMPLED[firstX][firstZ] = self.TRAMPLED[firstX][firstZ]
 						+ (
@@ -837,8 +837,8 @@ function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i c
 	local sum = 0
 	local count = 0
 	local average = 0
-	for X = 1, self.ai.maphst.gridSideX do --numeric loops keep the cell order
-		for Z = 1, self.ai.maphst.gridSideZ do
+	for X = 1, self.ai.gridhst.gridSideX do --numeric loops keep the cell order
+		for Z = 1, self.ai.gridhst.gridSideZ do
 			if self.TRAMPLED[X][Z] > 0 then
 
 				sum = sum + self.TRAMPLED[X][Z]
@@ -848,8 +848,8 @@ function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i c
 	end
 	average = sum / count
 	self:EchoDebug("average trampled", average)
-	for X = 1, self.ai.maphst.gridSideX do
-		for Z = 1, self.ai.maphst.gridSideZ do
+	for X = 1, self.ai.gridhst.gridSideX do
+		for Z = 1, self.ai.gridhst.gridSideZ do
 			if self.TRAMPLED[X][Z] < average * 1.5 then
 				self.TRAMPLED[X][Z] = nil
 			else

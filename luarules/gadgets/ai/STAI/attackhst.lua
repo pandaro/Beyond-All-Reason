@@ -32,8 +32,8 @@ end
 
 function AttackHST:Watchdog(squad)
 	local f = game:Frame()
-	squad.watchdogCell = squad.watchdogCell or self.ai.maphst:GetCell(squad.position, self.ai.maphst.GRID)
-	local watchdogCell = self.ai.maphst:GetCell(squad.position, self.ai.maphst.GRID)
+	squad.watchdogCell = squad.watchdogCell or self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
+	local watchdogCell = self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
 	if not watchdogCell then
 		self:EchoDebug("no watchdog cell")
 		return
@@ -200,7 +200,7 @@ function AttackHST:SquadFindPath(squad, target)
 	local path = self.ai.maphst:getPath(
 		game:GetUnitByID(squad.leader):Name(),
 		squad.leaderPos,
-		self.ai.maphst:GridToPos(target.X, target.Z),
+		self.ai.gridhst:GridToPos(target.X, target.Z),
 		true
 	)
 	if not path then
@@ -229,7 +229,7 @@ function AttackHST:SquadAdvance(squad)
 		self.ai.tool:GiveOrder(
 			squad.cmdUnitId,
 			CMD.FIGHT,
-			self.ai.maphst:GridToPos(squad.target.X, squad.target.Z),
+			self.ai.gridhst:GridToPos(squad.target.X, squad.target.Z),
 			0,
 			"1-2"
 		)
@@ -240,7 +240,7 @@ function AttackHST:SquadAdvance(squad)
 	for i, member in pairs(squad.members) do
 		squad.cmdUnitId[i] = member.unit:Internal():ID() --:TODO unit can be nil!!
 	end
-	if self.ai.tool:distance(squad.position, self.ai.maphst:GridToPos(squad.target.X, squad.target.Z)) < 512 then
+	if self.ai.tool:distance(squad.position, self.ai.gridhst:GridToPos(squad.target.X, squad.target.Z)) < 512 then
 		self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.FIGHT, squad.path[squad.step], 0, "1-2")
 	else
 		self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.MOVE, squad.path[squad.step], 0, "1-2")
@@ -265,7 +265,7 @@ function AttackHST:SquadsTargetUpdate()
 		if
 			squad.target
 			and squad.role == "offense"
-			and self.ai.maphst:GetCell(squad.target.X, squad.target.Z, self.ai.loshst.ENEMY)
+			and self.ai.gridhst:GetCell(squad.target.X, squad.target.Z, self.ai.loshst.ENEMY)
 		then
 			self:EchoDebug("squadID", squad.squadID, "offense cell", squad.target.X, squad.target.Z)
 		else
@@ -311,7 +311,7 @@ function AttackHST:SquadsTargetPrevent(squad)
 			local builderPos = game:GetUnitByID(id):GetPosition()
 			local dist = self.ai.tool:distance(builderPos, squad.position)
 			if dist < frontDist then
-				X, Z = self.ai.maphst:PosToGrid(builderPos)
+				X, Z = self.ai.gridhst:PosToGrid(builderPos)
 				frontDist = dist
 				preventCell = { X = X, Z = Z }
 			end

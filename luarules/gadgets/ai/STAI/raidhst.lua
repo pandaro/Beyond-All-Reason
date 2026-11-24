@@ -31,8 +31,8 @@ end
 
 function RaidHST:Watchdog(squad)
 	local f = game:Frame()
-	squad.watchdogCell = squad.watchdogCell or self.ai.maphst:GetCell(squad.position, self.ai.maphst.GRID)
-	local watchdogCell = self.ai.maphst:GetCell(squad.position, self.ai.maphst.GRID)
+	squad.watchdogCell = squad.watchdogCell or self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
+	local watchdogCell = self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
 	if not watchdogCell then
 		self:EchoDebug("no watchdog cell")
 		return
@@ -212,7 +212,7 @@ function RaidHST:SquadFindPath(squad, target)
 		path = self.ai.maphst:getPath(
 			game:GetUnitByID(squad.leader):Name(),
 			squad.leaderPos,
-			self.ai.maphst:GridToPos(target.X, target.Z),
+			self.ai.gridhst:GridToPos(target.X, target.Z),
 			true
 		)
 	end
@@ -243,7 +243,7 @@ function RaidHST:SquadAdvance(squad)
 		local targetPos = game:GetUnitByID(squad.role):GetPosition()
 		for i, blob in pairs(self.ai.targethst.MOBILE_BLOBS) do
 
-			if self.ai.tool:distance(blob.position, targetPos) < self.ai.maphst.gridSizeDouble then
+			if self.ai.tool:distance(blob.position, targetPos) < self.ai.gridhst.gridSizeDouble then
 				preventThreat = blob.position
 				break
 			end
@@ -288,7 +288,7 @@ function RaidHST:SquadsTargetUpdate()
 		if
 			squad.target
 			and squad.role == "offense"
-			and self.ai.maphst:GetCell(squad.target.X, squad.target.Z, self.ai.loshst.ENEMY)
+			and self.ai.gridhst:GetCell(squad.target.X, squad.target.Z, self.ai.loshst.ENEMY)
 		then
 			self:EchoDebug("squadID", squad.squadID, "have offense cell", squad.target.X, squad.target.Z)
 		elseif squad.target and type(squad.role) == "number" and game:GetUnitByID(squad.role):GetPosition() then
@@ -305,7 +305,7 @@ function RaidHST:SquadsTargetUpdate()
 					squad.path = {}
 					squad.path[1] = {}
 					squad.path[1].x, squad.path[1].y, squad.path[1].z =
-						self.ai.maphst:GridToRawPos(squad.target.X, squad.target.Z)
+						self.ai.gridhst:GridToRawPos(squad.target.X, squad.target.Z)
 					self:EchoDebug("set preventive target for", squad.squadID, squad.target.X, squad.target.Z)
 				end
 			end
@@ -332,7 +332,7 @@ function RaidHST:SquadsTargetUpdate()
 					squad.step = 1
 					squad.path = {}
 					squad.path[1] = {}
-					squad.path[1].x,squad.path[1].y,squad.path[1].z = self.ai.maphst:GridToRawPos(squad.target.X,squad.target.Z)
+					squad.path[1].x,squad.path[1].y,squad.path[1].z = self.ai.gridhst:GridToRawPos(squad.target.X,squad.target.Z)
 					self:EchoDebug('set defensive target for',squad.squadID,squad.target.X,squad.target.Z)
 				end
 			end]]
@@ -376,7 +376,7 @@ function RaidHST:SquadsTargetPrevent(squad)
 			if not self:SquadsTargetHandled(nil, id) then
 				self:EchoDebug("prevent not handled", id)
 				local builderPos = builder:GetPosition()
-				local cell = self.ai.maphst:GetCell(builderPos, self.ai.maphst.GRID)
+				local cell = self.ai.gridhst:GetCell(builderPos, self.ai.maphst.GRID)
 				local dist = self.ai.tool:distance(cell.POS, squad.position)
 				if dist < frontDist then
 					preventCell = { X = cell.X, Z = cell.Z }
@@ -582,14 +582,14 @@ function RaidHST:visualDBG()
 		end
 		if squad.target then
 			self.map:DrawPoint(
-				self.ai.maphst:GridToPos(squad.target.X, squad.target.Z),
+				self.ai.gridhst:GridToPos(squad.target.X, squad.target.Z),
 				squad.colour,
 				squad.role .. squad.squadID,
 				self.debugChannel
 			)
 			map:DrawLine(
 				squad.position,
-				self.ai.maphst:GridToPos(squad.target.X, squad.target.Z),
+				self.ai.gridhst:GridToPos(squad.target.X, squad.target.Z),
 				squad.colour,
 				nil,
 				nil,
