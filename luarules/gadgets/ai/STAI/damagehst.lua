@@ -98,14 +98,6 @@ function DamageHST:UpdateBadPositions()
 				end
 
 			end
-			-- 			self:EchoDebug(Spring.SetPathNodeCost(game:GetTeamID(),cell.nodeCostIndex,cell.defenderThreat))
-			-- 			self:EchoDebug('cost of ',cell.nodeCostIndex)
-			-- 			self:EchoDebug('X,Z',X,Z,'index',self.ai.maphst:GridToNodeIndex(X,Z))
-			-- 			self:EchoDebug('cell.POS.x,cell.POS.z',cell.POS.x,cell.POS.z ,self.ai.maphst:PosToNodeIndex(cell.POS))
-			-- 			self:EchoDebug('node cost PosToHeightMap',Spring.GetPathNodeCost(game:GetTeamID(),self.ai.maphst:PosToHeightMap(cell.POS)))
-			--
-			--
-			-- 			self:EchoDebug('cost of ',cell.nodeCostIndex , X,Z , cell.POS.x,cell.POS.z ,cell.defenderThreat , Spring.GetPathNodeCost(game:GetTeamID(),self.ai.maphst:PosToHeightMap(cell.POS)))
 		end
 	end
 end

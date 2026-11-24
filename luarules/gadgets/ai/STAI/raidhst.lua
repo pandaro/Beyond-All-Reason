@@ -109,7 +109,6 @@ function RaidHST:DraftAttackSquads()
 					squad.colour[2] = math.random()
 					squad.colour[3] = math.random()
 					squad.colour[4] = 1
-					--squad.graph = self.ai.maphst:GetPathGraph(squad.mtype)
 					if
 						(squad.mass > self.squadMassLimit or #squad.members > 5 + self.ai.labshst.ECONOMY)
 						or (squad.mass > 15000)

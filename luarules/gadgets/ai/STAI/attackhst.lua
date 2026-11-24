@@ -107,7 +107,6 @@ function AttackHST:DraftAttackSquads()
 					soldier.squad = squad
 					squad.colour = { 0, math.random(), math.random(), 1 }
 					self:SquadFormation(squad)
-					--squad.graph = self.ai.maphst:GetPathGraph(squad.mtype)
 					if
 						(squad.mass > self.squadMassLimit or #squad.members > 5 + self.ai.labshst.ECONOMY)
 						or (squad.mass > 15000)
