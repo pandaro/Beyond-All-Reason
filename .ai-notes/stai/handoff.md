@@ -55,7 +55,7 @@ Aggiungi in fondo a `UnitMexMoveTest` un `Spring.Echo` con: numero di `trampledC
 
 ## Risultati
 
-### S3 (agente locale, 25 novembre 2026)
+### S3 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Nota: la `collect` di `MapHST:Init` **non** è contro le regole: è una decisione aperta dell'utente (`nuovo-stai.md` §4 n. 5), resta finché non decide
 
 **Cosa ho fatto**
 
