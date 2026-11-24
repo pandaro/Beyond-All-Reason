@@ -1,6 +1,6 @@
 # Nuovo STAI — porting di STAI sul nuovo framework Shard
 
-Stato al 24 novembre 2026. Il framework è sul branch `shard/fase1` (compiti T1–T16, in `.ai-notes/handoff.md`). Il porting si fa sul branch **`stai/porting`**, da creare da `shard/fase1` quando T16 è verificato.
+Stato al 24 novembre 2026. Il framework è sul branch `shard/fase1` (compiti T1–T16, in `.ai-notes/handoff.md`), fermo dopo T16. Il porting si fa sul branch **`stai/porting`**, creato da `shard/fase1` dopo la verifica di T16.
 
 Questo documento raccoglie in modo essenziale ciò che si sa del porting. È il punto di partenza: le righe «da verificare» sono ipotesi, non decisioni.
 
