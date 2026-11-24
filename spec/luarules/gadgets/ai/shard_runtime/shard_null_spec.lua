@@ -35,6 +35,67 @@ describe("Shard under shard_null", function()
 		end
 	end)
 
+	-- the lines the AI objects print while Shard boots: { owner, text } for each print
+	local function bootPrinting()
+		local lines = {}
+		local savedPrint = _G.print
+		_G.print = function(owner, ...)
+			lines[#lines + 1] = { owner = owner, text = table.concat({ tostring(owner), ... }, " ") }
+		end
+		local ok, err = pcall(function()
+			require("Shard/boot")
+		end)
+		_G.print = savedPrint
+		assert(ok, err)
+		return lines
+	end
+
+	it("builds the ally and global objects and shares the ally's PerceptionHandler with the team", function()
+		local lines = bootPrinting()
+
+		for _, line in ipairs(lines) do
+			assert.is_nil(string.find(line.text, "Skipping the loading", 1, true), line.text)
+		end
+		assert.equal("ally", ai.ally:Scope())
+		assert.equal("global", ai.global:Scope())
+		assert.equal(ai.global, ai.ally.global)
+		assert.equal(0, ai.ally.allyId)
+		assert.same({ ai }, ai.ally.AIs)
+		assert.same({ ai }, ai.global.AIs)
+		assert.is_true(ai.ally.loaded)
+		assert.is_true(ai.global.loaded)
+		assert.is_table(ai.perceptionhandler)
+		assert.equal(ai.ally.perceptionhandler, ai.perceptionhandler)
+		assert.same({ ai.perceptionhandler }, ai.ally.modules)
+		assert.same({}, ai.global.modules)
+		assert.equal(5, #ai.modules)
+		for _, m in ipairs(ai.modules) do
+			assert.equal("team", m:Scope())
+		end
+		assert.are_not.equal(ai.api.game, ai.ally.api.game)
+		assert.equal(ai.ally, ai.ally.game.ai)
+	end)
+
+	it("runs Init on the global object, then the ally, then the team", function()
+		local owners = {}
+		for _, line in ipairs(bootPrinting()) do
+			if string.find(line.text, " - playing: ", 1, true) then
+				owners[#owners + 1] = line.owner
+			end
+		end
+
+		assert.same({ "global", "ally 0", 0 }, owners)
+	end)
+
+	it("tells the ally object's PerceptionHandler what the ally team sees", function()
+		require("Shard/boot")
+
+		ai.ally:UnitEnteredLos(42, 1, 1, 7)
+		assert.is_true(ai.perceptionhandler:Sees(42))
+		ai.ally:UnitLeftLos(42, 1, 1, 7)
+		assert.is_false(ai.perceptionhandler:Sees(42))
+	end)
+
 	it("runs AttackHandler and PlacementHandler in turns and the other modules every frame", function()
 		require("Shard/boot")
 

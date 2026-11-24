@@ -48,15 +48,59 @@ function ShardNull.SetAIFolder(name)
 	aiFolder = name
 end
 
---- Sets on the AI what the engine's loader sets (its api, name and team), then Prepare(), which runs Init()
-function ShardNull.Start(ai, name)
+-- a game and map of their own for every object, as the engine's loader gives them
+local function NewAPI()
+	package.loaded["shard_runtime/api"] = nil
+	package.loaded["shard_runtime/shard_null/game"] = nil
+	package.loaded["shard_runtime/shard_null/map"] = nil
 	local api = require("shard_runtime/api")
 	---@diagnostic disable-next-line: inject-field
 	api.shard_include = shard_include
-	ai.api = api
+	return api
+end
+
+local function NewGlobal(name)
+	---@diagnostic disable-next-line: call-non-callable
+	local global = ShardGlobal()
+	global.loaded = false
+	global.fullname = name
+	global.api = NewAPI()
+	global.AIs = {}
+	return global
+end
+
+local function NewAlly(name, allyId, global)
+	---@diagnostic disable-next-line: call-non-callable
+	local ally = ShardAlly()
+	ally.loaded = false
+	ally.allyId = allyId
+	ally.fullname = name
+	ally.api = NewAPI()
+	ally.global = global
+	ally.AIs = {}
+	return ally
+end
+
+local function SetupTeam(ai, name, ally, global)
+	ai.loaded = false
+	ai.api = NewAPI()
 	ai.fullname = name
 	ai.id = 0
-	ai.allyId = 0
+	ai.allyId = ally.allyId
+	ai.global = global
+	ai.ally = ally
+	ally.AIs[#ally.AIs + 1] = ai
+	global.AIs[#global.AIs + 1] = ai
+end
+
+--- Builds what the engine's loader builds for one AI on team 0 of ally team 0, then runs Prepare(), which runs
+--- Init(), in the loader's order: the ShardGlobal (ai.global), the ShardAlly (ai.ally), the team AI
+function ShardNull.Start(ai, name)
+	local global = NewGlobal(name)
+	local ally = NewAlly(name, 0, global)
+	SetupTeam(ai, name, ally, global)
+	global:Prepare()
+	ally:Prepare()
 	ai:Prepare()
 end
 
