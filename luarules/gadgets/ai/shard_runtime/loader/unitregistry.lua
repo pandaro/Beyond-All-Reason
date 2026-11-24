@@ -1,7 +1,8 @@
 -- The units the loader keeps track of, on the hosting client. Unsynced.
 --
--- Provisional: the unit tables of every AI (own, allied, enemy and neutral units) are omniscient, whatever the
--- AI can see; game:GetUnits(), GetFriendlies() and GetEnemies() read them, as with the old loader.
+-- The unit tables of every AI (own, allied, enemy and neutral units) hold every unit, whatever the AI can see;
+-- game:GetUnits(), GetFriendlies() and GetEnemies() read them. Perception is the AI's own work: the loader
+-- hands it the sight events, and shard_runtime/perceptionhandler.lua is a module it can use.
 --
 -- A dead unit's ShardUnit stays in Shard.unitsByID for 30 s of game, with its type and name, because the AIs
 -- still ask the game for units they saw die; a ring of three parallel arrays (unit ID, ShardUnit, frame it
@@ -16,7 +17,7 @@ local catchUpTargets = nil -- while catching up, only these AIs have their unit 
 local deadIDs, deadUnits, deadExpiry = {}, {}, {}
 local deadCapacity, deadHead, deadCount = 0, 1, 0
 
--- unit tables (provisional) -------------------------------------------------------------------------
+-- unit tables ----------------------------------------------------------------------------------------
 
 local function NewUnitTables(thisAI)
 	thisAI.ownUnitIds = {}

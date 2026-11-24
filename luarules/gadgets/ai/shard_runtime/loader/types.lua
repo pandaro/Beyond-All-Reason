@@ -141,13 +141,11 @@ local function LoadAIType(aiName)
 		env = env,
 		first = first, -- the instance boot.lua returned goes to the first team
 		class = getmetatable(first), -- the other teams get new instances of the same class
-		omniscient = first.Perception ~= nil and first:Perception() == "omniscient",
 	}
 	---@diagnostic disable-next-line: call-non-callable
 	local global = ShardGlobal()
 	global.loaded = false
 	global.fullname = aiName
-	global.omniscient = aiType.omniscient
 	global.api = NewAPI(aiType)
 	global.AIs = {}
 	SetSchedule(global, aiType)
@@ -173,7 +171,6 @@ local function GetAlly(aiType, allyId)
 	ally.loaded = false
 	ally.allyId = allyId
 	ally.fullname = aiType.name
-	ally.omniscient = aiType.omniscient
 	ally.api = NewAPI(aiType)
 	ally.global = aiType.global
 	ally.AIs = {}
@@ -201,7 +198,6 @@ local function SetupAI(id)
 	thisAI.allyId = allyId
 	thisAI.side = side
 	thisAI.fullname = aiInfo
-	thisAI.omniscient = aiType.omniscient
 	thisAI.api = NewAPI(aiType)
 	thisAI.global = aiType.global
 	thisAI.ally = GetAlly(aiType, allyId)
