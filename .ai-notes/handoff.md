@@ -1113,3 +1113,55 @@ A, STAI contro SimpleAI (controllo per `types.lua`): unità ai minuti 1/5/10/13:
 1. `21507320d0` Shard runtime: PerceptionHandler, an ally team module with the units its ally team sees in LOS and on radar
 2. `55bd31fb9e` Shard loader: no Perception() nor omniscient field; the unit tables hold every unit
 3. `a9cf6d542f` Shard example: AttackHandler targets only the enemies its ally team sees in LOS
+
+### T13 (agente locale, 24 novembre 2026)
+
+**Fatto**
+
+1. `shard_null/boot.lua`: quattro funzioni locali (`NewAPI`, `NewGlobal`, `NewAlly`, `SetupTeam`) composte in `ShardNull.Start`, che si legge come passi: crea il globale, l'ally (ally team 0), collega il team, poi `Prepare()` di global, ally, team. Commento di due righe in testa a `Start`. I campi sono quelli del loader (`LoadAIType`, `GetAlly`, `SetupAI`): `loaded`, `fullname`, `api`, `AIs`, `allyId` (ally e team), `ally.global`, `ai.global`, `ai.ally`, l'AI dentro `AIs` di tutti e due. Nessuna funzione nuova esportata: i test chiamano `ai.global`, `ai.ally`, `ai` nell'ordine.
+2. **`api` propria per ogni oggetto** (`NewAPI`): prima `Start` faceva un solo `require("shard_runtime/api")`, che sotto `shard_null` è in cache, quindi i tre oggetti avrebbero condiviso `game` e `map`; e `ShardAI:Init` scrive `self.game.ai = self`, così `game.ai` di tutti sarebbe stato il team. `NewAPI` toglie da `package.loaded` `api`, `game` e `map` di `shard_null` e li ricarica, come `NewAPI` del loader rilegge `api.lua` per ogni oggetto.
+3. `Shard/boot.lua`, Shard, STAI, loader: non toccati. (STAI sotto `shard_null` non usa `ShardNull.Start`: chiama `ai:Init()` da sé, come prima.)
+
+**Lasciato fuori dal loader, e perché**
+
+- `SetSchedule` (`MScheduler`/`scheduler` sugli oggetti ally e global): lo scheduler condiviso non esiste sotto `shard_null`. Effetto: i moduli dell'ally girano tutti nell'`Update` di ogni frame (oggi solo `PerceptionHandler`, che non ha `Update`). Il team mantiene `MScheduler` dalla sua classe, come prima.
+- `outbox`, host, semi (`randomseed`), `side`, `alliedTeamIds`/`enemyTeamIds`, tabelle delle unità (`NewUnitTables`), `Shard.alliesByAllyID`/`Shard.globals`: servono solo al loader; nessun modulo di Shard li legge sotto `shard_null`. Niente si è rotto senza di loro.
+
+**Righe per file**
+
+| File | Righe |
+| --- | --- |
+| `shard_runtime/shard_null/boot.lua` | +48 −4 |
+| `spec/.../shard_runtime/shard_null_spec.lua` | +61 |
+
+**Test busted** (`lx --lua-version 5.1 test`: 2710 successi, 0 fallimenti, 1 pending di sempre; i 4 test di prima invariati)
+
+- Oggetti e modulo: nessuna riga «Skipping the loading»; `ai.ally`/`ai.global` con `Scope()` giusto, `ai.ally.global == ai.global`, `allyId` 0, `AIs` = `{ ai }` per tutti e due, tutti e due `loaded`; `ai.perceptionhandler` esiste ed è `ai.ally.perceptionhandler`; `ai.ally.modules` = `{ PerceptionHandler }`, `ai.global.modules` vuoto; `ai.modules` 5, tutti di ambito team; `game` dell'ally diverso da quello del team e `ai.ally.game.ai == ai.ally`.
+- Ordine di `Init`: dalle righe `Info` «… - playing: …» stampate da ogni `Init` (catturate sostituendo `_G.print`), proprietari `"global"`, `"ally 0"`, `0`.
+- Vista: `ai.ally:UnitEnteredLos(42, …)` → `Sees(42)` vero; `UnitLeftLos` → falso.
+
+**Mutazioni** (11, tutte prese; falliti + errori nella spec di `shard_null`, 7 test)
+
+| Mutazione | falliti |
+| --- | --- |
+| `ally:Prepare()` tolto (ally mai inizializzato) | 2 + 1 errore |
+| `global:Prepare()` tolto | 2 |
+| ordine `Prepare` invertito (team, ally, global) | 5 + 1 errore |
+| ally prima di global | 1 |
+| `ai.ally` non collegato | 1 + 1 errore |
+| `ai.global` non collegato | 1 errore |
+| `ally.global` non collegato | 1 |
+| AI non in `ally.AIs` / non in `global.AIs` | 1 / 1 |
+| `api` condivisa (cache di `package.loaded` non tolta) | 1 |
+| ally team 1 al posto di 0 | 2 |
+
+**Controlli**: StyLua 2.5.2 pulito sui due file. EmmyLua 0.24.0: 20 errori, gli stessi; `boot.lua` senza diagnostiche; la spec ha solo l'hint di prima (`self` non usato in `ProgressQueue`). Un warning nuovo (`pcall(require, …)`, `param-type-mismatch`) l'ho tolto passando una closure a `pcall`. `run_engine_tests.sh`: `RESULT: ok`, 3 + 3 file. `lx` ha riscritto ancora `.emmyrc.json`: ripristinato, non è nel commit.
+
+**Problemi e domande**
+
+- `Prepare()` assegna i globali `ai`, `game`, `map`: nell'ordine global → ally → team l'ultimo è il team, come si aspetta `Shard/boot.lua` (con l'ordine invertito `ai` diventa lo `ShardGlobal`, ed è così che la mutazione fa fallire 5 test).
+- Nessun aiuto aggiunto per consegnare eventi o `Update`: per ora chiamare `ai.global`, `ai.ally`, `ai` a mano basta (lo fa il test di vista in tre righe).
+
+**Commit**
+
+1. `9cc285d311` Shard null: Start builds a ShardGlobal and a ShardAlly and prepares global, ally, team as the loader does
