@@ -156,6 +156,9 @@ local function loadLoader(world)
 			local unit = world.units[unitID]
 			return unit and (unit.defID or 1)
 		end,
+		ValidUnitID = function(unitID)
+			return world.units[unitID] ~= nil
+		end,
 		GetUnitTeam = function(unitID)
 			return world.units[unitID] and world.units[unitID].team
 		end,
@@ -748,6 +751,32 @@ describe("ShardAILoader unsynced side", function()
 			assert.equal("otherunit", reused:Name())
 			assert.equal(reused, Shard.unitsByID[100])
 			assert.is_nil(reused.destroyed)
+		end)
+
+		it("hands a recycled ID to the new unit before its UnitCreated, and UnitCreated keeps it", function()
+			local loader = started()
+			local Shard = loader.env.Shard
+			local game = Shard.AIsByTeamID[0].game
+			addUnit(loader, 100, 0)
+			destroy(loader, 100, 10)
+
+			loader.world.units[100] = { team = 2, defID = 2 }
+			local recycled = game:GetUnitByID(100)
+			assert.equal("otherunit", recycled:Name())
+			loader.world.frame = 12
+			loader.gadget:UnitCreated(100, 2, 2)
+			frames(loader, 12, 1000)
+
+			assert.equal(recycled, Shard.unitsByID[100])
+			assert.equal(recycled, game:GetUnitByID(100))
+		end)
+
+		it("has no unit for an ID that never existed, and caches nothing", function()
+			local loader = started()
+			local Shard = loader.env.Shard
+
+			assert.is_nil(Shard.AIsByTeamID[0].game:GetUnitByID(4242))
+			assert.is_nil(Shard.unitsByID[4242])
 		end)
 
 		it("allocates nothing in GameFrame with many dead units waiting", function()

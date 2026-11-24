@@ -1047,11 +1047,6 @@ else
 			return
 		end
 		AddToUnitTables(unitId, teamId)
-		-- the engine reuses unit IDs: a dead unit still kept under this ID gives way to the new one
-		local cached = Shard.unitsByID[unitId]
-		if cached ~= nil and cached.destroyed then
-			Shard:unshardify_unit(unitId)
-		end
 		local unit = Shard:shardify_unit(unitId)
 		DeliverToShared("UnitCreated", unit, unitDefId, teamId, builderId)
 		-- among the AIs only the owner, as the old loader did: STAI's modules take UnitCreated for a unit

@@ -19,15 +19,22 @@ function Shard:shardify_resource(luaResource)
 	return Shard.shardResource
 end
 
+-- A unit that died stays a while, marked destroyed, as the loader keeps it; once the engine gives its ID to a new
+-- unit, the new one takes its place. An ID that is neither cached nor valid has no unit.
 function Shard:shardify_unit(unitID)
 	if not unitID then
 		return
 	end
-	if not self.unitsByID[unitID] then
-		local unit = ShardUnit(unitID)
-		self.unitsByID[unitID] = unit
+	local unit = self.unitsByID[unitID]
+	if unit ~= nil and not unit.destroyed then
+		return unit
 	end
-	return self.unitsByID[unitID]
+	if not Spring.ValidUnitID(unitID) then
+		return unit
+	end
+	unit = ShardUnit(unitID)
+	self.unitsByID[unitID] = unit
+	return unit
 end
 
 function Shard:unshardify_unit(unitID)
