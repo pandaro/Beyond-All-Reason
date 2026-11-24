@@ -224,16 +224,16 @@ describe("ShardOutbox", function()
 		assert.equal(4, echoesWith(world, "dropped"))
 	end)
 
-	it("sends at most 25 orders a message, in order, without losing or repeating any", function()
+	it("sends at most 10 orders a message, in order, without losing or repeating any", function()
 		local world = loadOrders()
 		local outbox = world.env.ShardOutbox(4)
-		for unitID = 1, 60 do
+		for unitID = 1, 11 do
 			outbox:Queue(unitID, CMD.MOVE, { unitID, 0, -unitID }, 0)
 		end
 
-		local messages = { flush(world, outbox, 30), flush(world, outbox, 31), flush(world, outbox, 32) }
+		local messages = { flush(world, outbox, 30), flush(world, outbox, 31) }
 
-		assert.is_nil(flush(world, outbox, 33))
+		assert.is_nil(flush(world, outbox, 32))
 		local all = {}
 		for i, decoded in ipairs(messages) do
 			assert.equal(i, decoded.seq)
@@ -244,10 +244,9 @@ describe("ShardOutbox", function()
 				assert.same({ order.unit, 0, -order.unit }, order.params)
 			end
 		end
-		assert.equal(25, #messages[1].orders)
-		assert.equal(25, #messages[2].orders)
-		assert.equal(10, #messages[3].orders)
-		for unitID = 1, 60 do
+		assert.equal(10, #messages[1].orders)
+		assert.equal(1, #messages[2].orders)
+		for unitID = 1, 11 do
 			assert.equal(unitID, all[unitID])
 		end
 	end)
@@ -255,11 +254,11 @@ describe("ShardOutbox", function()
 	it("keeps the orders of a group in one message", function()
 		local world = loadOrders()
 		local outbox = world.env.ShardOutbox(4)
-		for unitID = 1, 20 do
+		for unitID = 1, 5 do
 			outbox:Queue(unitID, CMD.MOVE, nil, 0)
 		end
 		outbox:BeginGroup()
-		for _ = 1, 10 do
+		for _ = 1, 6 do
 			outbox:Queue(99, -300, 0, 0)
 		end
 		assert.is_true(outbox:EndGroup())
@@ -268,23 +267,23 @@ describe("ShardOutbox", function()
 		local first = flush(world, outbox)
 		local second = flush(world, outbox)
 
-		assert.equal(20, #first.orders)
-		assert.equal(11, #second.orders)
-		assert.equal(99, second.orders[10].unit)
-		assert.equal(100, second.orders[11].unit)
+		assert.equal(5, #first.orders)
+		assert.equal(7, #second.orders)
+		assert.equal(99, second.orders[6].unit)
+		assert.equal(100, second.orders[7].unit)
 	end)
 
-	it("sends a group larger than 25 orders alone", function()
+	it("sends a group larger than 10 orders alone", function()
 		local world = loadOrders()
 		local outbox = world.env.ShardOutbox(4)
 		outbox:BeginGroup()
-		for _ = 1, 30 do
+		for _ = 1, 11 do
 			outbox:Queue(99, -300, 0, 0)
 		end
 		outbox:EndGroup()
 		outbox:Queue(100, CMD.STOP, nil, 0)
 
-		assert.equal(30, #flush(world, outbox).orders)
+		assert.equal(11, #flush(world, outbox).orders)
 		assert.same({ 100 }, units(flush(world, outbox)))
 	end)
 
@@ -357,13 +356,13 @@ describe("game:GiveOrder", function()
 	end)
 
 	it("'2-1' queues the commands of one unit together", function()
-		for unitID = 1, 24 do
+		for unitID = 1, 9 do
 			outbox:Queue(unitID, CMD.STOP, nil, 0)
 		end
 
 		assert.is_true(game:GiveOrder(7, { -101, -101, -102 }, { 0, 0, 0 }, { 0, 0, { "shift" } }, "2-1"))
 
-		assert.equal(24, #flush(world, outbox).orders)
+		assert.equal(9, #flush(world, outbox).orders)
 		assert.same({
 			{ unit = 7, cmd = -101, options = 0, params = { 0 } },
 			{ unit = 7, cmd = -101, options = 0, params = { 0 } },

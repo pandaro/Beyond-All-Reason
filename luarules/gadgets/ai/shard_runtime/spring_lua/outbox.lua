@@ -7,8 +7,7 @@
 
 local OrderCodec = VFS.Include("luarules/gadgets/ai/shard_runtime/ordercodec.lua")
 
--- Orders in one message: each costs the engine about 4.2 us on every client (phase 0), so about 0.1 ms per frame.
-local MAX_ORDERS_PER_MESSAGE = 25
+local MAX_ORDERS_PER_MESSAGE = OrderCodec.MAX_ORDERS_PER_MESSAGE
 
 local MAX_PARAMS = OrderCodec.MAX_PARAMS
 -- Bounds as powers of two, exact also where Lua numbers are single precision floats; the upper ones are excluded.
@@ -243,6 +242,8 @@ local function dropFirst(outbox, count)
 end
 
 --- Sends the oldest orders as one message, at most MAX_ORDERS_PER_MESSAGE of them unless a single group is larger
+--
+-- A larger group goes alone in one message, which the relay rejects whole.
 --
 -- @param frame integer the current game frame, written as the emission frame
 -- @param send function called with the message

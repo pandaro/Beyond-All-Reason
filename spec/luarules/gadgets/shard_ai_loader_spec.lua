@@ -298,14 +298,14 @@ describe("ShardAILoader synced relay", function()
 		local loader = started()
 
 		receive(loader, 0, message(loader, 0, 1, 1000, { { 100, CMD_STOP } }))
-		receive(loader, 0, loader.codec.PackHeader(0, 2, 1000, 4001))
+		receive(loader, 0, loader.codec.PackHeader(0, 2, 1000, 11))
 		receive(loader, 0, message(loader, 0, 3, 1000, { { 101, CMD_STOP } }))
 
 		assert.same({ 100, 101 }, { loader.orders[1].unit, loader.orders[2].unit })
 		assert.same({ count = 1 }, rejections(loader))
 	end)
 
-	it("rejects a wrong version, a short header and more than 4000 orders, and keeps all three", function()
+	it("rejects a wrong version, a short header and more than 10 orders, and keeps all three", function()
 		local loader = started()
 		local VFS = loader.VFS
 		local valid = message(loader, 0, 1, 1000, { { 100, CMD_STOP } })
@@ -313,10 +313,23 @@ describe("ShardAILoader synced relay", function()
 
 		assert.is_true(receive(loader, 0, wrongVersion))
 		assert.is_true(receive(loader, 0, string.sub(valid, 1, 15)))
-		assert.is_true(receive(loader, 0, loader.codec.PackHeader(0, 2, 1000, 4001)))
+		assert.is_true(receive(loader, 0, loader.codec.PackHeader(0, 2, 1000, 11)))
 
 		assert.equal(0, #loader.orders)
 		assert.same({ version = 1, size = 1, count = 1 }, rejections(loader))
+	end)
+
+	it("accepts a message with 10 orders", function()
+		local loader = started()
+		local orders = {}
+		for i = 1, 10 do
+			orders[i] = { 100 + i % 2, CMD_STOP }
+		end
+
+		receive(loader, 0, message(loader, 0, 1, 1000, orders))
+
+		assert.equal(10, #loader.orders)
+		assert.same({}, rejections(loader))
 	end)
 
 	it("gives the orders before a cut one and reports the rest as rejected", function()

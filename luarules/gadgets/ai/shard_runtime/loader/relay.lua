@@ -15,7 +15,7 @@ local isOrderMessage = OrderCodec.IsOrderMessage
 local unpackHeader = OrderCodec.UnpackHeader
 local unpackOrder = OrderCodec.UnpackOrder
 
-local MAX_ORDERS_PER_MESSAGE = 4000
+local MAX_ORDERS_PER_MESSAGE = OrderCodec.MAX_ORDERS_PER_MESSAGE
 local MAX_MESSAGES_PER_FRAME = 2 -- per team and emission frame, never per arrival frame
 local MAX_FRAME_AGE = 900 -- oldest accepted emission frame, in frames
 
