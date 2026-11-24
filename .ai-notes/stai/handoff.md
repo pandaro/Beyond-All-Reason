@@ -12,6 +12,7 @@
 - `.ai-notes/` è escluso da git sulla macchina locale: per questi file usa `git add -f`. Prima di `git add -A` o `git commit -a` segui la skill `submodule-pointer`.
 - `.ai-notes/stai/nuovo-stai.md` lo aggiorna il coordinatore, non modificarlo.
 - Tutto ciò che va nel repository è in inglese: messaggi di commit, commenti, nomi, log, test. Solo `.ai-notes/` resta in italiano.
+- Il codice di STAI nuovo o spostato segue lo **stile di STAI** (`nuovo-stai.md` §7): leggilo prima di ogni compito.
 - Un cambio al framework (`shard_runtime/`, `ShardAILoader.lua`) solo se il compito lo chiede, in un commit a parte che inizia con «Shard …».
 - Test con l'engine vero: `.ai-notes/tools/run_engine_tests.sh`; il `PASS` del test runner di BAR non conta. Partite: `.ai-notes/tools/run_engine_game.sh`.
 - Strumenti fissati: StyLua 2.5.2 ed EmmyLua 0.24.0 (`emmylua_check`) in `~/.local/bin`, da chiamare con il percorso intero; `lx` è in `/usr/local/bin`. `lx test` riscrive `.emmyrc.json`: ripristinalo, non committarlo.
@@ -20,7 +21,7 @@
 
 ### S3: pulizia di `MapHST`
 
-**Impegno: medio.** Primo passo dei «fondamenti» (`nuovo-stai.md` §5 n. 3, punto 2). `MapHST` resta `"team"`; **il gioco non deve cambiare**: si toglie solo codice che nessuno chiama e si spostano due funzioni che non sono di mappa. I difetti trovati (punto 15) **non** si correggono qui.
+**Impegno: alto** (deciso dall'utente: gioco identico e stile di STAI). Primo passo dei «fondamenti» (`nuovo-stai.md` §5 n. 3, punto 2). `MapHST` resta `"team"`; **il gioco non deve cambiare**: si toglie solo codice che nessuno chiama e si spostano due funzioni che non sono di mappa. I difetti trovati (punto 15) **non** si correggono qui.
 
 **1. Codice morto da togliere da `maphst.lua`** (il coordinatore ha controllato con grep che nessuno li chiama; ricontrolla prima di togliere ciascuno, anche nei file fuori da `STAI/`)
 
@@ -35,10 +36,12 @@
 **2. Funzioni che passano in `BuildingsHST`** (decisione dell'utente)
 
 - `ClosestFreeMex` → `BuildingsHST:ClosestFreeMex`, stessa firma e stesso corpo; le chiamate a `self:MobilityOfUnit`, `self:GetCell`, `self:UnitCanGoHere` diventano `self.ai.maphst:…`, `self.ai.buildingshst:PlansOverlap` diventa `self:PlansOverlap`. Chiamante: `buildersbst.lua` r. 295.
-- `UnitMexMoveTest` → `BuildingsHST:UnitMexMoveTest`; chiamante: `commanderbst.lua` r. 14. Il valore `trampled` **esce dalle celle di `MapHST`** (via `cell.trampled = 0` da `NewCell`, via le righe di `trampled` da `MapHST:DrawDebug`) e va in una tabella di `BuildingsHST`, `self.trampled[X][Z]`, con 0 in ogni cella prima del conteggio. Per non cambiare niente:
+- `UnitMexMoveTest` → `BuildingsHST:UnitMexMoveTest`; chiamante: `commanderbst.lua` r. 14. Il valore `trampled` **esce dalle celle di `MapHST`** (via `cell.trampled = 0` da `NewCell`, via le righe di `trampled` da `MapHST:DrawDebug`) e va in una tabella di `BuildingsHST`, **`self.TRAMPLED[X][Z]`** (maiuscolo, come le griglie di STAI), con 0 in ogni cella prima del conteggio. Per non cambiare niente:
   - scorri le celle **nello stesso ordine** di oggi: `X` da 1 a `gridSideX`, dentro `Z` da 1 a `gridSideZ` (oggi `pairs` su tabelle-array, che va in quest'ordine);
   - `self.trampledCells` si crea **in `BuildingsHST:Init`** (`{}`) e `UnitMexMoveTest` ci **aggiunge** le posizioni (`self.ai.maphst.GRID[X][Z].POS`) senza sostituire la tabella: `TasksHST` ne tiene il riferimento (`taskshst.lua` r. 653, 1094, 1104, da cambiare in `self.ai.buildingshst.trampledCells`). Controlla che `BuildingsHST:Init` giri prima del punto in cui `TasksHST` legge il riferimento;
   - stesse formule, stessa soglia (`average * 1.5`), stesso `nil` sulle celle sotto soglia; `self.ttt` può diventare locale.
+
+**Stile**: `nuovo-stai.md` §7. Le funzioni spostate tengono nome, firma e commento di fine riga di oggi; il codice nuovo (il ciclo numerico, `TRAMPLED`) si scrive nella stessa forma, con commenti brevi a fine riga.
 
 **3. Prova che il gioco non cambia** (modifica temporanea, **non committata**)
 

@@ -41,7 +41,8 @@ Messaggio d'avvio per la chat:
 - **STAI deve restare forte**: ogni compito che cambia il gioco si confronta con le partite di riferimento (almeno tre partite quando si vuole dire che qualcosa peggiora o migliora).
 - **Il framework si tocca solo se serve a tutte le AI**, con l'ok dell'utente, in commit separati che iniziano con «Shard …». Se il framework ha un difetto, si segnala all'utente prima di correggerlo.
 - **Le decisioni aperte** (`nuovo-stai.md` §4) le prende l'utente: il coordinatore presenta le opzioni in modo semplice, con un consiglio motivato, e aspetta.
-- **La griglia** (punto 5) non si tocca prima di averne parlato con l'utente.
+- **La griglia** (punto 5) non si tocca prima di averne parlato con l'utente. Decisa il 25 novembre 2026: una geometria (`GridHST`), tanti strati.
+- **Stile di STAI** (`nuovo-stai.md` §7): ogni compito lo richiama; il codice nuovo o spostato deve sembrare scritto dall'utente.
 - Una decisione cambiata si scrive come «Decisione del <data> (utente)» accanto al testo vecchio, che resta come storia.
 
 ## 4. Dove sta ogni cosa

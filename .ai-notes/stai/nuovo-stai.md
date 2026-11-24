@@ -90,3 +90,14 @@ Poi, come prima:
 - **Riferimenti** (sul framework, prima del porting): circa 145–194 unità a fine partita, 15–37 mex, circa 15.000 ordini, 10–15 rifiutati, memoria media 0,2–0,7 KB per frame, heap 13–15 MB. Una partita sola non basta per dire che un cambio peggiora il gioco: servono almeno tre partite.
 - **Riferimenti dopo T16** (S1, tre partite A, 24 novembre 2026): unità a fine partita 141 / 161 / 186; mex 23 / 29 / 35; fabbriche 2; ordini 10.445–15.948, rifiutati 9–16 (nessun messaggio rifiutato, quindi niente `excluded` né gruppi oltre 20); memoria media 0,37–0,45 KB per frame, picco 68–74 KB; heap 13,1–15,5 MB; nessuna riga `[AI Loader] error`. Unità al minuto 13: 117–159.
 - **Controlli**: test busted con prova delle mutazioni, StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `.ai-notes/tools/run_engine_tests.sh`.
+
+## 7. Stile di STAI (da seguire in ogni compito)
+
+Richiesta dell'utente (25 novembre 2026): il codice nuovo o spostato si scrive **il più possibile come quello di STAI**, che è suo. Descrizione presa dal codice:
+
+- **Struttura**: `X = class(Module)`, poi `Name`, `internalName`, `Scope`, `Init`; prima riga di `Init`: `self.DebugEnabled = false`. `Init` (e le funzioni grandi) come «macro»: una fila di chiamate a funzioni piccole che si leggono come passi (`MapHST:Init`). Gli altri moduli con `self.ai.<nome>`; gli aiuti comuni in `Tool` (`self.ai.tool:distance`, `tableConcat`, `sortByDistance`).
+- **Nomi**: MAIUSCOLO per i dati centrali, le griglie e i valori aggregati (`GRID`, `CELL`, `METALS`, `ENEMY`, `DAMAGED`, `POS`, `ARMED`, `UNARM`); `X`, `Z` maiuscole per la griglia, `x`, `z` per gli elmo. Metodi chiamati da fuori in PascalCase, passi interni in camelCase (`basicMapInfo`, `metalScan`). Coppie con «Raw» per la versione con `x, y, z` (`RawPosToGrid` / `PosToGrid`). Variabili dei cicli che dicono cosa sono (`for X, Zetas in pairs(self.GRID)`, `for Z, CELL in pairs(Zetas)`). Suffissi `HST` (moduli), `BST` (behaviour).
+- **Commenti**: brevi, in inglese, **a fine riga**, `--` attaccato, dicono a cosa serve (`--hold the metalSpots of this cell`); avvisi in maiuscolo (`TODO`, `CAUTION`, `WARNING`, `TEST`).
+- **Codice**: uscite anticipate; tabelle costruite campo per campo; `pairs` quasi sempre (quando l'ordine conta, cicli numerici); `self:EchoDebug` abbondante, `self:Warn` per gli avvisi; funzioni che restituiscono più valori.
+- **Nomi esistenti** (anche con refusi: `gridAnalisy`, `TopologyFooded`) non si rinominano senza chiedere; nei nomi e commenti nuovi inglese corretto, nella stessa forma.
+- Eccezione decisa: il codice morto e i blocchi commentati morti si tolgono (utente, 25 novembre 2026: «vedi tu»).
