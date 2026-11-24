@@ -20,9 +20,6 @@ function BomberHST:Init()
 end
 
 function BomberHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	self:SetMassLimit()
 	self:DraftBomberSquads()
 	for index, squad in pairs(self.squads) do

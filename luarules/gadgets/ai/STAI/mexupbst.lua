@@ -46,7 +46,7 @@ function MexUpBST:Update()
 	--self.uFrame = self.uFrame or 0
 	if not self.active then
 		local f = self.game:Frame()
-		if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "MexUpBST" then
+		if self.ai.scheduler.behaviourTeam ~= self.ai.id or self.ai.scheduler.behaviourUpdate ~= "MexUpBST" then
 			return
 		end
 		self:StartUpgradeProcess()

@@ -26,9 +26,6 @@ end
 
 function ReclaimBST:Update()
 	local f = self.game:Frame()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "ReclaimBST" then
-		return
-	end
 	self.position.x, self.position.y, self.position.z = self.unit:Internal():GetRawPos()
 	self:Act()
 

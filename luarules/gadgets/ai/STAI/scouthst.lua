@@ -91,9 +91,6 @@ function ScoutHST:TargetAvailable(X, Z, scoutID)
 end
 
 function ScoutHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	local frame = game:Frame()
 	for X, cells in pairs(self.SCOUTED) do
 		for Z, cellFrame in pairs(cells) do

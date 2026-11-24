@@ -80,9 +80,6 @@ function LosHST:FreeCellsToPool(grid)
 end
 
 function LosHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	self:FreeCellsToPool("ENEMY")
 	self:FreeCellsToPool("OWN")
 	self:FreeCellsToPool("ALLY")

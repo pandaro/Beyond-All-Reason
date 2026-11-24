@@ -60,9 +60,6 @@ function EcoHST:Init()
 end
 
 function EcoHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	local currentSample = self.samples[self.Index]
 	local currentLevel, storage, pull, income, expense, share, sent, received =
 		Spring.GetTeamResources(self.ai.id, "metal")

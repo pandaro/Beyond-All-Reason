@@ -147,9 +147,6 @@ function LabsHST:EconomyToBuildFactories()
 end
 
 function LabsHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	self:LabsLevels()
 	local M = self.ai.ecohst.Metal
 	local E = self.ai.ecohst.Energy

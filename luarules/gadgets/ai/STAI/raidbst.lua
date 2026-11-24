@@ -92,9 +92,6 @@ function RaidBST:Deactivate() end
 
 function RaidBST:Update()
 	local f = self.game:Frame()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "RaidBST" then
-		return
-	end
 	if not self.mtype then
 		self:Warn("no mtype and network")
 	end

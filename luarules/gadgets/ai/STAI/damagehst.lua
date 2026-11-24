@@ -120,9 +120,6 @@ function DamageHST:UpdateDamagedUnits()
 end
 
 function DamageHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	self:UpdateBadPositions()
 	self:UpdateDamagedUnits()
 	-- 	local prepathnodecost = Spring.GetPathNodeCosts(game:GetTeamID())

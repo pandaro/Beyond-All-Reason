@@ -133,9 +133,6 @@ function LabsBST:Update()
 	--if self.exitClosed then
 	--	return
 	--end
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "LabsBST" then
-		return
-	end
 	local f = self.game:Frame()
 	self:preFilter() -- work or no resource??
 	if Spring.GetFactoryCommandCount(self.id) > 1 then

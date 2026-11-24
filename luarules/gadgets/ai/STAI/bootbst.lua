@@ -35,9 +35,6 @@ function BootBST:OwnerDead()
 end
 
 function BootBST:Update()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "BootBST" then
-		return
-	end
 	local f = self.game:Frame()
 	if not self.finished then
 		return

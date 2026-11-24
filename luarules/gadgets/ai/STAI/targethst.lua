@@ -28,9 +28,6 @@ function TargetHST:Init()
 end
 
 function TargetHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	self:EnemiesCellsAnalisy()
 	self:GetBlobs("MOBILE_BLOBS", "SPEED")
 	self:GetBlobs("IMMOBILE_BLOBS", "IMMOBILE")

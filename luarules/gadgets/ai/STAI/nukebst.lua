@@ -28,9 +28,6 @@ function NukeBST:SetStock()
 end
 
 function NukeBST:Update()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "NukeBST" then
-		return
-	end
 	local f = game:Frame()
 	if not self.active then
 		return

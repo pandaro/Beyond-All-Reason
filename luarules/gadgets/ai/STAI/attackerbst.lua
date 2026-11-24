@@ -92,9 +92,6 @@ end
 
 function AttackerBST:Update()
 	local f = self.game:Frame()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "AttackerBST" then
-		return
-	end
 	if not self.active and self.squad and self.target then
 		self.unit:ElectBehaviour()
 	end

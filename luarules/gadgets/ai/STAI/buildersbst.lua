@@ -94,9 +94,6 @@ function BuildersBST:Watchdog()
 end
 
 function BuildersBST:Update()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "BuildersBST" then
-		return
-	end
 	local f = self.game:Frame()
 	self.position.x, self.position.y, self.position.z = self.unit:Internal():GetRawPos()
 	if not self:IsActive() then

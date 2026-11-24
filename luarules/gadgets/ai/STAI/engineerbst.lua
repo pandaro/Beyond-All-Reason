@@ -22,10 +22,6 @@ end
 function EngineerBST:Update()
 	local f = self.game:Frame()
 
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "EngineerBST" then
-		return
-	end
-
 	if not self:checkBuilder() then
 		self:EchoDebug("not check builder")
 

@@ -18,9 +18,6 @@ end
 
 function CleanerBST:Update()
 	local f = self.game:Frame()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "CleanerBST" then
-		return
-	end
 	if not self.ai.cleanhst.theCleaner[self.id] then
 		self:EchoDebug(self.id, "do update")
 		self:Search()

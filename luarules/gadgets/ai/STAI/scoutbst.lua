@@ -26,9 +26,6 @@ function ScoutBST:Init()
 end
 
 function ScoutBST:Update()
-	if self.ai.schedulerhst.behaviourTeam ~= self.ai.id or self.ai.schedulerhst.behaviourUpdate ~= "ScoutBST" then
-		return
-	end
 	if game:Frame() < self.lastUpdateFrame + 30 then
 		return
 	end

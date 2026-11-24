@@ -1,4 +1,3 @@
-shard_include("schedulerhst")
 shard_include("armyhst")
 shard_include("maphst")
 shard_include("buildingshst")
@@ -19,7 +18,6 @@ shard_include("taskshst")
 shard_include("tool")
 
 return {
-	SchedulerHST,
 	SleepST,
 	ArmyHST,
 	MapHST,

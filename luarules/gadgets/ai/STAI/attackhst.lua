@@ -49,9 +49,6 @@ function AttackHST:Watchdog(squad)
 end
 
 function AttackHST:Update()
-	if self.ai.schedulerhst.moduleTeam ~= self.ai.id or self.ai.schedulerhst.moduleUpdate ~= self:Name() then
-		return
-	end
 	local f = self.game:Frame()
 	self:DraftAttackSquads()
 	for index, squad in pairs(self.squads) do
