@@ -17,7 +17,7 @@ L'organizzazione in tre ambiti (globale, ally team, team) elimina il lavoro ripe
 | 5 | I file di ogni tipo di AI si caricano in un ambiente proprio; `ai`, `game`, `map` e `shard_include` restano, impostati da `Prepare()` come oggi | classi globali sovrascritte fra AI di tipo diverso |
 | 6 | I callback arrivano solo ai moduli e ai behaviour che li implementano, e solo per l'ambito che li riguarda | broadcast di ogni evento a ogni AI e a ogni modulo |
 | 7 | Lo scheduler di STAI (`SchedulerHST`) entra nel runtime, con un budget per frame | `Update` chiamato a ogni frame anche fuori turno; GC completa forzata |
-| 8 | `game` e `map` filtrano i nemici secondo la percezione dell'ally team, `fair` per default | AI onnisciente; LOS/radar ricalcolati da ogni AI |
+| 8 | `game` e `map` filtrano i nemici secondo la percezione dell'ally team, `fair` per default<br>**Decisione del 24 novembre 2026 (utente):** il framework non filtra. Consegna gli eventi LOS/radar e offre un modulo elementare, `PerceptionHandler` in `shard_runtime/` (ambito `ally`, tabelle `los` e `radar`, `Sees`, `OnRadar`), che ogni AI include, sostituisce o ignora; un'AI che bara è ammessa. `game:GetEnemies()` resta onnisciente. Shard usa il modulo (T12). | AI onnisciente; LOS/radar ricalcolati da ogni AI |
 | 9 | I comandi di `ShardUnit` (`Move`, `Build`, `Attack`…) e `game:GiveOrder` tornano a funzionare sopra una coda binaria, un messaggio per frame | comandi di `ShardUnit` disattivati; una stringa di testo per ogni ordine |
 | 10 | `map:GetMetalSpots()` restituisce i metal spot già calcolati da BAR | metal spot ricalcolati per ogni AI con un algoritmo difettoso |
 

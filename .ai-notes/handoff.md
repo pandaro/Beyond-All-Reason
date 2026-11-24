@@ -18,45 +18,40 @@
 
 ## Compito attuale
 
-### T11: strumenti fissati, elezione dei behaviour, turni dei behaviour
+### T12: percezione come modulo del framework, usato da Shard
 
-**Impegno: alto.** L'elezione decide chi comanda ogni unità: un errore qui fa stare ferme le unità o le fa contendere, senza errori nel log. In più si aggiunge la seconda metà dello scheduler. STAI deve restare identica (con una sola riga in `STAI/ai.lua`, vedi punto 2).
+**Impegno: medio.** Poco codice e niente regole nuove; l'attenzione va al caso dell'avvio e del cambio di host (le unità già in vista) e alla prova che Shard non legge nemici fuori da LOS.
 
-**0. Strumenti, una volta per tutte.** In T9 StyLua 2.5.2 ed EmmyLua 0.24.0 non c'erano più (erano in una cartella temporanea). Installali in modo permanente in `~/.local/bin` (dalle release ufficiali su GitHub, le versioni di `CLAUDE.local.md`), controlla `stylua --version` ed `emmylua_check --version`, e rifai i controlli di T9 (StyLua 2.5.2 sui file toccati da T9, EmmyLua su tutto). Se trovi qualcosa, correggilo in un commit a parte. Aggiungi al protocollo di `handoff.md` una riga: dove stanno gli strumenti.
-
-**Decisioni**
-
-- Decisione n. 8: l'elezione segue **il commento di `Unit:ElectBehaviour`**: vince solo una priorità **maggiore di zero**; `nil` vale zero; a parità vince il primo nella lista; il comportamento attivo, se perde, esce **subito** (`PreDeactivate`, `Deactivate`), il nuovo entra **al frame dopo** (in `Unit:Update`); se vince quello già attivo non cambia niente; **se nessuno ha priorità maggiore di zero, nessun comportamento è attivo** (quello attivo esce, e un eventuale `nextBehaviour` in attesa si annulla).
-- Oggi il codice fa vincere il primo della lista anche con priorità zero o negativa (`bestBehaviour == nil or …`). Quella regola resta disponibile come **`legacyElection`**, solo per STAI.
-- Decisione n. 7, seconda metà: **`BScheduler`**, i turni dei behaviour, con la stessa regola dei moduli e senza budget.
+**Decisione dell'utente (24 novembre 2026)**, che sostituisce «`game` e `map` filtrano i nemici secondo la percezione dell'ally team, `fair` per default»: **il framework non filtra niente.** Consegna gli eventi di visibilità (lo fa già: `DeliverSight`, e il catch-up in `lifecycle.lua`) e offre un modulo di percezione elementare in `shard_runtime/`. Ogni AI sceglie: lo include, se ne scrive uno suo (un file con lo stesso nome nella cartella dell'AI ha la precedenza, per come funziona `shard_include`), o non ne usa nessuno e legge tutto (AI che bara). `game:GetEnemies()` resta com'è: tutti i nemici.
 
 **Lavoro**
 
-1. **Elezione** in `shard_runtime/unit.lua` (`Unit:ElectBehaviour`), partendo dalla versione di oggi e da quella rimossa; il commento resta e descrive esattamente il codice.
-2. **`legacyElection`**: un campo della classe dell'AI, letto dalle sue unità (`STAI.legacyElection = true`). Se è vero, la regola di oggi, identica. In `STAI/ai.lua` aggiungi **solo** quella riga, con un commento breve («keeps the election rule STAI was written for»): è l'unica modifica a STAI ammessa in questo compito. Verifica che `Shard/behaviour.lua` (che per Shard prende il posto del `Behaviour` del runtime) funzioni con la regola nuova.
-3. **Turni dei behaviour** (`BScheduler`):
-   - se la classe dell'AI dichiara `BScheduler` (nomi restituiti da `Name()` dei behaviour), i behaviour elencati ricevono `Update` solo nel loro turno; quelli non elencati a ogni `Unit:Update`, come oggi; senza lista, tutto come oggi;
-   - turno = (AI, nome di behaviour), un turno per frame, stessa rotazione di `MScheduler` (per ogni nome della lista, le AI ospitate che la dichiarano), nello scheduler di T9 (`loader/scheduler.lua`);
-   - campi `behaviourTeam` e `behaviourUpdate` in `self.ai.scheduler`, accanto a `moduleTeam`/`moduleUpdate`;
-   - il controllo «è il turno di questo behaviour?» va in `Unit:Update` del runtime (che `UnitHandler` chiama), senza allocazioni; l'attivazione del `nextBehaviour` all'inizio di `Unit:Update` resta a ogni chiamata;
-   - STAI non dichiara `BScheduler` nella classe (le sue liste sono in `SchedulerHST`): per lei non cambia niente.
-4. **Shard come esempio**: `ShardBasic.BScheduler` con i behaviour che fanno lavoro periodico (scegli tu e motiva; per esempio `AttackerBehaviour`); un commento breve in `ai.lua`. Shard usa la regola nuova dell'elezione (non dichiara `legacyElection`): controlla che `BootBehaviour`, `TaskQueueBehaviour` e `AttackerBehaviour` abbiano priorità maggiori di zero dove devono comandare, e scrivi nei risultati cosa cambia per Shard. Se Shard smette di funzionare per la regola nuova, correggi le priorità di Shard (è l'esempio: deve mostrare l'uso giusto), non la regola.
-5. **Guida**: niente, la aggiorna il coordinatore.
+1. **`shard_runtime/perceptionhandler.lua`**, classe `PerceptionHandler` (`Module`), nello stile dei moduli di Shard:
+   - `Name()` `"PerceptionHandler"`, `internalName()` `"perceptionhandler"`, `Scope()` `"ally"` (uno per ally team, condiviso dalle sue AI);
+   - `Init`: due tabelle, `self.los` e `self.radar`, `[unitID] = true`;
+   - `UnitEnteredLos`/`UnitLeftLos`/`UnitEnteredRadar`/`UnitLeftRadar`: mettono e tolgono l'ID; `UnitDead`: lo toglie da tutte e due;
+   - due funzioni: `Sees(unitID)` e `OnRadar(unitID)`;
+   - un commento in testa di poche righe: cosa tiene, che è un punto di partenza, che un'AI può sostituirlo o farne a meno.
+   - Niente altro: niente ultima posizione nota, niente griglie, niente liste allocate. Se una cosa ti sembra indispensabile, scrivila nei risultati invece di aggiungerla.
+   - Verifica che gli eventi arrivino al modulo d'ally team una volta sola anche con due AI Shard nello stesso ally team, e che dopo il catch-up (avvio e cambio di host) le unità già in vista siano nelle tabelle.
+2. **Togli dal framework la percezione vecchia**: `Perception()` e il campo `omniscient` in `loader/types.lua` (e dove altro compaiono); il commento «Provisional» in testa a `unitregistry.lua` diventa definitivo: le tabelle sono di tutte le unità, senza filtro, e la percezione è compito dell'AI.
+3. **Shard la usa**: `shard_include("perceptionhandler")` in `Shard/modules.lua` e nella lista restituita. `AttackHandler` sceglie il bersaglio solo fra i nemici che l'ally team **vede** (LOS): scorre `self.ai.perceptionhandler.los` invece di `self.game:GetEnemies()` (oppure filtra con `Sees`: scegli la forma più semplice e motivala). Le unità solo su radar restano fuori, perché `ScoreUnit` legge il tipo. Commento breve sul perché. STAI non si tocca.
+4. **Guida**: niente, la aggiorna il coordinatore.
 
 **Test busted**
 
-- Elezione, regola nuova: vince la priorità più alta > 0; `nil` vale zero; tutte ≤ 0 → nessuno attivo e l'attivo esce subito; a parità il primo; vince l'attivo → nessuna chiamata a `Deactivate`/`Activate`; il nuovo si attiva solo al `Unit:Update` dopo; un `nextBehaviour` in attesa si annulla se perde prima di entrare.
-- `legacyElection`: gli stessi casi danno i risultati di oggi (in particolare: tutte ≤ 0 → vince il primo).
-- `BScheduler`: elencati solo nel turno, non elencati sempre; due AI che alternano; campi aggiornati; senza lista come oggi; nessuna allocazione per frame.
+- Modulo: entra/esce da LOS e radar; `UnitDead` pulisce tutte e due; un'unità in LOS e radar che esce da LOS resta su radar; `Sees`/`OnRadar` su ID mai visti → `false`.
+- Loader: due AI Shard nello stesso ally team → un solo `PerceptionHandler`, ogni evento lo raggiunge una volta; il catch-up riempie le tabelle; ally team diversi non si vedono a vicenda.
+- Shard sotto `shard_null` o con fixture: `AttackHandler` non considera un nemico che non è in `los`, considera quello che c'è.
 - Prova delle mutazioni.
 
-**Partite** (`SHARD_MEM_STATS=1`, 15 minuti): A (STAI contro SimpleAI) come in T9; D (Shard contro SimpleAI): nessun errore, e confronto con T9.
+**Partite** (`SHARD_MEM_STATS=1`, 15 minuti): D (Shard contro SimpleAI), confronto con T11; una partita A (STAI contro SimpleAI) di controllo, perché il cambio in `types.lua` tocca tutti i tipi. Nella partita D, se è semplice, conta quante volte `AttackHandler` trova bersagli (per esempio un contatore stampato a fine partita, poi tolto o lasciato dietro `DebugEnabled`).
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: strumenti e controlli di T9; elezione e `legacyElection` (con la riga di STAI) e spec; `BScheduler` e spec; esempio in Shard.
+**Commit**, in inglese: modulo e spec; percezione vecchia tolta; Shard lo usa.
 
-**Nei risultati**: righe per file, test e mutazioni, le righe chiave delle due partite confrontate con T9, cosa cambia per Shard con la regola nuova, l'esito dei controlli rifatti su T9.
+**Nei risultati**: righe per file, test e mutazioni, le righe chiave delle partite confrontate con T11, cosa cambia nel gioco di Shard ora che non vede tutto.
 
 ## Risultati
 
@@ -945,7 +940,7 @@ Nella variabilità vista fino a T10: per STAI non cambia niente (nessun campo nu
 - `lx test` riscrive `.emmyrc.json` (percorsi `lib`/`src` delle dipendenze); l'ho ripristinato a ogni esecuzione, non è nei commit.
 - Un modulo condiviso aggiunto con `AddModule` a un ally dopo l'avvio non entra nella rotazione finché le AI ospitate non cambiano (il caso del team invece sì, test 7). Non l'ho gestito: nessuno lo usa.
 
-### T11 (agente locale, 24 novembre 2026)
+### T11 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
