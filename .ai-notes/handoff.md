@@ -17,38 +17,33 @@
 
 ## Compito attuale
 
-### T6: errori di caricamento contenuti, unità morte, misura della memoria per frame
+### T6b: elenco degli errori e unità con ID riciclato
 
-**Impegno: medio.** Tre correzioni circoscritte, con le cause già individuate; serve cura nei test (uno riproduce un errore visto in partita) e nel non allocare a ogni frame.
+**Impegno: basso.** Modifiche piccole e già decise, su codice che conosci da T5b e T6.
 
-**Contesto**: nella partita dell'utente (STAI contro SimpleAI, circa 30 minuti di gioco a velocità 10, vinta da STAI; relay 8626 messaggi, 47217 ordini, 1 rifiutato) sono uscite due righe:
-- `[AI Loader] error in STAI team 1, Update: unittype.lua:12: attempt to index field 'def' (a nil value)`, da `STAI/buildersbst.lua:122` (argomenti di un `EchoDebug`, calcolati anche con il debug spento) via `game:GetUnitByID(self.assistant):Name()`;
-- lo stesso errore da `STAI/bomberhst.lua:192` (`game:GetUnitByID(id):Name()` sulle unità delle celle di `LosHST`).
-Causa: da T5b `UnitDestroyed` chiama `Shard:unshardify_unit`; STAI tiene ancora ID di unità morte, e `shardify_unit` crea un `ShardUnit` nuovo per un ID che non esiste più, con `UnitDefs[nil]` come definizione. Il vecchio loader non toglieva mai gli oggetti, e il difetto restava nascosto. Regola dell'utente: **un errore deve far cadere l'AI, mai la battle**.
+**Decisione dell'utente (24 novembre 2026)**: un'AI che si è caricata e ha superato `Init` **non si ferma** per gli errori durante la partita: si scrivono e si va avanti, come faceva l'utente con il vecchio Shard; servono a vedere e correggere più errori. Gli errori di caricamento e di `Init` continuano a far cadere l'AI (T6). Non cambiare questa parte.
 
 **Lavoro**
 
-1. **`AddAI` protetto.** Il caricamento di un tipo di AI e di un'AI (`LoadAIType`, `SetupAI`, `boot.lua`, i file inclusi) passa da `xpcall` con traceback. Se fallisce: una riga `[AI Loader] error loading <AI> for team <id>: <traceback>`, quell'AI non viene caricata (nessun oggetto lasciato a metà nelle liste di `Shard`), le altre AI e il resto del LuaRules continuano. Se fallisce il tipo, tutte le AI di quel tipo restano non caricate, con una riga per team. Vale sia in `Initialize` sia nel cambio di host.
-   Test: busted (un tipo di AI finto il cui `boot.lua` va in errore; uno il cui modulo va in errore in `Init`) e con lo strumento (`run_engine_tests.sh`, un test in `luaui/Tests/shard/` che carica un tipo rotto e verifica che il LuaRules sia vivo dopo).
-2. **Unità morte: tempo di grazia.** In `UnitDestroyed` il `ShardUnit` non si toglie subito: va in una coda di rimozione e viene tolto da `Shard.unitsByID` dopo 900 frame (30 secondi di gioco). Nel frattempo `game:GetUnitByID(id)` restituisce l'oggetto vecchio, con il suo tipo e il suo nome, come faceva il vecchio loader.
-   - La coda non alloca a ogni frame: array circolare o due array paralleli riusati (ID e frame di scadenza), svuotati in `GameFrame` dalla testa finché scadono.
-   - Se lo stesso ID viene riusato dall'engine per un'unità nuova prima della scadenza, `UnitCreated` deve sostituire l'oggetto vecchio con uno nuovo (e la scadenza vecchia non deve togliere quello nuovo).
-   - `shardify_unit` di un ID che non esiste e non è in cache: invariato per ora, ma scrivi nei risultati cosa succede e proponi cosa fare.
-   Test busted: l'errore della partita riprodotto (unità creata, distrutta, poi `GetUnitByID(id):Name()` nello stesso frame e 899 frame dopo → nome giusto; 901 frame dopo → l'oggetto è uscito dalla cache); ID riusato prima della scadenza; nessuna tabella nuova in `GameFrame` con la coda piena (conta le tabelle con un `setmetatable` strumentato o con `collectgarbage("count")` stabile su molti frame).
-3. **Misura della memoria per frame** (idea dell'utente). In `gadget:GameFrame` del lato unsynced: `collectgarbage("count")` all'inizio e alla fine; il delta è la memoria allocata dal loader e dalle AI in quel frame (con il limite noto: un passo della GC incrementale in mezzo lo riduce, anche sotto zero).
-   - Attivata solo se `Spring.GetConfigInt("ShardMemStats", 0) == 1` (impostabile dall'utente in `springsettings.cfg` o con `/set ShardMemStats 1`); spenta non costa nulla oltre a un controllo per frame.
-   - Ogni 1800 frame (un minuto di gioco) una riga `[AI Loader] memory per frame: avg <KB> max <KB> over <N> frames, heap <MB>`, poi i contatori ripartono. Niente tabelle nuove.
-   - Togli la riga `Shard memory record:` di `Shutdown` se non è più utile, o tienila e spiega perché.
-   - Documenta l'opzione in un commento in testa al lato unsynced.
-   Test: busted per il calcolo di media e massimo e per lo spegnimento; con lo strumento, una partita breve con l'opzione accesa che scriva almeno una riga.
+1. **Errori riconosciuti dal messaggio, non dall'oggetto.** Oggi `ReportError` scrive al massimo una riga ogni 900 frame per coppia oggetto + call-in: due errori diversi nello stesso `Update` in quei 30 secondi fanno sparire il secondo.
+   - La chiave diventa il messaggio d'errore (la prima riga: file, riga e testo), insieme al nome dell'oggetto (`STAI team 1`, `ally 1`…).
+   - La prima volta che un errore compare: la riga di oggi, con il traceback, subito.
+   - Le volte seguenti: solo un contatore (e il frame dell'ultima volta), nessuna riga.
+   - Niente più finestra di 900 frame.
+   - Gli errori sono rari: qui le allocazioni sono ammesse, ma non nel percorso senza errori.
+   - **Riepilogo**: in `GameOver` e in `Shutdown` (una volta sola, al primo dei due), se ci sono stati errori, una riga d'intestazione e una riga per errore: oggetto, call-in, numero di volte, frame della prima e dell'ultima, messaggio. Ordine: per frame della prima volta.
+   - Test busted: due errori diversi nello stesso call-in a pochi frame di distanza → due righe col traceback; lo stesso errore 50 volte → una riga e il contatore a 50; riepilogo con i numeri giusti, scritto una volta sola anche se arrivano sia `GameOver` sia `Shutdown`; nessuna riga di riepilogo senza errori. Prova delle mutazioni.
+2. **ID riciclato prima di `UnitCreated`.** L'engine riusa gli ID dopo un tempo solo indicativo. In `Shard:shardify_unit(id)`: se l'oggetto in cache è segnato `destroyed` e `Spring.ValidUnitID(id)` è vero, l'ID è di un'unità nuova: crea un oggetto nuovo e mettilo al posto del vecchio (la scadenza vecchia non deve toglierlo, come in T6). Il controllo si fa solo per gli oggetti `destroyed`.
+   Test: unità distrutta, ID riusato da un'unità di tipo diverso prima di `UnitCreated` → `GetUnitByID` restituisce la nuova, col suo nome; poi `UnitCreated` dello stesso ID non crea un terzo oggetto.
+3. **ID mai esistito.** In `Shard:shardify_unit(id)`: se l'ID non è in cache e `Spring.ValidUnitID(id)` è falso, restituisci `nil` senza mettere niente in cache (oggi si crea un oggetto senza definizione che resta in cache per sempre).
+   Test: `GetUnitByID` di un ID inesistente → `nil`, cache invariata.
+4. Se riesci, con lo strumento e una partita breve, misura dopo quanti frame l'engine ricicla un ID (per esempio: il gadget di controllo registra gli ID morti e il frame, e segnala quando un ID torna in `UnitCreated`). Solo un dato da scrivere nei risultati; se costa troppo, saltalo e dillo.
 
-**Fuori dal compito**: correggere STAI (gli ID vecchi in `buildersbst`, `bomberhst`, `LosHST`, l'`EchoDebug` con argomenti costosi): annotali soltanto.
+**Fuori dal compito**: STAI.
 
-**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test`, `run_engine_tests.sh`, e una partita A di T5c con `run_engine_game.sh` (15 minuti) con l'opzione della memoria accesa: nessuna riga `[AI Loader] error`, e le righe della memoria nel log.
+**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test`, `run_engine_tests.sh`, partita A di T5c (15 minuti): incolla il riepilogo degli errori se c'è.
 
-**Commit**, in inglese: uno per punto.
-
-**Nei risultati**: righe per file, test e mutazioni, le righe della memoria della partita A (tutte), dubbi.
+**Commit**, in inglese: uno per punto (2 e 3 insieme se più pulito).
 
 ## Risultati
 
