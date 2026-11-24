@@ -318,5 +318,8 @@ end
 function TaskQueueBehaviour:DebugPoint(type)
 	local unit = self.unit:Internal()
 	local p = unit:GetPosition()
-	SendToUnsynced("shard_debug_position", p.x, p.z, type)
+	-- for the shard_help_draw widget; the AIs run in unsynced code, where SendToUnsynced does not exist
+	if Script.LuaUI("shard_debug_position") then
+		Script.LuaUI.shard_debug_position(p.x, p.z, type)
+	end
 end
