@@ -18,6 +18,24 @@
 
 ## Compito attuale
 
-Nessuno: il primo (S1) lo scrive il coordinatore dopo l'ok dell'utente.
+### S1: partenza — istruzioni locali e partite di riferimento
+
+**Impegno: basso.** Nessun cambio al codice del gioco. Serve un punto di riferimento nuovo: i numeri di `nuovo-stai.md` §6 sono di prima di T15–T16 (ordini per messaggio 25 → 10 → 20, `maxInstances` per partita).
+
+**Lavoro**
+
+1. **Istruzioni locali**: aggiorna `CLAUDE.local.md` (e la copia in `~/.spring/games/BAR.sdd/CLAUDE.local.md` se è un file distinto) perché, per «esegui», puntino a questo file (`.ai-notes/stai/handoff.md`) e al branch `stai/porting`, con le stesse regole di prima (compiti S<n>, risultati qui, `git add -f` per `.ai-notes/`, commit di framework a parte con «Shard …»). Le decisioni tecniche numerate restano come sono. Non committare `CLAUDE.local.md`; nei risultati scrivi in poche righe cosa hai cambiato.
+2. **Controllo di partenza**: `git log -1` uguale a `origin/stai/porting`; `lx --lua-version 5.1 test` e `.ai-notes/tools/run_engine_tests.sh` passano come alla fine di T16 (2728 successi, `RESULT: ok`). Ripristina `.emmyrc.json`.
+3. **Tre partite A**: `SHARD_MEM_STATS=1 .ai-notes/tools/run_engine_game.sh .ai-notes/tools/startscripts/a_stai_vs_simpleai.txt 15`, tre volte. Per ogni partita, in una tabella (una colonna per partita):
+   - unità STAI ai minuti 1, 5, 10, 13 e a fine partita; fabbriche e mex a fine partita;
+   - relay: messaggi, ordini, rifiutati **per motivo** (atteso `excluded = 0`; quanti `count`, cioè gruppi oltre 20 ordini);
+   - memoria media per frame, picco, heap;
+   - righe `[AI Loader] error` (numero e testo distinto, una volta ciascuno);
+   - tempo reale della partita.
+4. Se una partita va molto fuori dai valori di §6 (meno di 140 unità, meno di 15 mex, errori nuovi) **non correggere niente**: scrivilo e fermati dopo le tre partite.
+
+**Controlli**: nessun file di gioco toccato (`git status` pulito a parte `.ai-notes/stai/handoff.md`).
+
+**Commit**, in inglese: uno solo, con i risultati in questo file.
 
 ## Risultati

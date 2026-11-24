@@ -59,4 +59,4 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 
 | Compito | Stato |
 | --- | --- |
-| — | nessun compito ancora: il primo (S1, partenza) lo propone il coordinatore secondo `nuovo-stai.md` §5 |
+| S1 | partenza: istruzioni locali dell'esecutore su `stai/porting`, tre partite A di riferimento dopo T16 — scritto, da eseguire |
