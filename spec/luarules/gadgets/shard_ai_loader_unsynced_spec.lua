@@ -82,6 +82,7 @@ local function loadLoader(world)
 		return collectgarbage(option, ...)
 	end
 	env.Game = { maxUnits = 32000, gameShortName = "BAR", mapName = "Spec Map" }
+	env.WeaponDefs = { [1] = { name = "specweapon" } }
 	env.UnitDefs = { [1] = { name = "specunit" }, [2] = { name = "otherunit" } }
 	env.Script = { LuaUI = setmetatable({}, {
 		__call = function()
@@ -715,6 +716,26 @@ describe("ShardAILoader unsynced side", function()
 		collectgarbage("restart")
 
 		assert.equal(before, after)
+	end)
+
+	it("hands no event for a unit ID that is neither valid nor cached, but an attacker may be missing", function()
+		local loader = started()
+		loader.world.units[100] = { team = 0 }
+
+		loader.gadget:UnitDamaged(4242, 1, 0, 10, 0, 1, 1, 100, 1, 0)
+		loader.gadget:UnitIdle(4242, 1, 0)
+		loader.gadget:UnitFinished(4242, 1, 0)
+		loader.gadget:UnitDestroyed(4242, 1, 0)
+		loader.gadget:UnitDamaged(100, 1, 0, 10, 0, 1, 1, 4242, 1, 0)
+
+		assert.equal(0, #heard(loader, "UnitIdle"))
+		assert.equal(0, #heard(loader, "UnitBuilt"))
+		assert.equal(0, #heard(loader, "UnitDead"))
+		local damaged = heard(loader, "UnitDamaged")
+		assert.equal(6, #damaged)
+		assert.equal(100, damaged[1].args[1]:ID())
+		assert.is_nil(damaged[1].args[2])
+		assert.is_nil(loader.env.Shard.unitsByID[4242])
 	end)
 
 	it("ends the game only for the objects that have modules", function()

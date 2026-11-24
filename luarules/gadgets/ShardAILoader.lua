@@ -162,7 +162,11 @@ else
 		end
 		StartAIsOnce()
 		AddToUnitTables(unitId, teamId)
+		-- an ID neither valid nor cached has no unit (Shard:shardify_unit): such an event reaches no AI
 		local unit = Shard:shardify_unit(unitId)
+		if unit == nil then
+			return
+		end
 		DeliverToShared("UnitCreated", unit, unitDefId, teamId, builderId)
 		DeliverToOwner(teamId, "UnitCreated", unit, unitDefId, teamId, builderId)
 	end
@@ -172,8 +176,12 @@ else
 			return
 		end
 		StartAIsOnce()
+		local unit = Shard:shardify_unit(unitId)
+		if unit == nil then
+			return
+		end
 		-- AIBase:UnitBuilt turns it into MyUnitBuilt, FriendlyUnitBuilt, EnemyUnitBuilt or NeutralUnitBuilt
-		DeliverToAll("UnitBuilt", Shard:shardify_unit(unitId), unitDefId, teamId)
+		DeliverToAll("UnitBuilt", unit, unitDefId, teamId)
 	end
 
 	function gadget:UnitDestroyed(unitId, unitDefId, teamId, attackerId, attackerDefId, attackerTeamId)
@@ -182,10 +190,14 @@ else
 		end
 		StartAIsOnce()
 		local unit = Shard:shardify_unit(unitId)
-		DeliverToAll("UnitDead", unit)
+		if unit ~= nil then
+			DeliverToAll("UnitDead", unit)
+		end
 		RemoveFromUnitTables(unitId)
-		-- kept a while, with its type and name, then dropped: the old loader kept every dead unit forever
-		UnitDied(unitId, unit, spGetGameFrame())
+		if unit ~= nil then
+			-- kept a while, with its type and name, then dropped: the old loader kept every dead unit forever
+			UnitDied(unitId, unit, spGetGameFrame())
+		end
 	end
 
 	function gadget:UnitDamaged(
@@ -205,6 +217,9 @@ else
 		end
 		StartAIsOnce()
 		local unit = Shard:shardify_unit(unitId)
+		if unit == nil then
+			return
+		end
 		local attacker = Shard:shardify_unit(attackerId)
 		local damageObj = Shard:shardify_damage(damage, weaponDefId, paralyzer)
 		DeliverToAll("UnitDamaged", unit, attacker, damageObj)
@@ -215,7 +230,10 @@ else
 			return
 		end
 		StartAIsOnce()
-		DeliverToAll("UnitIdle", Shard:shardify_unit(unitId))
+		local unit = Shard:shardify_unit(unitId)
+		if unit ~= nil then
+			DeliverToAll("UnitIdle", unit)
+		end
 	end
 
 	function gadget:UnitTaken(unitId, unitDefId, teamId, newTeamId)
@@ -223,7 +241,10 @@ else
 			return
 		end
 		StartAIsOnce()
-		DeliverToAll("UnitDead", Shard:shardify_unit(unitId))
+		local unit = Shard:shardify_unit(unitId)
+		if unit ~= nil then
+			DeliverToAll("UnitDead", unit)
+		end
 		RemoveFromUnitTables(unitId)
 	end
 
@@ -234,7 +255,10 @@ else
 		end
 		StartAIsOnce()
 		AddToUnitTables(unitId, teamId)
-		DeliverToAll("UnitCreated", Shard:shardify_unit(unitId), unitDefId, teamId, oldTeamId)
+		local unit = Shard:shardify_unit(unitId)
+		if unit ~= nil then
+			DeliverToAll("UnitCreated", unit, unitDefId, teamId, oldTeamId)
+		end
 	end
 
 	function gadget:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
