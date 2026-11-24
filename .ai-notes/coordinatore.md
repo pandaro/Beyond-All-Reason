@@ -105,7 +105,7 @@ Claude-Session: <link della sessione>
 
 **Prossimi passi** (ordine proposto all'utente)
 
-1. Verificare T11; aggiornare la guida (elezione, `BScheduler`, scheduler di T9 se non ancora).
+1. Verificare T11; aggiornare la guida (elezione e `BScheduler`: consegna mirata e scheduler di T9 sono già scritti).
 2. **Percezione `fair`** per ally team, dai call-in LOS/radar, con il registro delle unità: sostituisce le tabelle di unità onniscienti (decisione n. 9). Probabilmente due compiti, impegno alto. Con questa il grosso del framework è fatto.
 3. **Latenza in multiplayer**: partita vera con due client, da organizzare con l'utente; poi la scelta synced/unsynced come modalità predefinita.
 4. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`, branch pulito senza `.ai-notes/` e con commit riordinati, prove di partita per `AI_POLICY.md`.

@@ -256,7 +256,7 @@ The engine's events reach the AI as method calls. `ShardAI` forwards each one to
 | Method | Arguments | Notes |
 | --- | --- | --- |
 | `Init()` | | Once, before any other event. |
-| `Update()` | | Called by the scheduler, not necessarily every frame (planned: see below). |
+| `Update()` | | Every frame, unless the module runs in turns (see [Scheduler](#scheduler)). |
 | `GameEnd()` | | At the end of the game. |
 | `GameMessage(text)` | the message | |
 | `UnitCreated(unit, unitDefId, teamId, builderId)` | `unit` is a `ShardUnit` | A unit starts being built. |
@@ -268,12 +268,24 @@ The engine's events reach the AI as method calls. `ShardAI` forwards each one to
 | `UnitEnteredLos`, `UnitLeftLos`, `UnitEnteredRadar`, `UnitLeftRadar` | `(unitID, unitTeam, allyTeam, unitDefID)` | Raw engine IDs, not `ShardUnit` objects. |
 | `UnitMoveFailed(unit)` | | **Never delivered in BAR**: the engine sends it only to synced code and BAR does not enable it. Do not rely on it. |
 
-Planned changes:
+**Who receives an event.** An event reaches only the modules that override its method; the list is built after `Init()` (so a method assigned in `Init()` counts) and again after `AddModule`. `UnitBuilt` also reaches modules that override only `MyUnitBuilt`, `FriendlyUnitBuilt`, `EnemyUnitBuilt` or `NeutralUnitBuilt`; `UnitGiven` reaches the modules that want `UnitCreated` or `UnitBuilt`. An object none of whose modules wants an event is not called at all. Order: global modules first, then ally modules, then team modules, and within each object the order of `modules.lua`. Events about a unit that no longer exists are not delivered.
 
-- **Targeted delivery**: an event is delivered only to modules that override its method, so a module pays nothing for events it ignores.
-- **Order of delivery across scopes**: global modules first, then ally modules, then team modules.
-- **Scheduler**: `Update()` runs in turns under a time budget per client, as STAI's `SchedulerHST` does today. The AI class lists the turns in `MScheduler` (modules) and `BScheduler` (behaviours).
-- **Errors are contained**: an error in one module is logged and does not stop the others.
+### Scheduler
+
+By default every module's `Update()` runs every frame, as in the old Shard. An AI can instead run some modules in turns by listing them in its class:
+
+```lua
+MyAI.MScheduler = { "EcoHST", "AttackHST" } -- names returned by Name()
+```
+
+- Listed modules get `Update()` only on their turn: one turn per frame, one module of one AI. Turns go through the list, and for each name through every AI hosted on this client that declares it. A shared module gets one turn per round, not one per AI.
+- Modules not listed still get `Update()` every frame.
+- There is no time budget: a turn takes as long as it takes.
+- `self.ai.scheduler.moduleTeam` and `.moduleUpdate` tell whose turn it is.
+- An AI that wants a different scheduler writes its own and declares no list (STAI does this with its `SchedulerHST`).
+
+`BScheduler` does the same for behaviours (in progress).
+
 
 ## Units and behaviours
 
@@ -429,7 +441,7 @@ These apply to the framework and are recommended for AIs.
 
 **Start-up.** On the host, each AI type is loaded once, then its objects are created and initialised in this order: the `ShardGlobal`, the `ShardAlly` of each ally team, the team AIs. A container without modules of its own scope gets no events and no updates.
 
-**Every frame.** The loader calls `Update()` on every object (global, then ally, then team), then sends each AI's order queue as one message (see [Orders](#the-api-game-map-units)).
+**Every frame.** The loader calls `Update()` on every object that has modules to update every frame (global, then ally, then team), runs one scheduled turn, then sends each AI's order queue as one message (see [Orders](#the-api-game-map-units)).
 
 **Orders and their checks.** The synced half accepts an order message only if:
 
@@ -440,7 +452,7 @@ These apply to the framework and are recommended for AIs.
 
 Each order is then given only if its unit exists and belongs to the AI's team; other orders of the same message still go through. Rejected orders are counted and reported back to the AI's host; totals are printed at the end of the game.
 
-**Events.** *Provisional*: every object receives every unit event, except `UnitCreated`, which among team AIs goes only to the unit's owner (as in the old Shard). Line of sight and radar events go to the `ShardAlly` of the ally team concerned and to every team AI. Planned: an event will reach only the modules that override its method.
+**Events.** See [Events](#events): only to the modules that want them. Among team AIs, `UnitCreated` goes only to the unit's owner (as in the old Shard). Line of sight and radar events go to the `ShardAlly` of the ally team concerned and to every team AI.
 
 **Units known to an AI.** *Provisional*: the loader keeps, for every team AI, the sets `ownUnitIds`, `friendlyUnitIds`, `alliedUnitIds`, `enemyUnitIds`, `neutralUnitIds` (Gaia's units are neutral). `game:GetUnits()`, `GetFriendlies()` and `GetEnemies()` read them, and they see every unit on the map. Planned: the ally team's perception will replace them, so an AI sees only what its ally team sees.
 
