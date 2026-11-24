@@ -1515,6 +1515,35 @@ describe("ShardAILoader unsynced side", function()
 			assert.same({}, perception1.radar)
 		end)
 
+		it("collects the garbage once, after the catch-up of a reload", function()
+			local world = perceptionWorld()
+			world.frame = 100
+			world.units[200] = { team = 2 }
+			world.heap = 1000
+			local loader = loadLoader(world)
+			local env = loader.env
+			local AIsAtCollect
+			local collect = env.collectgarbage
+			env.collectgarbage = function(option, ...)
+				if option == "collect" then
+					AIsAtCollect = #env.Shard.AIs
+				end
+				return collect(option, ...)
+			end
+
+			loader.gadget:Initialize()
+
+			local collects = 0
+			for _, entry in ipairs(env.SpecLog) do
+				if entry[1] == "collectgarbage" then
+					collects = collects + 1
+				end
+			end
+			assert.equal(1, collects)
+			assert.equal(#env.Shard.AIs, AIsAtCollect)
+			assert.is_true(AIsAtCollect > 0)
+		end)
+
 		it("fills the tables of an ally team taken over from another host with the units it sees", function()
 			local world = perceptionWorld()
 			world.hosts[2] = 1
@@ -1839,6 +1868,10 @@ describe("ShardAILoader unsynced side", function()
 			local world = defaultWorld()
 			world.heap = 350000
 			local loader = started(world)
+			-- without the clean start of Initialize
+			for i = #loader.log, 1, -1 do
+				loader.log[i] = nil
+			end
 			loader.gadget:GameFrame(121)
 			assert.equal(0, collections(loader))
 

@@ -244,6 +244,8 @@ local function CatchUpAfterReload()
 	if spGetGameFrame() > 0 then
 		CatchUp(StartAIs())
 	end
+	-- clean start, as in the old loader
+	collectgarbage("collect")
 end
 
 --- Each AI's queue of orders becomes at most one message
