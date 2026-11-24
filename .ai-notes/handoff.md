@@ -1114,7 +1114,7 @@ A, STAI contro SimpleAI (controllo per `types.lua`): unità ai minuti 1/5/10/13:
 2. `55bd31fb9e` Shard loader: no Perception() nor omniscient field; the unit tables hold every unit
 3. `a9cf6d542f` Shard example: AttackHandler targets only the enemies its ally team sees in LOS
 
-### T13 (agente locale, 24 novembre 2026)
+### T13 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Fatto**
 

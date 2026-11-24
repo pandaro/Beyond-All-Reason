@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore
 
-Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T12).
+Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T13).
 
 Messaggio d'avvio per la chat nuova:
 
@@ -18,7 +18,7 @@ Messaggio d'avvio per la chat nuova:
 1. Il coordinatore propone il compito in chat, in breve, con l'**impegno** (basso, medio, alto, extra) e il motivo.
 2. L'utente approva o corregge. **Niente compito scritto, commit, push o cambio di decisioni senza il suo ok.** Il coordinatore può leggere, verificare, riassumere e registrare risultati misurati senza chiedere.
 3. Il coordinatore scrive il compito in `handoff.md` (sostituendo il precedente in «Compito attuale»), committa e fa push.
-4. L'utente scrive `/clear` all'esecutore, imposta l'impegno, e gli dice: «Leggi `.ai-notes/handoff.md` e fai il compito attuale».
+4. L'utente scrive `/clear` all'esecutore, imposta l'impegno, e gli dice solo «esegui»: l'esecutore sa cosa leggere.
 5. L'utente dice «fatto»; il coordinatore fa `git pull`, legge i risultati, controlla a campione i diff, e segna l'intestazione come `— verificato dal coordinatore` (commit e push), poi riassume all'utente e propone il passo dopo.
 
 **Push**: il token di `gh` sta nel portachiavi di sistema; dentro VSCodium l'esecutore a volte non lo legge e compare una richiesta di password. In quel caso l'utente chiude la finestra e fa push dal terminale (`git push origin shard/fase1`), oppure apre VSCodium dal terminale (`codium .`). Non salvare il token in chiaro.
@@ -104,12 +104,12 @@ Claude-Session: <link della sessione>
 | T9 | scheduler di base (EmmyLua e StyLua 2.5.2 da rifare: in T11) |
 | T11 | strumenti fissati in `~/.local/bin`, elezione dei behaviour (solo priorità > 0) con `legacyElection` per STAI, turni dei behaviour (`BScheduler`) |
 | T12 | percezione come modulo del framework (`shard_runtime/perceptionhandler.lua`, ambito `"ally"`), usato da `AttackHandler` di Shard; tolti `Perception()` e `omniscient` |
-| **T13** | **in corso**: `shard_null` crea anche gli oggetti d'alleanza e globale |
+| T13 | `shard_null` crea anche gli oggetti d'alleanza e globale, prepara global → ally → team |
 
 **Prossimi passi** (ordine proposto all'utente)
 
 1. Fatto: guida aggiornata con elezione, `BScheduler` e percezione.
-2. Verificare T13 (`shard_null` con oggetti ally e global). Rinviato per scelta dell'utente: `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
+2. Rinviato per scelta dell'utente: `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
 3. **Latenza in multiplayer**: partita vera con due client, da organizzare con l'utente; poi la scelta synced/unsynced come modalità predefinita.
 4. **Chiusura verso BAR**: guida in `luarules/gadgets/ai/README.md`, branch pulito senza `.ai-notes/` e con commit riordinati, prove di partita per `AI_POLICY.md`.
 
