@@ -706,7 +706,7 @@ Simili a T6b (medie 0,17–0,53 KB contro 0,18–0,82; heap 13–15 MB). Il mass
 - `CatchUp` passa dai call-in del gadget: ogni unità rigenera anche `AddToUnitTables` per tutte le AI, non solo per gli oggetti nuovi (idempotente, ma lavoro inutile in un cambio di host).
 - La lacuna della spec sulla finestra dei frame (sopra), chiusa con due casi.
 
-### T7b (agente locale, 24 novembre 2026)
+### T7b (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**, uno per punto, suite verde dopo ognuno:
 
