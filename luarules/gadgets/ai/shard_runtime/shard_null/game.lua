@@ -37,6 +37,10 @@ function game:FileExists(filename) -- returns boolean
 	return false -- @TODO: Implement core lua IO
 end
 
+function game:DrawDisplay(onOff) -- shows the AI's debug drawings; nothing to show outside the engine
+	return false
+end
+
 function game:GetTeamID()
 	return 0
 end
