@@ -30,13 +30,15 @@
 4. Il relay synced rifiuta gli ordini di un team AI escluso, con la stessa funzione (un solo punto che decide chi è ammesso, incluso da tutti e due i lati, come `OrderCodec` per il limite degli ordini).
 5. La costante resta 2 e resta l'unico posto da cambiare.
 
+6. **Extra, decisione dell'utente**: `MAX_ORDERS_PER_MESSAGE` in `ordercodec.lua` da 10 a **20**. Nient'altro: un gruppo con più di 20 ordini resta rifiutato intero, come oggi. Aggiorna i test di T15 che usano il numero.
+
 **Test busted**: due ally team con tre AI dello stesso tipo in tutto → partono le prime due per ID di team, su qualunque host; tipi diversi contano separati; il cambio di host non cambia chi è ammesso; il relay rifiuta un messaggio di un team escluso. Mutazioni.
 
 **Partite**: nessuna, salvo che il codice di gioco cambi più del previsto.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno solo.
+**Commit**, in inglese: uno per `maxInstances`, uno per i 20 ordini.
 
 ## Risultati
 
