@@ -34,4 +34,16 @@ describe("Shard under shard_null", function()
 			ai:Update()
 		end
 	end)
+
+	it("runs AttackHandler and PlacementHandler in turns and the other modules every frame", function()
+		require("Shard/boot")
+
+		local everyFrame = {}
+		for i, m in ipairs(ai.handlers.Update) do
+			everyFrame[i] = m:Name()
+		end
+		assert.same({ "UnitHandler", "Sleep" }, everyFrame)
+		assert.equal(ai.attackhandler, ai.scheduledModules[1])
+		assert.equal(ai.placementhandler, ai.scheduledModules[2])
+	end)
 end)

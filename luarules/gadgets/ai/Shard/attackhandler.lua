@@ -17,12 +17,9 @@ function AttackHandler:Init()
 	self.counter = 8
 end
 
+-- in turns (ShardBasic.MScheduler): the scheduler staggers the AIs
 function AttackHandler:Update()
-	-- stagger targetting if multiple shards are in the game
-	local f = self.game:Frame() + self.game:GetTeamID()
-	if f % 15 == 0 then
-		self:DoTargetting()
-	end
+	self:DoTargetting()
 end
 
 function AttackHandler:UnitDead(engineunit)

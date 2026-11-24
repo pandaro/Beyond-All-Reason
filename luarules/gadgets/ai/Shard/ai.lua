@@ -9,3 +9,7 @@ end
 function ShardBasic:internalName()
 	return "shard"
 end
+
+-- The modules named here run in turns, one module of one AI a frame, as the loader's scheduler hands them out;
+-- the others (UnitHandler, which runs the behaviours, and Sleep, which counts frames) get Update every frame.
+ShardBasic.MScheduler = { "AttackHandler", "PlacementHandler" }
