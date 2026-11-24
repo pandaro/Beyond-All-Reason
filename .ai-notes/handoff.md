@@ -737,7 +737,7 @@ Gadget: `Types.Setup(...)` e `Lifecycle.Setup(...)` al posto di `Loader.Setup`; 
 
 **Nota di metodo**: ho scritto i quattro punti insieme e poi li ho separati nei commit, ricostruendo lo stato del solo punto 1 prima del primo commit; ogni commit è stato provato con la suite completa.
 
-### T8 (agente locale, 24 novembre 2026)
+### T8 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Nome della classe: `ShardBasic`** (proposta del coordinatore, da confermare con l'utente). Nessun file di `Shard/` usa il globale `Shard` del runtime, quindi il nome non rompe nulla.
 
