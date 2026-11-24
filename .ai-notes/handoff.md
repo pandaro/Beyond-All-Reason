@@ -17,33 +17,54 @@
 
 ## Compito attuale
 
-### T6b: elenco degli errori e unità con ID riciclato
+### T7: riordino di `ShardAILoader.lua` in più file, senza cambiare il comportamento
 
-**Impegno: basso.** Modifiche piccole e già decise, su codice che conosci da T5b e T6.
+**Impegno: alto.** Tocca tutto il loader e il risultato deve fare esattamente quello che fa oggi; la difficoltà è tenere ogni dettaglio (ordine delle chiamate, chi riceve cosa, errori contenuti, nessuna allocazione per frame) mentre si sposta il codice. È anche un compito di stile: l'utente vuole il codice ordinato, non solo funzionante.
 
-**Decisione dell'utente (24 novembre 2026)**: un'AI che si è caricata e ha superato `Init` **non si ferma** per gli errori durante la partita: si scrivono e si va avanti, come faceva l'utente con il vecchio Shard; servono a vedere e correggere più errori. Gli errori di caricamento e di `Init` continuano a far cadere l'AI (T6). Non cambiare questa parte.
+**Prima di tutto** leggi `.ai-notes/drafts/mappa-shardailoader.md`: la mappa del file com'è, i sette punti di disordine e le decisioni (sezione «Decisioni» in fondo).
 
-**Lavoro**
+**Decisioni**
 
-1. **Errori riconosciuti dal messaggio, non dall'oggetto.** Oggi `ReportError` scrive al massimo una riga ogni 900 frame per coppia oggetto + call-in: due errori diversi nello stesso `Update` in quei 30 secondi fanno sparire il secondo.
-   - La chiave diventa il messaggio d'errore (la prima riga: file, riga e testo), insieme al nome dell'oggetto (`STAI team 1`, `ally 1`…).
-   - La prima volta che un errore compare: la riga di oggi, con il traceback, subito.
-   - Le volte seguenti: solo un contatore (e il frame dell'ultima volta), nessuna riga.
-   - Niente più finestra di 900 frame.
-   - Gli errori sono rari: qui le allocazioni sono ammesse, ma non nel percorso senza errori.
-   - **Riepilogo**: in `GameOver` e in `Shutdown` (una volta sola, al primo dei due), se ci sono stati errori, una riga d'intestazione e una riga per errore: oggetto, call-in, numero di volte, frame della prima e dell'ultima, messaggio. Ordine: per frame della prima volta.
-   - Test busted: due errori diversi nello stesso call-in a pochi frame di distanza → due righe col traceback; lo stesso errore 50 volte → una riga e il contatore a 50; riepilogo con i numeri giusti, scritto una volta sola anche se arrivano sia `GameOver` sia `Shutdown`; nessuna riga di riepilogo senza errori. Prova delle mutazioni.
-2. **ID riciclato prima di `UnitCreated`.** L'engine riusa gli ID dopo un tempo solo indicativo. In `Shard:shardify_unit(id)`: se l'oggetto in cache è segnato `destroyed` e `Spring.ValidUnitID(id)` è vero, l'ID è di un'unità nuova: crea un oggetto nuovo e mettilo al posto del vecchio (la scadenza vecchia non deve toglierlo, come in T6). Il controllo si fa solo per gli oggetti `destroyed`.
-   Test: unità distrutta, ID riusato da un'unità di tipo diverso prima di `UnitCreated` → `GetUnitByID` restituisce la nuova, col suo nome; poi `UnitCreated` dello stesso ID non crea un terzo oggetto.
-3. **ID mai esistito.** In `Shard:shardify_unit(id)`: se l'ID non è in cache e `Spring.ValidUnitID(id)` è falso, restituisci `nil` senza mettere niente in cache (oggi si crea un oggetto senza definizione che resta in cache per sempre).
-   Test: `GetUnitByID` di un ID inesistente → `nil`, cache invariata.
-4. Se riesci, con lo strumento e una partita breve, misura dopo quanti frame l'engine ricicla un ID (per esempio: il gadget di controllo registra gli ID morti e il frame, e segnala quando un ID torna in `UnitCreated`). Solo un dato da scrivere nei risultati; se costa troppo, saltalo e dillo.
+- Si divide in più file, uno per compito (utente). **Non si riscrive da capo**: si sposta e si riordina il codice che c'è.
+- Stile dell'utente: funzioni piccole e riutilizzabili, con nomi che dicono cosa fanno, composte in funzioni più grandi («macro») che si leggono come una sequenza di passi.
+- I file stanno in `luarules/gadgets/ai/shard_runtime/loader/`. Ognuno **restituisce una tabella** con le sue funzioni (`local Relay = VFS.Include(LOADER_PATH .. "relay.lua")`); **nessun globale**: l'ambiente delle AI ricade sul gadget, quindi un globale del loader sarebbe visibile a STAI.
+- Dentro i file solo `local function`; `gadget:Metodo` solo per i call-in dell'engine. I metodi di oggi che non sono call-in (`NewAPI`, `LoadAIType`, `GetAlly`, `SetupAI`, `AddAI`, `StartAIs`, `CatchUp`, `HashGameID`) diventano funzioni dei file; se le spec li chiamano come `gadget:…`, aggiorna solo il modo di raggiungerli nelle spec e scrivilo nei risultati.
+- I file synced non includono niente di unsynced e restano deterministici.
 
-**Fuori dal compito**: STAI.
+**File** (nomi proposti; se uno non torna, proponi un nome migliore nei risultati, non cambiarlo da solo):
 
-**Controlli**: StyLua, EmmyLua, `lx --lua-version 5.1 test`, `run_engine_tests.sh`, partita A di T5c (15 minuti): incolla il riepilogo degli errori se c'è.
+| File | Lato | Contenuto |
+| --- | --- | --- |
+| `ShardAILoader.lua` | entrambi | ricerca dei team AI, controlli iniziali, i call-in dell'engine: ognuno una macro di poche righe |
+| `loader/hosts.lua` | synced | `IsActive`, `ChooseSuccessor`, `RegisterHosts`, `aiHostPlayer` |
+| `loader/relay.lua` | synced | stato e controlli del relay, `AddOrder`, `GiveOrders`, `Reject`, contatori, riga di `Shutdown` |
+| `loader/loader.lua` | unsynced | runtime, tipi, oggetti, seme, fallimenti del caricamento, avvio (`StartAIs`), arresto (`StopAI`), `CatchUp`, cambio di host |
+| `loader/delivery.lua` | unsynced | `Call`, errori (`ReportError`, elenco e riepilogo), consegna degli eventi |
+| `loader/unitregistry.lua` | unsynced | tabelle di unità per AI e anello delle unità morte |
+| `loader/memstats.lua` | unsynced | misura della memoria per frame e picco di `gcinfo()` |
 
-**Commit**, in inglese: uno per punto (2 e 3 insieme se più pulito).
+**Ordine dentro ogni file**: un commento in testa (scopo del file, lato, cosa è provvisorio), costanti, stato, funzioni piccole, funzioni composte, la tabella restituita. Stesso ordine nei due lati.
+
+**Punti precisi**
+
+1. `GameFrame` si deve leggere come una sequenza di passi, per esempio: avvio la prima volta, `Update` di tutti, invio degli ordini, scadenza delle unità morte, misura della memoria.
+2. `Ready()` oggi fa due cose (controlla e avvia le AI): separale, con un nome per ciascuna, e chiamale esplicitamente dove serve.
+3. Le parti provvisorie (eventi a tutti, tabelle di unità onniscienti, `Update` a ogni frame) stanno in `delivery.lua` e `unitregistry.lua` e sono elencate nel commento in testa a quei file, senza nomi di compiti.
+4. Lo stato sparso (le variabili della memoria, dell'anello dei morti, dei fallimenti) va nel file del suo compito.
+5. Nessuna allocazione nuova nei percorsi per frame: passare per una tabella di funzioni (`Delivery.Call`) è ammesso, ma metti in `local` all'inizio del file le funzioni usate a ogni frame, come fa oggi il loader con le funzioni `Spring.*`.
+
+**Rete di sicurezza**
+
+- **Tutte le spec di oggi devono passare.** Si cambiano solo dove raggiungono funzioni che prima erano `gadget:…` o dove caricano file nuovi; ogni modifica alle spec va elencata e motivata. Nessuna asserzione tolta o allentata.
+- Un test nuovo: dopo il caricamento, nessuna funzione del loader è visibile nell'ambiente di un tipo di AI né in `_G` (controlla i nomi delle funzioni dei file nuovi).
+- Un commit per file estratto, nell'ordine che preferisci, con la suite verde a ogni commit (`lx --lua-version 5.1 test`).
+- Alla fine: `run_engine_tests.sh` e la partita A di T5c con `SHARD_MEM_STATS=1`, nessuna riga `[AI Loader] error`, righe della memoria simili a quelle di T6b.
+
+**Fuori dal compito**: qualunque cambio di comportamento, anche piccolo e anche se migliora qualcosa. Annotalo e basta. Non toccare STAI.
+
+**Commit**, in inglese: uno per file estratto, poi uno per il riordino finale del gadget se serve.
+
+**Nei risultati**: righe per file prima e dopo, l'elenco delle modifiche alle spec con il motivo, `GameFrame` e un call-in di unità come sono ora (incollati), i nomi che cambieresti, ogni punto dove spostare il codice ti ha fatto vedere un difetto (annotato, non corretto).
 
 ## Risultati
 
@@ -574,7 +595,7 @@ Shard memory record:, 15004
 - La media cresce nel corso della partita (0,18 → 0,82 KB) insieme al numero di unità: atteso con STAI, che alloca per unità.
 - `DropFailed` di un global segna il tipo come fallito per tutta la partita: un cambio di host verso un team di quel tipo non riprova.
 
-### T6b (agente locale, 24 novembre 2026)
+### T6b (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
 **Commit**
 
