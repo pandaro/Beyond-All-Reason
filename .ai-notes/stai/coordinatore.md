@@ -115,12 +115,13 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S24a | ordine «un comando a molte unità» (codec, outbox, relay; «Shard …») | high | Sonnet 5.5 |
 | S24b | `AttackerBST` solo sensore: eventi alla squadra, priorità 0, via `attacking` | medium | Sonnet 5.5 |
 | S22 | `labshst.lua:367` rete `nil`; `bomberhst` `cmdUnitId` con buchi | low | Haiku 5.5 |
-| S17 | `shard_null` (punto 12) | alto | Sonnet 5.5 |
+| S17 | `shard_null` (punto 12) — dopo S24, se restano token (utente) | alto | Sonnet 5.5 |
 | S18 | `ShardMemStats` autocontenuto (framework, commit «Shard …») | medio | Sonnet 5.5 |
 | ~~S19~~ | `gridSize` 128: provato, peggio, ritirato | high | Opus 5.5 |
-| S20 | chiusura: guida per STAI, partite finali, branch pulito | medio | Sonnet 5.5 |
+| S20 | chiusura: guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
 
-Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku.
+Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku. Obiettivo: chiudere il porting dopo S24 (S18, S17 se restano token), poi tenere token per idee e miglioramenti.
+S18: l'unico uso di `springsettings` è `ShardMemStats` in `shard_runtime/loader/memstats.lua` (`Spring.GetConfigInt` r. 20 e 54); gli script di prova scrivono la riga in un `springsettings.cfg` temporaneo.
 
 **Cose imparate in questa chat** (per il coordinatore):
 - Il seme di `math.random` cambia a ogni partita e in Lua unsynced non si può fissare con `math.randomseed` (salato con un indirizzo): due partite con lo stesso codice si separano presto. Le prove «gioco invariato» si fanno **nella stessa partita** (la struttura vecchia ricalcolata accanto alla nuova e confrontata cella per cella, come in S8a); per i cambi di gioco tre partite A.
