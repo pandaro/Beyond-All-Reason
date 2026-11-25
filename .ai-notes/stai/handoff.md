@@ -51,6 +51,69 @@ Due compiti: «esegui s26» → **solo S26**; poi, **solo se S26 dice che il cro
 
 ## Risultati
 
+### S19 (agente locale, 25 novembre 2026) — prova fallita, due commit ritirati; decide l'utente
+
+**In breve**: con `gridSize` 128 le tre partite A sono **tutte peggiori** (fine 90 / 132 / 175 unità, contro 188–203 di S26); la memoria sale e `TopologyFooded` sulla mappa più grande arriva a 15.588 chiamate annidate, il 78% del limite di Lua 5.1. Come da compito ho fatto `git revert` dei due commit: `ba90f2c514` «STAI: grid cell size 128 elmos» (con `gridhst_spec.lua` su una mappa 768×512) e `4664f38be0` «STAI: cell radii for the 128-elmo grid», ritirati da `0f57a6bbc3` e `47fe7ca3b9`. `luarules/` e `spec/` sono identici a `a99cabc2c3`.
+
+**Mappe**: A = Comet Catcher Remake 1.8, 1024×768 quadrati (8192×6144 elmi): 32×24 = 768 celle a 256, 64×48 = 3072 a 128. Più grande disponibile (letta dagli header `.smf` di tutte le mappe in `~/.spring/maps`): 2048×2048, **Jade Empress 1.41** (16384 elmi): 64×64 = 4096 celle a 256, 128×128 = 16.384 a 128. (Special Hotstepper, stessa misura, scartata: STAI crolla anche a 256, mappa con lava.)
+
+**1. Inventario**
+
+| Dove | Oggi (256) in elmi | A 128 | Nella prova |
+| --- | --- | --- | --- |
+| `commanderbst.lua` r. 25, `getCellsFields(…, 2, …)` `ARMED > 500` | 5×5 celle, quadrato di 1280 (±640) | 4 → 9×9, 1152 (±576) | 4 |
+| `nukebst.lua` r. 74, `getCellsFields(…, 2, …)` | 1280 | 4 → 1152 | 4 |
+| `scoutbst.lua` r. 204, `areaCells(X, Z, 1, …)` | 3×3, 768 | 2 → 640 | non toccato: `ScoutBST:bestAdjacentPos` **non è chiamato da nessuno** (codice morto) |
+| `TargetHST:IsSafeCell` `adjacent` default 0 (`buildingshst.lua` r. 845, `mexupbst.lua` r. 112) | la sola cella, 256 | 0 → 128 (area ¼); 1 → 384 (area 2,25×): non si conserva | lasciato 0 (più permissivo: soglia 0 di `ARMED` su ¼ dell'area) |
+| `TargetHST:Blobbing` raggio 1 | vicini immediati (connessione) | resta 1, va bene | 1 |
+| `MapHST:TopologyFooded` raggio 1 | vicini immediati | resta 1 | 1 |
+| `maphst.lua` r. 29, `SimplifyMetalSpots(gridSize * 2)` | 512 (solo se > 1024 spot) | costante 512 | `512 --elmos, …` |
+| `maphst.lua` r. 355, `gridThePath` default `gridSize` | toglie i waypoint a meno di 256 | 128: più waypoint; serve a `UnitMexMoveTest` per contare i passaggi di cella, segue la cella | segue |
+| `raidhst.lua` r. 256, `gridSizeDouble` | 512 (distanza blob–bersaglio) | costante 512 | 512; `gridSizeDouble` tolto (nessun altro uso) |
+| `gridSizeHalf` (disegni di debug in `damagehst`, `loshst`, `targethst`, `maphst`) | metà cella | segue | segue |
+| `attackhst.lua` r. 187 `< 256` | tappa raggiunta: elmi, **non** pensato come cella | resta | resta |
+| `attackhst.lua` r. 259 `< 512` | distanza dal centro della cella bersaglio per passare a FIGHT: elmi, non «due celle» | resta | resta |
+| `raidhst.lua` r. 201 `< 256` | come `attackhst` r. 187 | resta | resta |
+| `ScoutHST.SCOUTED` 3600 frame | segna solo la cella dello scout: 256² per 2 minuti | segna ¼ dell'area: più bersagli «non esplorati» | non toccato |
+| `DamageHST` calo ×0,9 di `DAMAGED` | minaccia per cella | il danno si divide in celle più piccole, le celle escono prima dalla lista | non toccato |
+| `ENEMY` per cella (`LosHST`) | `ARMED`/`UNARM` per cella | valori per cella ≈ ¼; le somme su un'area uguale (comandante, nuke) non cambiano; le soglie su una cella sola sì | — |
+| `ScoutHST:PerimetralCells` | celle del bordo: 108 su A, centro a 128 dal bordo | 220, centro a 64 dal bordo | segue |
+| `BuildingsHST:UnitMexMoveTest` / `trampledCells` | celle sopra 1,5× la media dei passaggi | 4× celle: posti più numerosi e più fitti per le difese (`taskshst` r. 653, 1094, 1104) | segue |
+| `GridLayer:Unmark` | ricerca lineare in `LIST` («LIST is short») | liste fino a 4× più lunghe | — |
+| Ricorsione `TopologyFooded` | vedi misura | profondità ≈ numero di celle della rete più grande | — |
+
+**3. Misura** (strumentazione non committata: `Spring.GetTimer`/`DiffTimers` intorno a `Init`, contatori di profondità; il primo tentativo con `GetTimerMicros` è fallito: nel contesto dei moduli restituisce un userdata). Una partita per mappa e misura, 15 minuti:
+
+| | A 256 | A 128 | Jade 256 | Jade 128 |
+| --- | --- | --- | --- | --- |
+| `GridHST:Init` | 0 ms | 2 ms | 3 ms | 11 ms |
+| `MapHST:Init` | 6 ms | 19 ms | 29 ms | 127 ms |
+| profondità max `TopologyFooded` | 738 | 2955 | 3907 | **15.588** (78% di ~20.000) |
+| profondità max `Blobbing` | 4 | 7 | 4 | 5 |
+| memoria per frame: media / max | 0,37 / 69 KB | 0,47 / 58 KB | 0,54 / 7306 KB | 0,26 / 69 KB |
+| heap a fine partita | 14,7 MB | 20,1 MB | 18,3 MB | 34,4 MB |
+| `Shard memory record` | 15356 | 20624 | 23494 | 41543 |
+| fine: unità, fabbriche, mex | 182, 2, 37 | 144, 2, 27 | 58, 1, 17 | 51, 1, 12 |
+
+La profondità è circa il 95% delle celle: una mappa 40×40 (20480 elmi, 25.600 celle a 128) supererebbe il limite. Il picco di 7306 KB in un frame su Jade a 256 non l'ho indagato (probabilmente `UnitMexMoveTest`, «CAUTION is heavy»).
+
+**4. Partite con il codice finale a 128** (senza strumentazione, `SHARD_MEM_STATS=1`, uscita 0, righe `[AI Loader] error`: 0):
+
+| | min. 10 / 13: unità | fine: unità, fabbriche, mex | relay: messaggi / ordini / rifiutati | `Shard memory record` | heap |
+| --- | --- | --- | --- | --- | --- |
+| A1 | 58 / 84 | 90, 2, 13 | 2598 / 6584 / 17 | 19023 | 18,2 MB |
+| A2 | 70 / 95 | 132, 2, 24 | 3435 / 7083 / 13 | 18550 | 18,0 MB |
+| A3 | 73 / 122 | 175, 2, 32 | 3362 / 9057 / 11 | 18403 | 17,8 MB |
+| C | t0 65 / 102, t1 ? / 120 | t0 135, 2, 28; t1 153, 2, 30 | 4099 / 13400 / 42 | 27994 | 27,3 MB |
+
+Riferimenti: S26 (A a 256, stesso `HEAD`) fine 188–203 unità, 29–38 mex, memory record 15468–15581; S21 min. 13 147–194, fine 161–217; S1 fine 141–186, 23–35 mex; S25 C 155 e 145. A 128 il minuto 13 è sotto S21 in tutte e tre le A, la fine sotto S26 in tutte e tre. La C è nella norma. Memoria +20% su A, quasi ×2 su Jade.
+
+**Perché peggio**: non indagato (il compito chiede di ritirare e decidere). Candidati dall'inventario: `IsSafeCell` con `adjacent` 0 su ¼ dell'area (mex in posti meno sicuri), `trampledCells` più fitti (più difese), `SCOUTED` su ¼ dell'area, ordini molto meno numerosi (6584–9057 contro 12911–17437 di S26).
+
+**Controlli** (sul commit a 128, prima del revert): `lx --lua-version 5.1 test` 2788 successi, 0 fallimenti (1 pending preesistente); test aggiornati: `gridhst_spec.lua` (10 asserzioni con 256 o elmi derivati, mappa dimezzata, `gridSize` 128; fallisce sul codice a 256). `maphst_spec.lua` r. 103 chiama `SimplifyMetalSpots(256)` direttamente e non dipende da `gridSize`; `loshst_spec.lua` e `targethst_spec.lua` hanno 256 nei loro finti `PosToGrid`, non toccati. StyLua 2.5.2 sulle righe toccate: niente. `.emmyrc.json` ripristinato. EmmyLua e `run_engine_tests.sh` non eseguiti: dopo il revert il codice è identico a `a99cabc2c3`, già controllato in S25.
+
+**Per l'utente / il coordinatore**: tenere 256 (consiglio: la ricorsione da sola rende 128 rischioso sulle mappe grandi senza riscrivere `TopologyFooded` in modo iterativo), oppure riprovare 128 con `IsSafeCell` `adjacent` 1 e un `TopologyFooded` iterativo.
+
 ### S26 (agente locale, 25 novembre 2026) — il crollo era varianza; nessuna bisezione
 
 Tre partite A su `HEAD` (`a99cabc2c3`), 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, righe `[AI Loader] error`: 0. Nessuna è crollata (criterio: fabbriche 0 o unità < 100).
