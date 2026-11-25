@@ -277,12 +277,12 @@ function MapHST:SimplifyMetalSpots(number) --reduce the number of metal spots fo
 	local spots = {}
 	local spotsCount = 0
 	for x = 0, self.elmoMapSizeX - number, number do
-		for z = 0, self.elmoMapSizeX - number, number do
+		for z = 0, self.elmoMapSizeZ - number, number do
 			for i, spot in pairs(self.METALS) do
 				if spot.x > x and spot.x < x + number and spot.z > z and spot.z < z + number then
 					spotsCount = spotsCount + 1
 					spots[spotsCount] = spot
-					table.remove(self.METALS, i)
+					table.remove(self.METALS, i) --safe inside pairs: break right after
 					break
 				end
 			end

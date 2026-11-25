@@ -83,4 +83,33 @@ describe("STAI MapHST", function()
 		assert.same({ first, last }, mapHST.networks.ground[1].geos)
 		assert.same({ first }, mapHST.networks.air[1].geos)
 	end)
+
+	it("simplifies the metal spots over the whole of a map that is not square", function()
+		local mapHST = newMapHST(false)
+		mapHST.elmoMapSizeX = 1024
+		mapHST.elmoMapSizeZ = 2048
+		mapHST.METALS = {}
+		for n = 1, 1000 do
+			mapHST.METALS[n] = { x = 0, z = 0 } --on the edge of a square: never taken
+		end
+		local inSquares = 0
+		for x = 0, 1024 - 256, 256 do
+			for z = 0, 2048 - 256, 256 do
+				mapHST.METALS[#mapHST.METALS + 1] = { x = x + 128, z = z + 128 }
+				inSquares = inSquares + 1
+			end
+		end
+
+		local spots = mapHST:SimplifyMetalSpots(256)
+
+		assert.equal(32, inSquares)
+		assert.equal(inSquares, #spots)
+		local beyondX = 0
+		for _, spot in ipairs(spots) do
+			if spot.z > 1024 then
+				beyondX = beyondX + 1
+			end
+		end
+		assert.equal(16, beyondX)
+	end)
 end)
