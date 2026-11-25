@@ -364,13 +364,15 @@ end
 function LabsHST:PostPositionalFilter(p, factoryName)
 	for i, mtype in pairs(self.ai.armyhst.factoryMobilities[factoryName]) do
 		local network = self.ai.maphst:MobilityNetworkHere(mtype, p)
-		if (self.ai.maphst.networks[mtype][network].area / self.ai.gridhst.gridArea) < 0.05 then --5% of the maphst
+		local layerNetworks = self.ai.maphst.networks[mtype]
+		local NETWORK = network and layerNetworks and layerNetworks[network] --nil when no network of this layer is here
+		if not NETWORK or (NETWORK.area / self.ai.gridhst.gridArea) < 0.05 then --5% of the maphst
 			if self.DebugEnabled then
 				self:EchoDebug("area to small to build lab: ", factoryName)
 			end
 			return
 		end
-		if #self.ai.maphst.networks[mtype][network].metals / #self.ai.maphst.METALS < 0.05 then --5% of the metals
+		if #NETWORK.metals / #self.ai.maphst.METALS < 0.05 then --5% of the metals
 			if self.DebugEnabled then
 				self:EchoDebug("not enough spots to build lab: ", factoryName)
 			end
