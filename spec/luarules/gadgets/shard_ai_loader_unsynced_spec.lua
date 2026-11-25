@@ -39,6 +39,8 @@ local function defaultWorld()
 		units = {},
 		-- three SpecAI teams: above the loader's limit per AI type, which the specs of the limit restore with nil
 		maxInstancesPerAIType = 3,
+		-- the switch of timers.lua: true or false replace it, "code" keeps the file's value
+		timers = false,
 	}
 end
 
@@ -87,6 +89,9 @@ local function loadLoader(world)
 				return setup(context)
 			end
 		end
+		if path == "luarules/gadgets/ai/shard_runtime/loader/timers.lua" and world.timers ~= "code" then
+			result.SetEnabled(world.timers == true)
+		end
 		return result
 	end
 	vfs.FileExists = function(path)
@@ -95,6 +100,9 @@ local function loadLoader(world)
 	env.VFS = vfs
 	world.config = world.config or {}
 	world.countCalls = 0
+	-- the clock of Spring.GetTimerMicros, in microseconds; the specs move it
+	world.micros = 0
+	world.timerReads = 0
 	-- collectgarbage("count") and gcinfo() read world.heap when the spec sets it, in KB; then a full collection
 	-- only goes to SpecLog and leaves world.heapAfterCollect
 	env.collectgarbage = function(option, ...)
@@ -144,6 +152,14 @@ local function loadLoader(world)
 		end,
 		GetMyPlayerID = function()
 			return world.me
+		end,
+		GetTimerMicros = function()
+			world.timerReads = world.timerReads + 1
+			return world.micros
+		end,
+		DiffTimers = function(endTimer, startTimer, returnMs, fromMicroSecs)
+			assert(returnMs == true and fromMicroSecs == true)
+			return (endTimer - startTimer) / 1000
 		end,
 		GetConfigInt = function(name, default)
 			return world.config[name] or default
@@ -322,7 +338,7 @@ describe("ShardAILoader unsynced side", function()
 			"Scheduler",
 			"Rebuild",
 		}
-		for _, file in ipairs({ "memstats", "unitregistry", "delivery", "types", "lifecycle", "scheduler" }) do
+		for _, file in ipairs({ "memstats", "timers", "unitregistry", "delivery", "types", "lifecycle", "scheduler" }) do
 			local exported = env.VFS.Include("luarules/gadgets/ai/shard_runtime/loader/" .. file .. ".lua")
 			for name in pairs(exported) do
 				names[#names + 1] = name
@@ -1816,6 +1832,202 @@ describe("ShardAILoader unsynced side", function()
 			assert.equal(1, echoesWith(loader, "avg 3.00 KB max 3.00 KB over 1800 frames"))
 		end)
 	end)
+	describe("with the timers", function()
+		-- Team 0 gets a unit with SpecTimedBehaviour and a team module SpecTimedRunner that updates it, as
+		-- UnitHandler does. world.costs.runner and world.costs.behaviour are the milliseconds their Update takes;
+		-- SpecHooks.Update, with world.costs.ally and world.costs.global, those of the ally and global modules.
+		local function timedWorld(timers)
+			local world = defaultWorld()
+			world.timers = timers
+			world.costs = { runner = 0, behaviour = 0, ally = 0, global = 0 } ---@type table<string, number>
+			return world
+		end
+
+		local function spend(world, ms)
+			world.micros = world.micros + ms * 1000
+		end
+
+		local function startedTimed(world)
+			local loader = started(world, {
+				Update = function(module)
+					local scope = module:Scope()
+					if scope == "ally" and module.ai.allyId == 0 then
+						spend(world, world.costs.ally)
+					elseif scope == "global" then
+						spend(world, world.costs.global)
+					end
+				end,
+			})
+			local env = loader.env
+			local thisAI = env.Shard.AIsByTeamID[0]
+			local unit = env.Shard.types.SpecAI.env.Unit()
+			unit:SetAI(thisAI)
+			unit:SetEngineRepresentation({
+				ID = function()
+					return 100
+				end,
+			})
+			unit:Init()
+			local Timed = env.class(env.Behaviour)
+			function Timed:Name()
+				return "SpecTimedBehaviour"
+			end
+			function Timed:Update()
+				spend(world, world.costs.behaviour)
+			end
+			unit:AddBehaviour(Timed())
+			local Runner = env.class(env.Module)
+			function Runner:Name()
+				return "SpecTimedRunner"
+			end
+			function Runner:internalName()
+				return "spectimedrunner"
+			end
+			function Runner:Scope()
+				return "team"
+			end
+			function Runner:Update()
+				spend(world, world.costs.runner)
+				unit:Update()
+			end
+			thisAI:AddModule(Runner())
+			return loader
+		end
+
+		local function frame(loader, n)
+			loader.world.frame = n
+			loader.gadget:GameFrame(n)
+		end
+
+		local function timerLines(loader)
+			local lines = {}
+			for _, line in ipairs(loader.echoes) do
+				if string.find(line, "[Shard timer] ", 1, true) == 1 then
+					lines[#lines + 1] = line
+				end
+			end
+			return lines
+		end
+
+		it("writes one line for a behaviour and its module above the threshold, with every field", function()
+			local world = timedWorld(true)
+			local loader = startedTimed(world)
+			world.costs.runner = 2
+			world.costs.behaviour = 12.34
+
+			frame(loader, 5)
+
+			assert.same({
+				"[Shard timer] frame=5 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
+					.. " behaviour=SpecTimedBehaviour call=Update ms=12.3",
+				"[Shard timer] frame=5 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
+					.. " behaviour=- call=Update ms=14.3",
+			}, timerLines(loader))
+		end)
+
+		it("writes no line at the threshold or below", function()
+			local world = timedWorld(true)
+			local loader = startedTimed(world)
+			world.costs.behaviour = 10
+
+			frame(loader, 1)
+			world.costs.behaviour = 9.9
+			frame(loader, 2)
+
+			assert.same({}, timerLines(loader))
+		end)
+
+		it("writes the ally and the global modules with their scope", function()
+			local world = timedWorld(true)
+			local loader = startedTimed(world)
+			world.costs.ally = 11
+			world.costs.global = 20
+
+			frame(loader, 3)
+
+			assert.same({
+				"[Shard timer] frame=3 ai=SpecAI team=- ally=- scope=global module=SpecGlobalModule"
+					.. " behaviour=- call=Update ms=20.0",
+				"[Shard timer] frame=3 ai=SpecAI team=- ally=0 scope=ally module=SpecAllyModule"
+					.. " behaviour=- call=Update ms=11.0",
+			}, timerLines(loader))
+		end)
+
+		it("names the event a module was called for", function()
+			local world = timedWorld(true)
+			local loader = startedTimed(world)
+			loader.hooks.UnitCreated = function(module)
+				if module.ai.id == 1 and module:Name() == "SpecTeamModule" then
+					spend(world, 15)
+				end
+			end
+
+			world.frame = 7
+			addUnit(loader, 500, 1)
+
+			assert.same({
+				"[Shard timer] frame=7 ai=SpecAI team=1 ally=0 scope=team module=SpecTeamModule"
+					.. " behaviour=- call=UnitCreated ms=15.0",
+			}, timerLines(loader))
+		end)
+
+		it("sums up each name once, at GameOver", function()
+			local world = timedWorld(true)
+			local loader = startedTimed(world)
+			for n, ms in ipairs({ 2, 12, 4 }) do
+				world.costs.behaviour = ms
+				frame(loader, n)
+			end
+
+			loader.gadget:GameOver({ 0 })
+			local atGameOver = echoesWith(loader, "[Shard timer summary] names=")
+			loader.gadget:Shutdown()
+
+			assert.equal(1, atGameOver)
+			assert.equal(
+				1,
+				echoesWith(
+					loader,
+					"[Shard timer summary] name=SpecTimedBehaviour kind=behaviour calls=3 min=2.000 max=12.0"
+						.. " avg=6.000 sum=18.0 spikes=1"
+				)
+			)
+			assert.equal(
+				1,
+				echoesWith(
+					loader,
+					"[Shard timer summary] name=SpecTimedRunner kind=module calls=3 min=2.000 max=12.0"
+						.. " avg=6.000 sum=18.0 spikes=1"
+				)
+			)
+			-- three teams: Init, three Updates and GameEnd each
+			assert.equal(1, echoesWith(loader, "name=SpecTeamModule kind=module calls=15 min=0.000"))
+			assert.equal(1, echoesWith(loader, "[Shard timer summary] names="))
+		end)
+
+		it("reads no time and writes nothing when they are off", function()
+			local world = timedWorld(false)
+			local loader = startedTimed(world)
+			world.costs.behaviour = 50
+
+			frame(loader, 1)
+			loader.gadget:GameOver({ 0 })
+
+			assert.equal(0, world.timerReads)
+			assert.equal(0, echoesWith(loader, "[Shard timer"))
+		end)
+
+		it("are on by the switch in the code", function()
+			local world = timedWorld("code")
+			local loader = startedTimed(world)
+			world.costs.behaviour = 30
+
+			frame(loader, 1)
+
+			assert.equal(2, #timerLines(loader))
+		end)
+	end)
+
 	describe("with the limit of AIs per type", function()
 		it("leaves the third team of a type without AI and writes why", function()
 			local world = defaultWorld()
