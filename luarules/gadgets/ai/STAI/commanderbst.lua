@@ -22,7 +22,7 @@ function CommanderBST:Update()
 	elseif self.unit:Internal():GetHealth() <= self.unit:Internal():GetMaxHealth() * 0.99 then
 		self.save = 2
 	elseif
-		self.ai.gridhst:getCellsFields(self.unit:Internal():GetPosition(), { "ARMED" }, 2, self.ai.loshst.ENEMY) > 500
+		self.ai.gridhst:getCellsFields(self.unit:Internal():GetPosition(), { "ARMED" }, 4, self.ai.loshst.ENEMY) > 500
 	then
 		self.save = 2
 	elseif self.unit:Internal():GetHealth() > self.unit:Internal():GetMaxHealth() * 0.99 then

@@ -253,7 +253,7 @@ function RaidHST:SquadAdvance(squad)
 		local targetPos = game:GetUnitByID(squad.role):GetPosition()
 		for i, blob in pairs(self.ai.targethst.MOBILE_BLOBS) do
 
-			if self.ai.tool:distance(blob.position, targetPos) < self.ai.gridhst.gridSizeDouble then
+			if self.ai.tool:distance(blob.position, targetPos) < 512 then --elmos
 				preventThreat = blob.position
 				break
 			end

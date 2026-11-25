@@ -71,7 +71,7 @@ function NukeBST:GetBestNukeCell()
 	local ENEMY = self.ai.loshst.ENEMY
 	for n = 1, #ENEMY.LIST do --numeric loop keeps the order of the cells
 		local cell = ENEMY.CELLS[ENEMY.LIST[n]]
-		local areaCell = self.ai.gridhst:getCellsFields(cell.POS, { "ENEMY" }, 2, ENEMY)
+		local areaCell = self.ai.gridhst:getCellsFields(cell.POS, { "ENEMY" }, 4, ENEMY)
 		if areaCell and areaCell > bestValueThreat then
 			best = cell
 			bestValueThreat = areaCell
