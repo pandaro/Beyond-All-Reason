@@ -19,7 +19,34 @@
 
 ## Compito attuale
 
-Nessuno. Porting chiuso il 25 novembre 2026; resta S20 (chiusura per la PR), non prima del 2 dicembre 2026.
+### S27: confronto globale, STAI di fase 0 contro STAI di oggi
+
+**Impegno: high. Modello: Sonnet 5.5.** Nessun cambio al codice del gioco, nessun commit fuori da `.ai-notes/`.
+
+**Scopo.** Misurare se STAI di oggi gioca meglio, uguale o peggio di STAI com'era prima di tutto il lavoro (fase 0), con abbastanza partite da distinguere il risultato dalla varianza del seme.
+
+**Versioni**
+- **A (fase 0)**: commit `57992771` («Recupero di Shard e STAI com'erano a 3ad8f3fb^»): vecchio Shard e vecchio STAI, nessuna modifica di fase 1 né del porting. Da qui non è mai stata giocata una partita.
+- **B (oggi)**: `stai/porting` al commit `ab926056` (o `HEAD` se cambiano solo le note).
+- Ogni versione in un **worktree a parte** (`git worktree add --detach ../bar-s27-a 57992771`, idem per B); il checkout di lavoro non si tocca. Dopo ogni checkout segui la skill `submodule-pointer`. Alla fine `git worktree remove` dei due.
+
+**Passo 1 — A parte?** (fermati se no)
+- Gli strumenti (`run_engine_game.sh`, `engine_game_gadget.lua`, `startscripts/`) non esistono in A: copiali nel worktree A (non tracciati) e verifica come lo script trova il gioco (`$REPO`, `GameType`, archivio `.sdd` o link in `games/`). Se il gioco caricato è un link al checkout di lavoro, fallo puntare al worktree della versione giocata e **rimettilo com'era** alla fine.
+- Una partita A di prova (`a_stai_vs_simpleai.txt`, 15 minuti). Controlla nell'infolog che giochi davvero **STAI di A** (righe del vecchio loader, nessuna riga `[AI Loader]` del nuovo runtime) e che `SimpleAI` sia lo stesso nelle due versioni (`git diff 57992771 ab926056 --stat -- <cartella di SimpleAI>`; se differisce, scrivilo).
+- Se A non parte o va in errore all'avvio: **fermati**, scrivi l'errore e cosa servirebbe per farla partire. Non correggere il codice di A.
+
+**Passo 2 — partite**
+- 10 partite A e 10 partite B, alternate (A, B, A, B, …) per non legare una versione a un momento della macchina. Comet Catcher Remake 1.8, STAI contro SimpleAI, 15 minuti, `a_stai_vs_simpleai.txt`.
+- `SHARD_MEM_STATS=1` solo in B (A non ha `ShardMemStats`); in A nessun `springsettings` in più.
+- Per ogni partita, dalle righe `[SHARD-GAME]` del gadget di controllo (uguali per A e B): unità al minuto 14, unità, fabbriche e mex a fine partita (STAI e SimpleAI). Solo B: messaggi / ordini / rifiutati del relay, picco e media della memoria per frame. Per entrambe: righe di errore dell'AI (in A quelle del vecchio loader), uscita dell'engine.
+- Criterio di «crollo» come in S26: fabbriche 0 o unità < 100. Le partite crollate si contano e si tengono nei dati.
+
+**Passo 3 — statistica**
+- Per unità a fine partita, mex a fine partita e unità al minuto 14: media, deviazione standard, test t di **Welch** (t, gradi di libertà, p a due code) e intervallo al 95 % della differenza B − A. Anche le unità di SimpleAI a fine partita.
+- Python di sistema, solo libreria standard se `scipy` manca (formula di Welch–Satterthwaite; p dalla t di Student calcolata a mano o tabellata, scrivi come). Non installare pacchetti.
+- Lo script di calcolo resta in `/tmp`, non si committa; nei risultati metti la tabella delle 20 partite e le righe dei numeri.
+
+**Risultati** in `handoff.md` (`### S27 (agente locale, <data>)`): tabella delle 20 partite, statistiche, lettura in due righe (migliora / uguale / peggiora, con p), problemi del passo 1. Commit solo di `.ai-notes/stai/handoff.md` (`git add -f`), messaggio in inglese, push su `stai/porting`.
 
 ## Risultati
 
