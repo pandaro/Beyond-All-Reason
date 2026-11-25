@@ -54,13 +54,17 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 ## 4. Decisioni aperte (le prende l'utente)
 
 1. ~~Griglia: forma nuova (punto 5).~~ Decisa il 25 novembre 2026: una geometria, tanti strati.
-2. Percezione: `LosHST`, `PerceptionHandler` o barare (punto 6). Decisione del 25 novembre 2026 (utente): **STAI non bara**; resta da scegliere fra `LosHST` e `PerceptionHandler`.
+2. Percezione: `LosHST`, `PerceptionHandler` o barare (punto 6). Decisione del 25 novembre 2026 (utente): **STAI non bara**. Decisione del 25 novembre 2026 (utente): **`LosHST` sopra `PerceptionHandler`**: `PerceptionHandler` dà i fatti dell'engine (los, radar), `LosHST` tiene la memoria come un giocatore. L'engine e il gioco danno ragione a STAI: un'unità in radar che è stata in los si vede come «ombra» del modello (tipo noto), un edificio uscito dalla vista resta. Nota del coordinatore: oggi un'unità **mobile** che esce dalla los ma resta nel radar sparisce da `LosHST` (`UnitLeftLos` la toglie dalla los e nessun `UnitEnteredRadar` arriva, perché il radar non si è mai interrotto); con i due insiemi di `PerceptionHandler` sotto si può tenere come radar a tipo noto.
 3. Elezione: tenere `legacyElection` o passare alla regola nuova, e quando (punto 7). Decisione del 25 novembre 2026 (utente): **se la regola nuova è migliore si usa quella** (da provare con partite).
-4. `UnitHST`: resta in STAI o diventa un `UnitHandler` del runtime (punto 8).
-5. `collect` di `MapHST`: resta o va tolta (punto 9). Idea dell'utente (25 novembre 2026): cercare un posto migliore, per esempio una sola `collect` alla fine di tutti gli `Init`, nel loader.
-6. `Tool` (25 novembre 2026, utente): è una cassetta di attrezzi matematici e logici di largo uso, senza `Update` né eventi; quelli inutili si tolgono.
+4. `UnitHST`: resta in STAI o diventa un `UnitHandler` del runtime (punto 8). Decisione del 25 novembre 2026 (utente): **`UnitHST` resta in STAI**; si adeguerà il framework (`UnitHandler` sul modello di `UnitHST`: evento solo all'unità interessata).
+5. `collect` di `MapHST`: resta o va tolta (punto 9). Idea dell'utente (25 novembre 2026): cercare un posto migliore, per esempio una sola `collect` alla fine di tutti gli `Init`, nel loader. Decisione del 25 novembre 2026 (utente): **una `collect` alla fine di `StartAIs`** (`shard_runtime/loader/lifecycle.lua`, dopo gli `Init` di globali, alleanze e team), commit «Shard …» a parte; quella di `MapHST` poi si toglie.
+6. `Tool` (25 novembre 2026, utente): è una cassetta di attrezzi matematici e logici di largo uso, senza `Update` né eventi; quelli inutili si tolgono. Decisione del 25 novembre 2026 (utente): **la matematica diventa una libreria** (file che restituisce una tabella di funzioni, senza ambito, usabile da ogni ambito); gli attrezzi di squadra (`GiveOrder`, `countMyUnit`, `countFinished`, `getTeamUnitsByClass`, `mtypedLvCount`, …) restano in un modulo di team; le circa 16 funzioni mai chiamate si tolgono.
 7. `astarclass.lua` (25 novembre 2026, utente): resta finché non si studia il pathfinding dell'engine (se `RequestPath` funziona non serve, se è difettoso sì).
-8. Codice morto: toglierlo o «stoccarlo» (25 novembre 2026, cosa da decidere per l'utente).
+8. Codice morto: toglierlo o «stoccarlo» (25 novembre 2026, cosa da decidere per l'utente). Decisione del 25 novembre 2026 (utente): **si toglie**, e si tiene un indice in `.ai-notes/stai/codice-tolto.md` (nome, file, commit; si riprende con `git show <commit>^:<file>`).
+
+**Cose da fare dell'utente** (sue, non compiti S):
+- sincronizzare `UnitHandler` del framework con il modello di `UnitHST` di STAI;
+- prima o poi: studiare il pathfinding dell'engine (`RequestPath`): se è difettoso come aggiustarlo, se no come si usa; da lì dipende `astarclass.lua`.
 
 ## 5. Ordine di lavoro proposto
 

@@ -70,3 +70,11 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S3 | pulizia di `MapHST`: codice morto, `ClosestFreeMex` e `trampled` in `BuildingsHST`; gioco invariato (prova con le stesse righe prima e dopo) — verificato (`maphst.lua` da 1184 a 623 righe) |
 | S4a | `GridHST`: geometria (misura della cella in un solo punto, 256), `CELLS` per indice, funzioni di griglia spostate da `MapHST`; gioco invariato — verificato (test busted, 12 mutazioni; `maphst.lua` 488 righe) |
 | S4b | strati (`NewLayer(resetCell)`, `Get`, `Mark`, `Clear`), `MapHST.GRID` come primo strato per indice, lettori di `X`/`Z`/`POS` sulla geometria; gioco invariato — verificato (classe `GridLayer`, 16 mutazioni; `topology` tolto) |
+
+**Piano proposto per il 26 novembre 2026** (da confermare con l'utente; nessun compito scritto):
+
+1. S5 — `Tool`: libreria della matematica, modulo di team per gli attrezzi di squadra, via le funzioni mai chiamate; `codice-tolto.md` con l'indice di quello tolto in S3, S4b e S5. Gioco invariato.
+2. S6 — ambiti globali: `ArmyHST`, `GridHST`, `MapHST` `"global"` (l'analisi della mappa una volta per partita). Gioco invariato.
+3. S7 — `collect` alla fine di `StartAIs` (commit «Shard …»), via quella di `MapHST`.
+4. S8 — `LosHST` sopra `PerceptionHandler` e strato `ENEMY` (forse in due: percezione, poi strato e lettori). Il gioco cambia: tre partite A.
+5. Dopo: `DamageHST`, `ScoutHST`, `TRAMPLED` come strati; elezione nuova; difetti del punto 15.
