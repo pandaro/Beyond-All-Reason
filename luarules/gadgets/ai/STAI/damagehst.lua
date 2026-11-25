@@ -15,7 +15,7 @@ end
 function DamageHST:Init()
 	self.DebugEnabled = false
 	self.isDamaged = {}
-	self.DAMAGED = {}
+	self.DAMAGED = self.ai.gridhst:NewLayer(self.resetCell) --the cells where our units were hit, they last until the threat fades
 end
 
 function DamageHST:UnitDamaged(defender, attacker, damage)
@@ -53,46 +53,53 @@ end
 function DamageHST:AddBadPosition(position, mtype, attackerThreat, defenderThreat, duration)
 	duration = duration or 1800
 	local X, Z = self.ai.gridhst:PosToGrid(position)
-	local f = self.game:Frame()
-	local newRecord = {
-		X = X,
-		Z = Z,
-
-		POS = self.ai.gridhst:GridToPos(X, Z),
-		groundAirSubmerged = groundAirSubmerged,
-		frame = f,
-		attackerThreat = attackerThreat,
-		defenderThreat = defenderThreat,
-		duration = duration,
-		nodeCostIndex = self.ai.gridhst:GridToIndex(X, Z),
-	}
-
-	self.DAMAGED[X] = self.DAMAGED[X] or {}
-	if not self.DAMAGED[X][Z] then
-		self.DAMAGED[X][Z] = newRecord
-	else
-		self.DAMAGED[X][Z].frame = f
-		self.DAMAGED[X][Z].attackerThreat = self.DAMAGED[X][Z].attackerThreat + newRecord.attackerThreat
-		self.DAMAGED[X][Z].defenderThreat = self.DAMAGED[X][Z].defenderThreat + newRecord.defenderThreat
-
+	if not self.ai.gridhst:IsCellInGrid(X, Z) then
+		self:Warn(X, Z, "damage out of the grid")
+		return
 	end
+	local f = self.game:Frame()
+	local i = self.ai.gridhst:GridToIndex(X, Z)
+	local CELL = self.DAMAGED:Get(i)
+	if not self.DAMAGED:GetMarked(i) then
+		CELL.X = X
+		CELL.Z = Z
+		CELL.POS = self.ai.gridhst:GridToPos(X, Z) --not the POS of the GridHST cell: the ground can change after Init
+		CELL.nodeCostIndex = i
+		CELL.frame = f
+		CELL.attackerThreat = attackerThreat
+		CELL.defenderThreat = defenderThreat
+		CELL.duration = duration
+	else
+		CELL.frame = f
+		CELL.attackerThreat = CELL.attackerThreat + attackerThreat
+		CELL.defenderThreat = CELL.defenderThreat + defenderThreat
+	end
+	self.DAMAGED:Mark(i)
+end
+
+function DamageHST.resetCell(CELL) --clear a DAMAGED cell
+	CELL.frame = 0
+	CELL.attackerThreat = 0
+	CELL.defenderThreat = 0
+	CELL.duration = 0
 end
 
 function DamageHST:UpdateBadPositions()
 	local f = self.game:Frame()
-	for X, cells in pairs(self.DAMAGED) do
-		for Z, cell in pairs(cells) do
-			if f - cell.frame > 300 then -- reduce  bad position every 10 seconds
-				cell.frame = f
-				cell.attackerThreat = math.floor(cell.attackerThreat * 0.9)
-				cell.defenderThreat = math.floor(cell.defenderThreat * 0.9)
-				self:EchoDebug(self.DAMAGED[X][Z].defenderThreat)
+	local LIST = self.DAMAGED.LIST
+	for n = #LIST, 1, -1 do --backward: Unmark takes the cell out of LIST
+		local i = LIST[n]
+		local cell = self.DAMAGED.CELLS[i]
+		if f - cell.frame > 300 then -- reduce  bad position every 10 seconds
+			cell.frame = f
+			cell.attackerThreat = math.floor(cell.attackerThreat * 0.9)
+			cell.defenderThreat = math.floor(cell.defenderThreat * 0.9)
+			self:EchoDebug(cell.defenderThreat)
 
-				if cell.defenderThreat < 1 then
-					self.DAMAGED[X][Z] = nil
-				end
-
+			if cell.defenderThreat < 1 then
+				self.DAMAGED:Unmark(i)
 			end
+
 		end
 	end
 end
@@ -134,23 +141,23 @@ function DamageHST:VisualDBG()
 		damaged:EraseHighlight(nil, nil, ch)
 		damaged:DrawHighlight(colours.green, nil, ch)
 	end
-	local cellElmosHalf = self.ai.gridhst.gridSizeHalf
-	for X, cells in pairs(self.DAMAGED) do
-		for Z, cell in pairs(cells) do
-			local p = cell.POS
-			if not p then
-				self:EchoDebug("no p in draw debug")
+	local cellElmosHalf = self.ai.gridhst.gridSizeHalf ---@type number
+	local LIST = self.DAMAGED.LIST
+	for n = 1, #LIST do
+		local cell = self.DAMAGED.CELLS[LIST[n]]
+		local p = cell.POS
+		if not p then
+			self:EchoDebug("no p in draw debug")
 
-				return
-			end
-			local pos1, pos2 = api.Position(), api.Position() --z,api.Position(),api.Position(),api.Position()
-			pos1.x, pos1.z = p.x - cellElmosHalf, p.z - cellElmosHalf
-			pos2.x, pos2.z = p.x + cellElmosHalf, p.z + cellElmosHalf
-			pos1.y = Spring.GetGroundHeight(pos1.x, pos1.z)
-			pos2.y = Spring.GetGroundHeight(pos2.x, pos2.z)
-			map:DrawRectangle(p, pos2, colours.blue, cell.defenderThreat, false, ch)
-			map:DrawRectangle(pos1, p, colours.red, cell.attackerThreat, false, ch)
-			map:DrawPoint(p, colours.black, cell.X .. ":" .. cell.Z .. "=" .. cell.nodeCostIndex, ch)
+			return
 		end
+		local pos1, pos2 = api.Position(), api.Position() --z,api.Position(),api.Position(),api.Position()
+		pos1.x, pos1.z = p.x - cellElmosHalf, p.z - cellElmosHalf
+		pos2.x, pos2.z = p.x + cellElmosHalf, p.z + cellElmosHalf
+		pos1.y = Spring.GetGroundHeight(pos1.x, pos1.z)
+		pos2.y = Spring.GetGroundHeight(pos2.x, pos2.z)
+		map:DrawRectangle(p, pos2, colours.blue, cell.defenderThreat, false, ch)
+		map:DrawRectangle(pos1, p, colours.red, cell.attackerThreat, false, ch)
+		map:DrawPoint(p, colours.black, cell.X .. ":" .. cell.Z .. "=" .. cell.nodeCostIndex, ch)
 	end
 end

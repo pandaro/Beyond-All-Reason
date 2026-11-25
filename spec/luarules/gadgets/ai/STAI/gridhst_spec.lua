@@ -108,15 +108,6 @@ describe("STAI GridHST", function()
 		assert.is_nil(grid:RawPosToCell(100, 1025))
 	end)
 
-	it("sums the fields of the cells of a grid X, Z around a position", function()
-		local GRID = { [1] = { [1] = { threat = 2 }, [2] = { threat = 3 } }, [3] = { [1] = { threat = 5 } } }
-		local value, subValues, cells = grid:getGridCellsFields({ x = 100, y = 0, z = 100 }, { "threat" }, 1, GRID)
-		assert.equal(5, value)
-		assert.same({ threat = 5 }, subValues)
-		assert.same({ GRID[1][1], GRID[1][2] }, cells)
-		assert.equal(10, grid:getGridCellsFields({ x = 300, y = 0, z = 100 }, { "threat" }, 1, GRID))
-	end)
-
 	describe("layer", function()
 		local resets = {}
 		local function resetCell(CELL)

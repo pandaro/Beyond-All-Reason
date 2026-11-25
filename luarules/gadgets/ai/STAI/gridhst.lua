@@ -202,33 +202,6 @@ function GridHST:getCellsFields(p, fields, range, layer) --return the required l
 	return self:sumCellsFields(cells, fields)
 end
 
-function GridHST:areaGridCells(X, Z, R, grid) --areaCells of a grid [X][Z] --TODO remove when DAMAGED is a layer
-	if not X or not Z then
-		self:Warn("no grid XZ for areacells")
-	end
-	local AC = {}
-	R = R or 0
-	for x = X - R, X + R, 1 do
-		for z = Z - R, Z + R, 1 do
-			if grid[x] and grid[x][z] then
-				table.insert(AC, grid[x][z])
-			end
-		end
-	end
-	return AC
-end
-
-function GridHST:getGridCellsFields(p, fields, range, grid) --getCellsFields of a grid [X][Z] --TODO remove when DAMAGED is a layer
-	if not fields or not p or type(fields) ~= "table" then
-		self:Warn("incomplete or incorrect params for get cells params", p, fields, range, grid)
-		return
-	end
-	range = range or 0
-	local X, Z = self:PosToGrid(p)
-	local cells = self:areaGridCells(X, Z, range, grid)
-	return self:sumCellsFields(cells, fields)
-end
-
 function GridHST:sumCellsFields(cells, fields) --the sum of the fields over the cells, in total and field by field
 	local value = 0 --VALUE is a total count of all request fields
 	local subValues = {} --subValues is the sum of this fields of each asked cell

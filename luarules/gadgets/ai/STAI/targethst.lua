@@ -167,7 +167,7 @@ function TargetHST:GetPathModifierFunc(unitName, adjacent)
 	local divisor = self.ai.armyhst.unitTable[unitName].metalCost * self.pathModParam
 	local modifier_node_func = function(node, distanceToGoal, distanceStartToGoal)
 		local threatMod =
-			self.ai.gridhst:getGridCellsFields(node.position, { "defenderThreat" }, 1, self.ai.damagehst.DAMAGED) --/ divisor
+			self.ai.gridhst:getCellsFields(node.position, { "defenderThreat" }, 1, self.ai.damagehst.DAMAGED) --/ divisor
 		self:EchoDebug("threatMod", threatMod)
 		if distanceToGoal then
 			if distanceToGoal <= 500 then

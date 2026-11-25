@@ -76,7 +76,7 @@ function ScoutHST:TargetAvailable(X, Z, scoutID)
 		self:EchoDebug("networkSpots", X, Z, "is in a SCOUTED cell")
 	elseif self.ai.gridhst:GetCell(X, Z, self.ai.loshst.ENEMY) then
 		self:EchoDebug("networkSpots", X, Z, "is in a ENEMY cell")
-	elseif self.ai.damagehst.DAMAGED[X] and self.ai.damagehst.DAMAGED[X][Z] then
+	elseif self.ai.gridhst:GetCell(X, Z, self.ai.damagehst.DAMAGED) then
 		self:EchoDebug("networkSpots", X, Z, "is in a DAMAGE cell")
 	elseif self:ScoutTargetAlreadyHandled(X, Z, scoutID) then
 		self:EchoDebug("target already in use by scout", X, Z, "by scout", scoutID)
