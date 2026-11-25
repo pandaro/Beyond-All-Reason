@@ -19,35 +19,22 @@
 
 ## Compito attuale
 
-Due compiti: «esegui s26» → **solo S26**; poi, **solo se S26 dice che il crollo non è nostro**, «esegui s19». Risultati separati.
+### S24a: ordine «un comando a molte unità» nel framework (commit «Shard …»)
 
-### S26: la partita A di S25 è crollata (1 unità, 0 fabbriche)
+**Impegno: high. Modello: Sonnet 5.5.** Approvato dall'utente (25 novembre 2026). Cambio al **framework**: commit che iniziano con «Shard …». Il formato del codec lo deciderà poi l'utente con il coordinatore del framework: qui serve la versione **minima** che funziona, scritta in modo che si possa cambiare (tutto in `ordercodec.lua`, niente formati sparsi). Se trovi un ostacolo di progetto, **fermati** e descrivilo.
 
-**Impegno: medium. Modello: Sonnet 5.5.** Indagine; niente correzioni senza dirlo.
+Oggi (S16) `game:GiveOrder '1-2'` (`spring_lua/game.lua` r. 240 circa) mette in coda **un ordine per unità**; il relay synced (`loader/relay.lua`) li esegue unità per unità. Obiettivo: `'1-2'` diventa **un solo record** nel messaggio, eseguito dal relay con **`Spring.GiveOrderToUnitArray`**.
 
-1. **Tre partite A** su `HEAD` (righe solite). Se nessuna crolla (fabbriche 0 o unità < 100 a fine partita), scrivi i numeri e fermati: era varianza.
-2. Se ne crolla almeno una: **bisezione** sui commit di codice da S23 in poi (`12095574` `GiveOrderToUnit`, `bbfd7a4b` `RandomAway`, `b3228400` `JOB`; poi, se serve, quelli di S22/S23). Sospetto principale: `bbfd7a4b`. `Tool:RandomAway` prima andava sempre in errore e ora funziona; lo chiamano `labshst.lua:446` (posto della fabbrica: `UnitCanGoHere` su un punto casuale a 300 elmi) e `bomberbst.lua:58`. Controlla le unità: `maphst.mapSize` contro `MapDimensions` (quadrati o elmi? `maxElmosX = mapSize.x * 8`).
-3. In una partita che crolla, `Echo` non committati: cosa succede alla prima fabbrica (`LabsHST`: dove la mette, se `RandomAway` fa scartare tutti i posti), al comandante, alle prime unità.
-4. Risultati: causa, commit colpevole, correzione proposta (o fatta se ovvia e piccola, con test e tre partite A).
+1. **Codec** (`ordercodec.lua`): un tipo di record «gruppo»: `cmdID`, `options`, params, numero di unità, gli `unitID` (U16). Scegli tu come distinguerlo dal record di oggi (versione 2 del formato, o un campo); scrivilo nel commento di testa. `MAX_ORDERS_PER_MESSAGE`: decidi e scrivi come conta un record gruppo (consiglio: 1 record = 1, più un tetto di unità per record, per esempio 255).
+2. **Outbox** (`spring_lua/outbox.lua`): `Queue` per un gruppo; `game:GiveOrder '1-2'` lo usa.
+3. **Relay** (synced): legge il record, **scarta le unità non valide o non della squadra** (stesse regole di oggi per l'ordine singolo, contate nei rifiutati), chiama `GiveOrderToUnitArray` con le rimanenti; contatori: ordini = unità comandate, più un contatore dei gruppi.
+4. **Test busted**: codec (pacchetto e lettura, gruppo vuoto, 1 unità, tetto), outbox (`'1-2'` dà un record), relay (unità estranee scartate, chiamata unica all'engine; c'è già lo spec di `ordercodec` e di `spring_lua/`). Mutazioni. `run_engine_tests.sh` (aggiungi un caso in motore se il runner lo permette).
+5. **Partite**: una A e una C, confronto con S26 (A) e S25 (C): **messaggi**, ordini, rifiutati, memoria per frame. Il gioco non deve cambiare (stessi ordini, meno messaggi); righe `[AI Loader] error` 0.
+- Aggiorna `.ai-notes/drafts/README.md` (sezione ordini) in breve.
+- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
+- Commit, in inglese: «Shard …» per codec+outbox+relay con test (uno o due), uno per la guida, uno per i risultati.
 
-### S19: `gridSize` 128 (prova; §5b)
-
-**Impegno: high. Modello: Opus 5.5.** Scelto dal coordinatore su richiesta dell'utente (25 novembre 2026). Si esegue **dopo S26**, solo se il crollo non è nostro o è corretto («esegui s19»). È una **prova**: si tiene solo se il gioco non peggiora. **Stile**: `nuovo-stai.md` §7.
-
-**1. Inventario** (nei risultati, tabella): tutto ciò che dipende dalla misura della cella, con il significato in elmi oggi (256) e la proposta a 128:
-- raggi in celle: `getCellsFields(..., 2, ...)` in `commanderbst.lua` r. 25 e `nukebst.lua` r. 74; `areaCells(X, Z, 1, ...)` in `scoutbst.lua` r. 204; `adjacent` di `TargetHST:IsSafeCell` (chiamanti `buildingshst.lua` r. 845, `mexupbst.lua` r. 112: valore di default); il raggio 1 di `TargetHST:Blobbing` (vicini: va bene com'è, scrivilo); ogni altro `range`/`R`/`adjacent` che trovi;
-- elmi derivati: `SimplifyMetalSpots(gridSize * 2)` (`maphst.lua` r. 29), `gridThePath` default `gridSize` (r. 355), `gridSizeDouble` (`raidhst.lua` r. 256);
-- costanti in elmi scritte a mano (`attackhst.lua` r. 187 `< 256`, r. 259 `< 512`; `raidhst.lua` r. 201 `< 256`): restano in elmi, ma scrivi se sono pensate come «una cella»;
-- tempi o soglie per cella (`SCOUTED` 3600 frame, calo di `DAMAGED`, `ENEMY` per cella in `TargetHST`, `PerimetralCells` di `ScoutHST`, `UnitMexMoveTest`/`trampled` di `BuildingsHST`);
-- ricorsione: `MapHST:TopologyFooded` e `TargetHST:Blobbing` (profondità massima con 128 sulla mappa A e sulla più grande che hai; Lua 5.1 regge circa 20.000 chiamate annidate).
-
-**2. Codice**: `gridhst.lua` r. 27 → 128. I raggi in celle si raddoppiano (stessa area in elmi), salvo i vicini immediati. `SimplifyMetalSpots`: tenere 512 elmi (costante con commento, non `gridSize * 2`). Un commit per il cambio di misura, uno per i raggi ritarati, così si possono ritirare.
-
-**3. Misura**: tempo di `Init` di `MapHST`/`GridHST` (prima e dopo), memoria per frame, heap, `Shard memory record`, profondità massima della ricorsione, nella partita A e in una partita sulla mappa più grande disponibile (scrivila).
-
-**4. Partite**: **tre A** e **una C** con il codice finale (confronto con S23, S21, S1). Se peggio in più di una A, o tempo/memoria molto più alti, **ritira i due commit** (`git revert`) e scrivi i numeri: decide l'utente.
-
-**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test` (i test che fissano 256 vanno aggiornati: elencali), `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
+S24b (`AttackerBST` solo sensore) viene dopo, separato.
 
 ## Risultati
 

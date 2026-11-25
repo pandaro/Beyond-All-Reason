@@ -69,6 +69,8 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 
 Decisione del 25 novembre 2026 (utente): S8 diviso in **S8a** (strato `ENEMY`, via `OWN`, `ALLY`, `ALLIES` mai riempite e il resto che non serve) e **S8b** (percezione).
 
+Decisione del 25 novembre 2026 (utente, per S24): **la squadra dà gli ordini** (`AttackHST`, un ordine per squadra con il nuovo ordine «un comando a molte unità» del framework, S24a); **`AttackerBST` è il sensore** dell'unità (eventi alla squadra, priorità 0, nessun ordine; eccezioni individuali in futuro). Il formato del codec lo decide poi l'utente con il coordinatore del framework.
+
 Decisione del 25 novembre 2026 (utente, per S12b): in ambito ally **`DamageHST` registra i danni a tutte le unità dell'alleanza**, anche dei giocatori umani alleati (`defender:AllyTeam() == self.ai.allyId`).
 
 Decisioni del 25 novembre 2026 (utente, dopo S12a): **`CENTER` è la media degli edifici propri; senza edifici la posizione attuale del comandante** (sostituisce «com'era» e «posizione del comandante finché non ci sono edifici», date su una descrizione sbagliata del coordinatore: nella base `CENTER` era la tabella viva della posizione del comandante); ciclo numerico in `TargetHST:GetBlobs` (con `pairs` la somma di `metal` dipendeva dalla tabella presa dalla riserva). In S12a2; il gioco cambia, tre partite A.
