@@ -19,20 +19,27 @@
 
 ## Compito attuale
 
-### S21: `#` con buchi in `RaidHST` (ordini saltati)
+### S13: elezione dei behaviour (punto 7)
 
-**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente il 25 novembre 2026. **Il gioco cambia** (i raid ricevono ordini che oggi saltano): tre partite A. **Stile**: `nuovo-stai.md` §7.
+**Impegno: high. Modello: Opus 5.5.** Decisione dell'utente (25 novembre 2026): **se la regola nuova è migliore si usa quella**, provata con partite. **Stile**: `nuovo-stai.md` §7. Framework solo da leggere (se serve cambiarlo, fermati).
 
-- `raidhst.lua` r. 271–280: `squad.cmdUnitId[i]` si scrive solo per i membri da comandare, quindi ha buchi, e `#squad.cmdUnitId` (r. 279) e `game:GiveOrder '1-2'` (che usa `#id`) possono dare 0 o saltare unità. Correzione: contatore locale `n`, `n = n + 1`, `squad.cmdUnitId[n] = ...`; `if n > 0 then`.
-- Uguale, per sicurezza (oggi senza buchi solo se `squad.members` è un array senza buchi: controlla e scrivilo), negli altri cicli che riempiono `cmdUnitId` con l'indice del membro: `raidhst.lua` r. 263–264 e 290–291, `attackhst.lua` r. 236–237 e 252–253. `cmdUnitId` viene da `ResetTable` (vuota) prima del ciclo: controlla che sia così in ogni caso.
-- Test busted (spec di `RaidHST`, nuovo se non c'è): tre membri, il primo già in GUARD sul bersaglio → l'ordine parte per gli altri due.
-- **Tre partite A** (righe solite, confronto con S12b e S1); scrivi anche quante volte nella prima partita la vecchia `#` avrebbe dato un numero diverso da `n` (patch non committata).
-- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer` prima di `git add -A`.
-- Commit, in inglese: uno per il codice con il test, uno per i risultati.
+Le due regole (`shard_runtime/unit.lua`): **legacy** (r. 40–61, `STAI.legacyElection = true` in `STAI/ai.lua` r. 4): il primo behaviour della lista vince anche con priorità 0 o `nil`; poi vince solo chi ha priorità > 0 e maggiore. **Nuova** (r. 297–318): vince solo chi ha priorità > 0; se tutti 0, **nessun** behaviour attivo; a parità vince il primo.
+
+**1. Lettura** (nei risultati, tabella breve): per ogni behaviour di STAI, `Priority()` (valori possibili, `nil` compreso: `CleanerBST:Priority` è vuota) e cosa fanno `Activate`/`Deactivate`. Da dove viene la lista dei behaviour per tipo di unità e in che ordine (`BootBST` spesso primo con priorità 0). Elenca i casi in cui la legacy elegge un behaviour con priorità 0 o `nil`, e cosa succede con la nuova (unità senza behaviour attivo: chi le dà ordini?). Controlla anche: con la legacy, un `nil` non primo fa `nil > 0` → errore? Succede?
+
+**2. Misura nella stessa partita** (patch non committata, partita C 15 minuti, legacy attiva): a ogni elezione calcola anche il risultato della regola nuova; conta le elezioni diverse per coppia (behaviour legacy → behaviour nuovo o «nessuno») e per tipo di unità.
+
+**3. Correzioni in STAI perché la nuova regola funzioni** (solo se il passo 1–2 le mostra necessarie): per esempio priorità esplicite dove oggi si conta sulla legacy (`CleanerBST:Priority` che restituisce un numero). Un commit per correzione, con test. Scrivi ognuna nei risultati. Se serve qualcosa di grosso o una scelta di progetto, **fermati** e descrivi le opzioni.
+
+**4. Passaggio**: `STAI.legacyElection = false`. **Tre partite A** e **una partita C** con il codice finale; confronto con S21, S12b, S1. Se le partite vanno peggio (sotto i riferimenti in più di una partita), **non** tenere il passaggio: lascia `true` nel commit finale e scrivi i numeri (decide l'utente). Nessuna riga `[AI Loader] error` nuova.
+
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer` prima di `git add -A`.
+
+**Commit**, in inglese: uno per correzione (passo 3); uno per il passaggio (passo 4); uno per i risultati.
 
 ## Risultati
 
-### S21 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+### S21 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `labshst.lua:367` (rete `nil`) e `bomberhst.lua:158–160` annotati in `nuovo-stai.md` punto 19
 
 **In breve**: `cmdUnitId` ora si riempie con un contatore (`n`) in `raidhst.lua` (prevent, GUARD, MOVE) e in `attackhst.lua` (FIGHT/MOVE); il GUARD di `raidhst` usa `if n > 0`. Il test nuovo fallisce sul codice di base (nessun ordine emesso: `#` dà 0) e passa dopo la correzione. Il gioco cambia solo dove c'era un buco: nelle tre partite A non è comparso nessun caso in cui la vecchia `#` desse un numero diverso da `n` (vedi sotto).
 

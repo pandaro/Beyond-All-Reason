@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S21 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S21. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S13 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S13. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -87,6 +87,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S14 | 84 `EchoDebug` costosi dietro `if self.DebugEnabled` — verificato |
 | S15 | `map.lua`: disegni sotto la prima AI in ambito ally/global (commit «Shard …») — verificato |
 | S16 | indagine ordini grandi: nessun ordine perso, punto 10 chiuso; trovato `#` con buchi in `RaidHST` — verificato |
+| S21 | `cmdUnitId` senza buchi in `RaidHST`/`AttackHST` — verificato (0 casi in partita; tre partite A 161–217 unità) |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
 **Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §5, «Piano del 25 novembre 2026, dopo S8b»):
@@ -105,7 +106,8 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S15 | disegni di debug in ambito ally (`map` con team `nil`) | basso | Haiku 5.5 |
 | ~~S16~~ | ordini grandi: chiuso | medio | Sonnet 5.5 |
 | S21 | `#` con buchi in `RaidHST` (ordini GUARD saltati) | low | Haiku 5.5 |
-| S13 | elezione (`legacyElection` o regola nuova, punto 7) | alto | Opus 5.5 |
+| S13 | elezione (`legacyElection` o regola nuova, punto 7): scritto | high | Opus 5.5 |
+| S22 | `labshst.lua:367` rete `nil`; `bomberhst` `cmdUnitId` con buchi | low | Haiku 5.5 |
 | S17 | `shard_null` (punto 12) | alto | Sonnet 5.5 |
 | S18 | `ShardMemStats` autocontenuto (framework, commit «Shard …») | medio | Sonnet 5.5 |
 | S19 | `gridSize` 128 (§5b, ritarare i raggi) | alto | Opus 5.5 |
