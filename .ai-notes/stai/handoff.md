@@ -56,7 +56,7 @@
 
 ## Risultati
 
-### S9 (agente locale, 25 novembre 2026)
+### S9 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `POS` di `DAMAGED` da `GridToPos` accettato (previsto dal compito); uscita sulle celle fuori griglia accettata (0 casi)
 
 **In breve**: `GridLayer:Unmark(i)` c'è, con test e mutazioni; `DAMAGED` è uno strato di `DamageHST`, `SCOUTED` uno strato di `ScoutHST` scritto solo dal padrone (`ScoutHST:Scouted(X, Z)`); via `areaGridCells` e `getGridCellsFields`. **Prova nella stessa partita: 0 differenze** in tutta la partita C, per tutti e due gli strati, cella per cella, con lo stesso numero di celle e le stesse somme di `defenderThreat` a ogni `Update`. **`POS` di `DAMAGED` resta da `GridToPos`**: con il `POS` della cella di `GridHST` la prova ha trovato una cella con `y` diverso (terreno deformato dopo `Init`). La partita A non sta sotto i riferimenti.
 
