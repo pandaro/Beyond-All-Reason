@@ -35,7 +35,6 @@ function MapHST:Init()
 	self:geoScan()
 	self:LayerScan()
 	self:DrawDebug()
-	collectgarbage("collect")
 	self:EchoDebug("MapHST STOP")
 end
 
