@@ -31,6 +31,8 @@
 
 **2. STAI**: `maphst.lua` r. 38, via `collectgarbage("collect")` alla fine di `MapHST:Init`. Nient'altro. Aggiungila a `codice-tolto.md` (S7).
 
+**2b. `MapHST:DrawDebug`** (scelta del coordinatore, l'utente ha lasciato decidere): sposta `if not self.ai.drawDebug then return end` prima del ciclo `for i = 0, 9 do self.map:EraseAll(i) end`, così sul globale (squadra `nil`) non si cancella niente quando il debug è spento. Nient'altro. Commit a parte.
+
 **3. Prova che il gioco non cambia**: le righe `[S3-PROOF]` di S6 (codice di partenza e codice nuovo, `c_stai_vs_stai.txt`, 2 minuti): identiche. Se cambiano, **fermati**.
 
 **4. Misure** (`SHARD_MEM_STATS=1`): prima e dopo, quanto dura la `collect` (una misura con `Spring.GetTimer`/`Spring.DiffTimers` temporanea, non committata, attorno alla `collect` di `MapHST` prima e a quella di `StartAIs` dopo) e l'heap subito dopo; frame in cui gira; memoria per frame e heap dei primi minuti, prima e dopo.
@@ -41,7 +43,7 @@
 
 **Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno «Shard …» per `lifecycle.lua`; uno per `maphst.lua`; uno per l'indice e i risultati.
+**Commit**, in inglese: uno «Shard …» per `lifecycle.lua`; uno per la `collect` di `maphst.lua`; uno per `DrawDebug`; uno per l'indice e i risultati.
 
 ## Risultati
 
