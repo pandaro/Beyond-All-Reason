@@ -33,12 +33,12 @@ function DamageHST:UnitDamaged(defender, attacker, damage)
 		local defenderUt = self.ai.armyhst.unitTable[defenderName]
 		if defenderUt then
 			local attackerut = self.ai.armyhst.unitTable[attacker:Name()]
-			local attackerThreat = attackerut.metalCost or damage or 100
+			local attackerThreat = attackerut and attackerut.metalCost or damage or 100 --an attacker out of unitTable counts as its damage
 			local defenderThreat = defenderUt.metalCost or damage or 100
 
 			if attackerut then
 				if attackerut.isBuilding then
-					self.ai.loshst.losEnemy[attacker:ID()] = defenderUt.defId
+					self.ai.loshst.losEnemy[attacker:ID()] = attackerut.defId
 					self.ai.loshst.radarEnemy[attacker:ID()] = nil
 					--  					self.ai.loshst:scanEnemy(attacker,isShoting)---isshoting maybe need to be true?
 					--  					return
