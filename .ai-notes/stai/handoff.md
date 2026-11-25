@@ -19,40 +19,38 @@
 
 ## Compito attuale
 
-### S9: strati che durano: `DAMAGED` di `DamageHST` e `SCOUTED` di `ScoutHST`
+### S10: difetti della mappa e della griglia (punto 15)
 
-**Impegno: alto.** Decisioni dell'utente del 25 novembre 2026: una geometria, tanti strati (`nuovo-stai.md` §3 punto 5); `GridLayer:Unmark` per gli strati che durano; scrive solo il padrone dello strato. **Il gioco non deve cambiare** (salvo l'ordine fisso al posto di `pairs`). **Stile**: `nuovo-stai.md` §7.
+**Impegno: medio.** Approvato dall'utente il 25 novembre 2026. **Un commit e un test busted (con mutazioni) per difetto**; tre partite A per il gruppo, con il codice finale. **Stile**: `nuovo-stai.md` §7 (commenti brevi a fine riga, in inglese; niente rinomine).
 
-`ENEMY` si azzera a ogni giro (`Clear`). `DAMAGED` e `SCOUTED` invece **durano**: ogni cella esce da sola (`DAMAGED` quando `defenderThreat < 1`, dopo il calo del 10 % ogni 300 frame; `SCOUTED` 3600 frame dopo l'ultimo passaggio di un esploratore).
+**1. `LosHST`: l'immobile disarmato copia il mobile** (`loshst.lua`)
 
-**1. `GridLayer:Unmark(i)`** (`gridhst.lua`)
+- `setCellRadar` r. 313–315 e `setCellLos` r. 401, 403, 405 (circa): `CELL.unarmAI = CELL.unarmAM + M` (e `SI`, `GI`) → `CELL.unarmAI = CELL.unarmAI + M` (e `SI`, `GI`), come fanno già `armedAI`/`armedSI`/`armedGI`.
+- Oggi `unarmA`, `unarmS`, `unarmG`, e quindi `A`, `S`, `G` e i `*_balance`, contano il mobile due volte e perdono gli edifici disarmati accumulati: **il gioco cambia** (è l'unica correzione di S10 che lo cambia su Comet Catcher). Prima di correggere, scrivi nei risultati chi legge questi campi (grep sui nomi e sulle stringhe dei campi passati a `getCellsFields`/`sumCellsFields`).
+- Test in `loshst_spec.lua`: due edifici disarmati nella stessa cella (con e senza un mobile disarmato prima) → `unarmAI`/`SI`/`GI` è la somma dei due, `unarmAM` invariato.
 
-- Toglie la cella `i` dalla lista **tenendo l'ordine delle altre** (ricerca in `LIST` e `table.remove`; la lista è corta), toglie il segno, chiama `resetCell` sulla cella se c'è (come `Clear`); la tabella resta in `CELLS` per il riuso. Su una cella non segnata non fa niente.
-- Attenzione a chi scorre `LIST` e intanto chiama `Unmark` (il ciclo di scadenza): ciclo numerico **all'indietro**, o raccolta e poi `Unmark`; scegli il più leggibile e scrivilo.
-- Test busted con mutazioni (ordine tenuto, segno tolto, `resetCell` chiamato, cella non segnata, `Mark` dopo `Unmark`, ciclo all'indietro con `Unmark` dentro).
+**2. `MapHST:metalScan` e `geoScan`: `return` su uno spot senza cella** (`maphst.lua` r. 294–325)
 
-**2. `DAMAGED` strato di `DamageHST`**
+- Su `not index` il `return` ferma tutta la scansione: gli spot dopo restano fuori dalle celle e dalle reti. Va saltato **solo** quello spot (`EchoDebug` come oggi, poi il ciclo continua: in Lua 5.1 niente `goto`, quindi `if index then ... end`, o il corpo in una funzione piccola; scegli il più leggibile).
+- Test in `maphst_spec.lua`: uno spot fuori mappa **in mezzo** alla lista; quelli dopo finiscono nelle celle e nelle reti.
 
-- `self.DAMAGED = self.ai.gridhst:NewLayer(resetCell)`; la cella tiene i campi di oggi (`frame`, `attackerThreat`, `defenderThreat`, `duration`, `nodeCostIndex`), con `X`, `Z`, `POS` scritti una volta quando nasce (`POS` da `gridhst.CELLS[i].POS`, come in `LosHST:getEnemyCell`, al posto di `GridToPos`: **controlla che siano gli stessi numeri**, se no lascia `GridToPos` e scrivilo).
-- `AddBadPosition`: indice, `Get`, se non segnata inizializza come oggi `newRecord`, se segnata somma come oggi; `Mark`. `groundAirSubmerged` è un globale mai definito (vale `nil`): toglilo e mettilo nell'indice.
-- `UpdateBadPositions`: ciclo sulla lista; `Unmark` dove oggi `DAMAGED[X][Z] = nil`.
-- Lettori: `targethst.lua` r. 170 → `getCellsFields` sullo strato (poi **via `areaGridCells` e `getGridCellsFields`** di `GridHST`, fatte in S8a per questo); `scouthst.lua` r. 79 → `GetCell`; `VisualDBG` → ciclo sulla lista.
+**3. `MapHST:SimplifyMetalSpots`: `z` fino a `elmoMapSizeX`** (`maphst.lua` r. 273–292)
 
-**3. `SCOUTED` strato di `ScoutHST`**
+- Il ciclo su `z` va fino a `self.elmoMapSizeZ - number`. Su mappe non quadrate oggi taglia (o eccede) un lato.
+- Nota: il `table.remove` dentro `pairs` **non** è un difetto (c'è `break` subito dopo): lascialo, aggiungi solo un commento a fine riga se ti sembra utile.
+- La funzione lavora solo con più di 1024 spot: su Comet Catcher non entra in gioco. Test con una mappa finta non quadrata e più di 1024 spot (spot anche oltre `elmoMapSizeX` sul lato `z`).
 
-- `self.SCOUTED = self.ai.gridhst:NewLayer()`; la cella tiene `frame`.
-- Oggi `ScoutBST:Update` (r. 38–39) scrive dentro `ScoutHST.SCOUTED`: diventa un metodo del padrone, per esempio `ScoutHST:Scouted(X, Z)` (o `RawPos`, scegli tu), che fa `Get`, `frame`, `Mark`. `ScoutBST` chiama solo quello.
-- `ScoutHST:Update`: ciclo sulla lista, `Unmark` delle celle scadute. `TargetAvailable` r. 75 → `GetCell`.
+**4. `GridHST:RawPosIsInMap`: `pos` inesistente nel debug** (`gridhst.lua` r. 98–105)
 
-**4. Prova nella stessa partita** (come S8a; `Echo` e copie non committati): accanto agli strati, ricalcola `DAMAGED` e `SCOUTED` nella forma `[X][Z]` della base con le funzioni della base, sugli stessi eventi, e confronta cella per cella a ogni `Update` (presenza, tutti i campi numerici). Atteso 0 differenze in una partita C di 15 minuti. Più, con l'ordine: lo stesso numero di celle e le stesse somme di `defenderThreat`. Se ci sono differenze, **fermati**.
+- `EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)` → con `x`, `z`. Oggi con `DebugEnabled = true` va in errore. Test in `gridhst_spec.lua` con il debug acceso e una posizione fuori mappa.
 
-**5. Indice**: il tolto in `codice-tolto.md` (S9).
+**5. Via `ArmyHST.UWMetalSpotCheckUnit`** (`armyhst.lua` r. 838, con il commento sopra): nessuno lo usa (controlla con grep in tutto `luarules/` e `spec/`). Nell'indice `codice-tolto.md`.
 
-**Partite**: la prova sopra (partita C, 15 minuti) e **una** partita A con il codice finale per le righe solite (il gioco non cambia: non servono tre).
+**Partite**: tre partite A con il codice finale (righe solite, confronto con S8b, S9 e S1). Se una partita va sotto i riferimenti (unità o mex sotto S1), scrivilo e non tentare correzioni: decide l'utente.
 
-**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
+**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati con la base), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno per `Unmark` (con il test); uno per `DAMAGED` e le sorelle tolte; uno per `SCOUTED`; uno per l'indice e i risultati.
+**Commit**, in inglese: uno per ciascun punto 1–5 (con il suo test); uno per l'indice e i risultati.
 
 ## Risultati
 

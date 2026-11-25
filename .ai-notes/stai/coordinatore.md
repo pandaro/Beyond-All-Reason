@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S9 verificati, **S10 da proporre**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Prossimo passo: proporre S10 (piano sotto). Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S9 verificati, **S10 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S10 (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -82,7 +82,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 **Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §5, «Piano del 25 novembre 2026, dopo S8b»):
 
 1. ~~S9 — strati che durano~~: verificato.
-2. S10 — difetti della mappa e della griglia: tre partite A per il gruppo.
+2. S10 — difetti della mappa e della griglia: scritto (impegno medio). Verificarlo.
 3. S11 — difetti di tattica e codice morto di `AttackHST`: tre partite A per il gruppo.
 4. S12a/S12b — ambiti d'alleanza (prima la preparazione a gioco invariato, poi il passaggio, partita B).
 5. S13 — elezione.
