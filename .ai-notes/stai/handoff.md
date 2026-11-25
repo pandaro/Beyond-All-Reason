@@ -56,7 +56,7 @@ Obiettivo: uno spec busted che **carica STAI fuori dall'engine** con `shard_null
 
 ## Risultati
 
-### S24b (agente locale, 25 novembre 2026)
+### S24b (agente locale, 25 novembre 2026) — verificato dal coordinatore. L'ordine azzeramento/lettura di `idleCount` (r. 233/190 di `AttackHST`, r. 248/204 di `RaidHST`) va in S24c, se l'utente lo vuole
 
 **In breve**: fatto, commit `a51a5d646e`. Test: 2813 successi, 0 fallimenti; `run_engine_tests.sh` `RESULT: ok`; StyLua pulito; EmmyLua su `attackerbst.lua` da 20 a 13 avvisi (`.emmyrc.json` ripristinato). **Ma la correzione non arriva a r. 190**: `MemberIdle` ora è chiamato (0 → 208 in una partita A), r. 190 scatta ancora 0 volte, perché la condizione è irraggiungibile per un altro motivo (sotto). Partite: A2, A3 e C nei riferimenti, A1 sotto (una sola).
 
