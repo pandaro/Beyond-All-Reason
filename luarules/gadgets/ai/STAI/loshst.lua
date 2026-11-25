@@ -310,9 +310,9 @@ function LosHST:setCellRadar(unit, X, Z)
 	else
 		CELL.BUILDINGS = CELL.BUILDINGS + M
 		CELL.IMMOBILE = CELL.IMMOBILE + M
-		CELL.unarmAI = CELL.unarmAM + M
-		CELL.unarmSI = CELL.unarmSM + M
-		CELL.unarmGI = CELL.unarmGM + M
+		CELL.unarmAI = CELL.unarmAI + M
+		CELL.unarmSI = CELL.unarmSI + M
+		CELL.unarmGI = CELL.unarmGI + M
 	end
 	CELL.unarmG = CELL.unarmGM + CELL.unarmGI
 	CELL.unarmA = CELL.unarmAM + CELL.unarmAI
@@ -398,11 +398,11 @@ function LosHST:setCellLos(unit, X, Z)
 			CELL.BUILDINGS = CELL.BUILDINGS + M
 			CELL.IMMOBILE = CELL.IMMOBILE + M
 			if layer > 0 then
-				CELL.unarmAI = CELL.unarmAM + M
+				CELL.unarmAI = CELL.unarmAI + M
 			elseif layer < 0 then
-				CELL.unarmSI = CELL.unarmSM + M
+				CELL.unarmSI = CELL.unarmSI + M
 			elseif layer == 0 then
-				CELL.unarmGI = CELL.unarmGM + M
+				CELL.unarmGI = CELL.unarmGI + M
 			end
 		end
 	end

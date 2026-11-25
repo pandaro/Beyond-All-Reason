@@ -17,6 +17,14 @@ local function newLosHST(onRadar, units)
 			GetUnitByID = function(_, unitID)
 				return units[unitID]
 			end,
+			Frame = function()
+				return 0
+			end,
+		},
+		Spring = {
+			GetUnitVelocity = function(unitID)
+				return 0, 0, 0, units[unitID] and units[unitID].SPEED or 0
+			end,
 		},
 	}, { __index = _G })
 	for _, path in ipairs({
@@ -32,7 +40,16 @@ local function newLosHST(onRadar, units)
 	local losHST = env.LosHST()
 	losHST.ai = {
 		allyId = ALLY,
+		armyhst = {
+			unitTable = {
+				building = { name = "building", metalCost = 100, speed = 0 },
+				mobile = { name = "mobile", metalCost = 50, speed = 60 },
+			},
+		},
 		gridhst = {
+			IsCellInGrid = function()
+				return true
+			end,
 			NewLayer = function()
 				return { Clear = function() end }
 			end,
@@ -63,6 +80,41 @@ local function newUnit(unitID, x, z)
 			return true
 		end,
 	}
+end
+
+-- An unarmed enemy unit of the type name, moving at SPEED
+local function newTypedUnit(unitID, name, SPEED)
+	return {
+		id = unitID,
+		name = name,
+		SPEED = SPEED,
+		ID = function()
+			return unitID
+		end,
+		Name = function()
+			return name
+		end,
+		GetRawPos = function()
+			return 0, 0, 0
+		end,
+	}
+end
+
+-- Every unit of units goes in one ENEMY cell, on the move layer layer, through setCell (setCellLos or setCellRadar)
+local function fillCell(units, layer, setCell)
+	local losHST = newLosHST({}, units)
+	local CELL = {}
+	losHST.resetCell(CELL)
+	losHST.getEnemyCell = function()
+		return CELL
+	end
+	losHST.setPosLayer2 = function()
+		return layer
+	end
+	for unitID = 1, #units do
+		losHST[setCell](losHST, units[unitID], 1, 1)
+	end
+	return CELL
 end
 
 local function where(losHST, unitID)
@@ -146,5 +198,35 @@ describe("STAI LosHST", function()
 		losHST:Update()
 
 		assert.same({ { "los", 10, 3, 2 } }, marked)
+	end)
+
+	for layer, letter in pairs({ [0] = "G", [1] = "A", [-1] = "S" }) do
+		it("adds up the unarmed buildings of a cell in los, layer " .. letter, function()
+			local buildings = { newTypedUnit(1, "building", 0), newTypedUnit(2, "building", 0) }
+			local CELL = fillCell(buildings, layer, "setCellLos")
+			assert.equal(200, CELL["unarm" .. letter .. "I"])
+			assert.equal(0, CELL["unarm" .. letter .. "M"])
+
+			local mobileFirst = { newTypedUnit(3, "mobile", 1), buildings[1], buildings[2] }
+			CELL = fillCell(mobileFirst, layer, "setCellLos")
+			assert.equal(200, CELL["unarm" .. letter .. "I"])
+			assert.equal(50, CELL["unarm" .. letter .. "M"])
+		end)
+	end
+
+	it("adds up the immobile units of a cell on radar, on every layer", function()
+		local immobile = { newTypedUnit(1, "building", 0), newTypedUnit(2, "building", 0) }
+		local CELL = fillCell(immobile, 0, "setCellRadar")
+		for _, letter in ipairs({ "G", "A", "S" }) do
+			assert.equal(60, CELL["unarm" .. letter .. "I"]) --30 metal each, the guess for a unit on radar at frame 0
+			assert.equal(0, CELL["unarm" .. letter .. "M"])
+		end
+
+		local mobileFirst = { newTypedUnit(3, "mobile", 1), immobile[1], immobile[2] }
+		CELL = fillCell(mobileFirst, 0, "setCellRadar")
+		for _, letter in ipairs({ "G", "A", "S" }) do
+			assert.equal(60, CELL["unarm" .. letter .. "I"])
+			assert.equal(30, CELL["unarm" .. letter .. "M"])
+		end
 	end)
 end)
