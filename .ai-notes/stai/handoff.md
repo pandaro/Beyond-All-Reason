@@ -48,6 +48,89 @@
 
 ## Risultati
 
+### S12b (agente locale, 25 novembre 2026)
+
+**In breve**: `DamageHST` registra i danni di tutta l'alleanza (test con mutazioni); i tre moduli sono in ambito `"ally"` cambiando solo `Scope()`: nei tre file non c'era niente di squadra da togliere, e i lettori di squadra li raggiungono come prima. Partita B: **una** istanza per alleanza di ciascuno, nessun errore del loader, nessuna delle due STAI gioca molto peggio. Tre partite A: nessun numero sotto i riferimenti. Il framework non serve toccarlo.
+
+**Commit**
+
+- `558479f83d` «STAI DamageHST: record the damages to every unit of the ally team» (`damagehst.lua`, `damagehst_spec.lua`).
+- `cbb8cb7a95` «STAI LosHST, TargetHST, DamageHST: one instance per ally team» (`loshst.lua`, `targethst.lua`, `damagehst.lua`: solo `Scope()`).
+- Un commit per questi risultati.
+
+**0. Partita B di riferimento** (`b_2stai_vs_2simpleai.txt`, 15 minuti, `SHARD_MEM_STATS=1`, codice `65c0228d`, uscita 0, 22 s): numeri nella tabella del punto 4. Una partita sola: riferimento di massima. Lo script **non** dà il tempo per frame delle AI (il timer per AI dell'engine c'è solo con `/debug`), quindi non c'è.
+
+**1. `Scope()`**: `"ally"` in `loshst.lua` r. 12, `targethst.lua` r. 14, `damagehst.lua` r. 12. Nient'altro da cambiare (punto 3).
+
+**2. `DamageHST:UnitDamaged`**: r. 21 `if defender:AllyTeam() ~= self.ai.allyId then --the damages of the whole ally team, human allies too: a design choice`; tolta la `local teamID`. Nel commento ho scritto «a design choice» e non «user decision», perché le regole sui commenti (`agents.md`) chiedono di non citare il compito o la conversazione: dimmi se lo vuoi alla lettera.
+
+- `damagehst_spec.lua`: il finto `ai` è uno `ShardAlly` (solo `allyId`, niente `id`). Test nuovo «records the hits to a unit of a human ally, not to a unit of another ally team»: un'unità di una squadra umana alleata (team 3, alleanza 0) colpita da una torre nemica → `losEnemy` e una posizione registrate; un'unità dell'alleanza 1 colpita da una torre di una terza alleanza → niente. Ho messo i due casi in un test solo perché il secondo, da solo, passa anche sulla base (la base esce per ogni difensore non della squadra).
+- Mutazioni (3 test): base `65c0228d` → 3 falliti; niente filtro (`if false then`) → 1; filtro sulla squadra (`defender:Team() ~= 0`) → 1.
+
+**3. Controlli sui tre moduli**
+
+- Grep `self.ai.id`, `GetTeamID`, `self.ai.tool`/`ai.tool`, `self.ai.<campo> =`: **nessuno**. I `self.ai.*` rimasti: `allyId`, `drawDebug` (su `ShardAlly`, da `ShardAI:Init` → `DrawDisplay(false)`), `armyhst`, `gridhst` (globali), `loshst`, `perceptionhandler` (ally). Nessun modulo di squadra.
+- Scritture dall'esterno nei tre moduli (grep `loshst|targethst|damagehst` seguito da campo o indice e `=`): solo `damagehst.lua` r. 37–38 su `self.ai.loshst.losEnemy`/`radarEnemy`, che ora è il `LosHST` della stessa alleanza.
+- Eventi ricevuti come ally (dal loader):
+  - `LosHST:UnitEnteredLos`/`LeftLos`/`EnteredRadar`/`LeftRadar`: `DeliverSight` li dà solo agli `ShardAlly` dell'alleanza che vede, una volta. Il filtro `allyTeam ~= self.ai.allyId` ora non scarta niente; l'ho lasciato. `UnitLeftLos` legge `self.ai.perceptionhandler:OnRadar`: `PerceptionHandler` viene prima in `modules.lua` e prima era già ally, quindi l'ordine resta.
+  - `LosHST:UnitDead`: arriva per **tutte** le unità della partita (`DeliverToAll`, anche da `UnitTaken`), come prima arrivava a ogni squadra. `cleanEnemy` su un'unità che non conosce mette a `nil` tre chiavi già `nil`: niente effetti.
+  - `DamageHST:UnitDamaged`: tutte le unità della partita (`DeliverToAll`), filtrate per alleanza del difensore (punto 2).
+  - `Update` dei tre: dallo scheduler (`MScheduler` di STAI), che dà a un modulo ally **un turno per giro** per l'oggetto che lo tiene (`scheduler.lua`, `Holder`/`RebuildModules`). Con una STAI per alleanza (partita A) il giro ha gli stessi turni di prima; con due (B) i tre moduli girano una volta per giro invece di due.
+  - Nessuno dei tre ha `UnitCreated`, `UnitBuilt`, `UnitIdle`, `GameEnd`. `LosHST:Draw` non è un evento e nessuno la chiama.
+  - Ordine: ogni evento arriva prima agli ally e poi alle squadre, quindi `LosHST:UnitDead` e `DamageHST:UnitDamaged` girano prima di quelli dei moduli di squadra. Nessun modulo di squadra legge `losEnemy`/`DAMAGED` nei suoi `UnitDead`/`UnitDamaged` (l'unico altro `UnitDamaged` è `UnitHST`, che non li legge).
+- Lettori di squadra: `self.ai.loshst`/`targethst`/`damagehst` da un modulo o behaviour di squadra è il campo che `ShardAI:LoadModule` fa puntare all'istanza dell'alleanza (scope più largo → `self.ally[internalName]`). Lettori: `attackhst`, `raidhst` (anche con `local loshst`/`targethst`), `bomberhst`, `scouthst` (`damagehst.DAMAGED`), `buildingshst`, e i behaviour `buildersbst`, `labsbst`, `commanderbst`, `scoutbst`, `mexupbst`, `nukebst`. Leggono soltanto; nessuno scrive.
+- `game` e `map` globali: `ShardAI:Prepare` mette quelli dell'`api` dello `ShardAlly`, con `game.ai`/`map.ai` = lo `ShardAlly`. Usati: `game:GetUnitByID` (`Shard:shardify_unit`, non dipende dalla squadra), `game:Frame`, `game:GetUnitLos` (usa `self.ai.allyId`: giusto), `map:GetGroundHeight`. **Dipende dalla squadra** solo il disegno: `map:DrawRectangle`, `DrawPoint`, `DrawCircle`, `EraseAll` passano `self.ai.game:GetTeamID()`, cioè `self.ai.id`, che sullo `ShardAlly` è `nil`. Gira solo con `drawDebug` vero, e nessuno chiama `DrawDisplay(true)`: oggi non succede niente, ma se si accendono i disegni di debug dei tre moduli bisognerà dare a `map` un'altra chiave (per esempio l'alleanza). `Spring.GetGroundHeight`/`GetUnitVelocity` diretti (in `loshst.lua` e nel disegno di `damagehst.lua`) non dipendono dalla squadra.
+
+**4. Prove**
+
+Partita B (`b_2stai_vs_2simpleai.txt`, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, 22 s): righe del loader `ally 0, ShardAlly, Info: , adding PerceptionHandler module`, poi `… adding LosHST module`, `… TargetHST …`, `… DamageHST …`, **una** volta ciascuna (prima: `0, STAI` e `2, STAI` per ciascuno). Nessuna riga `[AI Loader] error`, nessun avviso di STAI; errori del log quelli di sempre, uguali riga per riga al riferimento.
+
+| | riferimento (`65c0228d`): team 0 / team 2 | finale (`cbb8cb7a95`): team 0 / team 2 |
+| --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6/31/77/130 · 6/25/62/92 | 6/34/87/88 · 6/37/68/131 |
+| fine partita (min. 14): unità, fabbriche, mex | 134, 1, 14 · 109, 1, 23 | 106, 2, 14 · 138, 2, 20 |
+| `SUMMARY` (fine) | 150, 2, 16 · 120, 1, 22 | 124, 2, 16 · 122, 2, 17 |
+| somma delle due STAI al min. 14 | 243 | 244 |
+| SimpleAI al min. 14 (team 1 / 3) | 60 / 60 | 57 / 38 |
+| relay: messaggi / ordini / rifiutati | 4484 / 22230 / 30 | 5526 / 24591 / 45 |
+| memoria per frame: media per minuto, picco | 0,30–0,90 KB, 88,8 KB | 0,29–0,87 KB, 59,7 KB |
+| heap | 13,4–18,2 MB | 13,2–17,7 MB |
+| `Shard memory record` | 19267 | 18082 |
+| morti nella partita | 207 | 247 |
+| righe `[AI Loader] error` | 0 | 0 |
+
+- Nessuna delle due STAI gioca molto peggio: la somma a fine partita è la stessa. Il team 0 si ferma fra il minuto 11 e il 13 (98 → 88 unità, con una seconda fabbrica dal minuto 12) mentre il team 2 cresce (69 → 131): perdite in combattimento (247 morti contro 207), non un blocco. Con una partita sola non dice altro.
+- Memoria: media per minuto e heap circa uguali, picco più basso (59,7 contro 88,8 KB). Una partita sola per parte: i picchi variano molto anche a codice invariato (S12a2: 31,9–90,2 KB), quindi non ne ricavo un risparmio.
+
+Tre partite A (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice `cbb8cb7a95`, uscita 0, 18–22 s). In tutte e tre le righe dei tre moduli sono `ally 0, ShardAlly`.
+
+| | partita 1 | partita 2 | partita 3 | S12a2 (tre partite) | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 36 / 101 / 168 | 6 / 37 / 112 / 180 | 6 / 37 / 95 / 136 | 6/37/106/176 · 6/33/81/117 · 5/39/94/146 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14): unità, fabbriche, mex | 192, 2, 35 | 204, 2, 37 | 155, 2, 34 | 179/134/163, 2/1/2, 35/25/31 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 215, 2, 37 | 200, 2, 40 | 157, 2, 35 | 188/149/171, 2/1/2, 35/26/35 | — |
+| relay: messaggi / ordini / rifiutati | 3900 / 15479 / 5 | 2935 / 16179 / 11 | 3537 / 14371 / 12 | 3117–4138 / 13879–16511 / 9–21 | 3405–3933 / 10445–15948 / 9–16 |
+| memoria per frame: media per minuto, picco | 0,17–0,84 KB, 74,8 KB | 0,17–0,82 KB, 85,0 KB | 0,17–0,71 KB, 53,0 KB | 0,17–0,94 KB, 31,9–90,2 KB | picchi 68–74 KB |
+| heap | 12,9–15,0 MB | 12,9–15,0 MB | 12,9–14,5 MB | 12,9–15,5 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 | 0 |
+
+- **Niente sotto i riferimenti.** Sopra S1: unità al minuto 13 delle partite 1 e 2 (168, 180) e al minuto 10 della 2 (112), unità e mex a fine partita delle partite 1 e 2 (192, 204; mex 37 della 2), ordini della partita 2 (16179). Fuori da S1 ma non verso il peggio: rifiutati della partita 1 (5, S11 1–10), messaggi della 2 (2935, S11 da 2724).
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown), uguali alla partita B di riferimento.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2777 successi, 0 falliti, 1 pending (2776 + 1 test nuovo). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 su `loshst.lua`, `targethst.lua`, `damagehst.lua`, `damagehst_spec.lua`: ok.
+- EmmyLua 0.24.0, base `65c0228d` (stash) → finale: errori 19 → 19; per file (avvisi / hint) `loshst.lua` 3/18 → 3/18, `targethst.lua` 43/6 → 43/6, `damagehst.lua` 4/5 → 4/5; `damagehst_spec.lua` senza diagnostiche in entrambi. I **totali** di avvisi non sono confrontabili: due esecuzioni sullo stesso codice finale danno 22927 e 23414 avvisi (342 righe di file diverse, tutti file non toccati: `common/wav.lua`, `gamedata/…`), quindi il controllore varia da un'esecuzione all'altra.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte `.ai-notes/`.
+
+**Da sapere**
+
+- I disegni di debug dei tre moduli (`map:Draw*`, `EraseAll`) passerebbero squadra `nil` (punto 3). Oggi spenti.
+- `nukebst.lua` r. 41 e 43 chiamano `self.ai.targethst:GetBestBombardCell`, che non esiste in `TargetHST` e non esisteva neanche nello STAI tolto (`3ad8f3fb^`): con un'unità nucleare quel ramo darebbe errore. C'era già; non toccato.
+- `.ai-notes/drafts/README.md`, «Scopes», dice ancora «the other modules declare "team" for now, and LosHST will move to "ally" when it is ported»: ora sono ally anche `TargetHST` e `DamageHST`. Non l'ho toccato (lo aggiorna il coordinatore?).
+- `DamageHST` ora segna anche i colpi alle unità degli alleati umani: `ScoutHST:TargetAvailable` (r. 79) scarta quelle celle per gli scout anche se nessuna unità STAI ci è stata colpita.
+
 ### S12a2 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Partita 2 sotto S1 (134 unità, una fabbrica): come la partita 1 di S10 a codice invariato, varianza; le altre due dentro. `GetCenter` può dare `nil` prima del primo edificio (nessuno la chiama prima: da sapere)
 
 **In breve**: `CENTER` è la media degli edifici, o la posizione attuale del comandante senza edifici, o l'ultimo `CENTER` senza comandante vivo, tramite `BuildingsHST:GetCenter()`; `GetBlobs` e `drawDBG` scorrono `blob.cells` con un ciclo numerico. Test busted con mutazioni. Partita C: blob uguali a quelli con `pairs` tranne `metal` nelle ultime cifre (25 volte, scarto massimo 0,00049); `CENTER` sempre la media degli edifici dal frame 180. Tre partite A: la **partita 2 va sotto i riferimenti a fine partita** (134 unità al minuto 14, S1 141–186); nessuna correzione tentata.
