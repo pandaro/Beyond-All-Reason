@@ -54,10 +54,13 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 ## 4. Decisioni aperte (le prende l'utente)
 
 1. ~~Griglia: forma nuova (punto 5).~~ Decisa il 25 novembre 2026: una geometria, tanti strati.
-2. Percezione: `LosHST`, `PerceptionHandler` o barare (punto 6).
-3. Elezione: tenere `legacyElection` o passare alla regola nuova, e quando (punto 7).
+2. Percezione: `LosHST`, `PerceptionHandler` o barare (punto 6). Decisione del 25 novembre 2026 (utente): **STAI non bara**; resta da scegliere fra `LosHST` e `PerceptionHandler`.
+3. Elezione: tenere `legacyElection` o passare alla regola nuova, e quando (punto 7). Decisione del 25 novembre 2026 (utente): **se la regola nuova è migliore si usa quella** (da provare con partite).
 4. `UnitHST`: resta in STAI o diventa un `UnitHandler` del runtime (punto 8).
-5. `collect` di `MapHST`: resta o va tolta (punto 9).
+5. `collect` di `MapHST`: resta o va tolta (punto 9). Idea dell'utente (25 novembre 2026): cercare un posto migliore, per esempio una sola `collect` alla fine di tutti gli `Init`, nel loader.
+6. `Tool` (25 novembre 2026, utente): è una cassetta di attrezzi matematici e logici di largo uso, senza `Update` né eventi; quelli inutili si tolgono.
+7. `astarclass.lua` (25 novembre 2026, utente): resta finché non si studia il pathfinding dell'engine (se `RequestPath` funziona non serve, se è difettoso sì).
+8. Codice morto: toglierlo o «stoccarlo» (25 novembre 2026, cosa da decidere per l'utente).
 
 ## 5. Ordine di lavoro proposto
 
