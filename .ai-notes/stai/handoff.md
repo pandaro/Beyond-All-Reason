@@ -56,6 +56,47 @@ Obiettivo: uno spec busted che **carica STAI fuori dall'engine** con `shard_null
 
 ## Risultati
 
+### S24b (agente locale, 25 novembre 2026)
+
+**In breve**: fatto, commit `a51a5d646e`. Test: 2813 successi, 0 fallimenti; `run_engine_tests.sh` `RESULT: ok`; StyLua pulito; EmmyLua su `attackerbst.lua` da 20 a 13 avvisi (`.emmyrc.json` ripristinato). **Ma la correzione non arriva a r. 190**: `MemberIdle` ora è chiamato (0 → 208 in una partita A), r. 190 scatta ancora 0 volte, perché la condizione è irraggiungibile per un altro motivo (sotto). Partite: A2, A3 e C nei riferimenti, A1 sotto (una sola).
+
+**1. `attackerbst.lua`**
+- `Priority` restituisce sempre 0 (`--the squad gives the orders`).
+- Tolti: `attacking` (in `OwnerBuilt`, `OwnerDead`, `Priority`, `Free`), `Activate`/`Deactivate` (restano quelli vuoti di `Behaviour`; `self.active` lo scrive già `PreActivate`/`PreDeactivate` del runtime), il ramo di `Update` con `ElectBehaviour`, `self.active = nil` in `OwnerDead`, il blocco commentato `IsAttacker`.
+- `Free`: tolta la chiamata a `ElectBehaviour` (serviva solo a togliere il controllo a un `AttackerBST` attivo, che non esiste più). Tolto anche `self.target = nil`: `target` di un `AttackerBST` non lo scrive nessuno (grep in `luarules/`: `AttackHST` usa `squad.target`), lo leggeva solo il ramo tolto di `Update`.
+- `OwnerIdle` chiama `MemberIdle` sempre; `MemberIdle` controlla già `squad`. `OwnerMoveFailed` invariato.
+- `OwnerDamaged`/`damaged`: nessuno lo legge fuori da `AttackerBST` (`raidbst.lua` ha un `damaged` suo). Lasciato, con commento `--frame of the last hit`. Anche `self.idle` (scritto in `OwnerIdle`, tolto in `Free`) non lo legge nessuno: lasciato, non era nel compito.
+
+**2. Grep** in `luarules/` e `spec/`: nessuno legge `attacking` o `.active` di un `AttackerBST` da fuori. Gli `attacking` di `scoutbst.lua` sono un campo di `ScoutBST`. `behaviourfactory.lua` aggiunge `AttackerBST` a molte categorie; con `rezs` è in alternativa a `ReclaimBST`.
+
+**3. Test** `spec/luarules/gadgets/ai/STAI/attackerbst_spec.lua` (5, con `AttackHST` vero): idle con squadra (+1), squadra senza `idleCount` (→ 1), `OwnerMoveFailed` conta come idle, una recluta senza squadra accanto a un membro (conta solo il membro, la recluta ha `idle` e nessuna squadra), `Priority` 0. Tutti e 5 falliscono sul codice prima del commit. Il test di `Priority` fallisce prima solo perché forza `attacking = true` (nessuno lo metteva a vero); il caso «senza squadra» da solo passava anche prima, per questo è unito a quello con il membro.
+
+**4. Misura** (patch `[S24B]` non committata su `attackhst.lua`, tolta con `git checkout`; partita A, 15 minuti, una prima con `attackerbst.lua` di `HEAD~1`, una dopo)
+
+| | `MemberIdle` chiamato | di cui con squadra | `SquadStepComplete` | passo per distanza < 256 (r. 187) | passo per idle (r. 190) |
+| --- | --- | --- | --- | --- | --- |
+| prima | 0 | 0 | 277 | 48 | 0 |
+| dopo | 208 | 208 | 187 | 23 | **0** |
+
+**Perché r. 190 non scatta**: `AttackHST:SquadAdvance` mette `squad.idleCount = 0` (r. 233) e **poi** chiama `SquadStepComplete` (r. 250), che lo legge a r. 190: la condizione diventa `0 > floor(#members * 0.85)`, sempre falsa. Gli incrementi di `MemberIdle` fra un avanzamento e l'altro vengono azzerati prima di essere letti. Stesso schema in `raidhst.lua` (azzerato a r. 248, letto a r. 204 dentro lo step). Non l'ho toccato: fuori dal compito. Per farlo funzionare basterebbe azzerare dopo `SquadStepComplete` (o dopo la lettura): **cambio di gioco** da decidere, in tutti e due i moduli.
+
+Quindi il commit, per ora, **non cambia il gioco** per la via di r. 190; l'unica differenza possibile è la `ElectBehaviour` tolta da `Free` per un'unità con un altro behaviour accanto a `AttackerBST`.
+
+**5. Partite** (`run_engine_game.sh`, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, 19–21 s, righe `[AI Loader] error`: 0 in tutte)
+
+| | min. 14: unità | fine (SUMMARY): unità, fabbriche, mex | relay: messaggi / ordini / rifiutati | gruppi | `Shard memory record` |
+| --- | --- | --- | --- | --- | --- |
+| A1 | 96 | **110, 2, 19** | 3598 / 10356 / 6 | 2479 | 15454 |
+| A2 | 181 | 200, 2, 38 | 3578 / 16718 / 12 | 2929 | 15549 |
+| A3 | 144 | 147, 2, 27 | 3370 / 11855 / 8 | 1734 | 15172 |
+| C (S24a: 173, 2, 28 · 137, 2, 22) | 130 · 148 | 141, 2, 24 · 159, 1, 27 | 4242 / 22665 / 33 | 5203 | 16765 |
+
+- Riferimenti A: S26 188–203 unità, 29–38 mex; S25 141–186, 23–35; S24a 172, 27. **A1 è sotto** (110 unità, 19 mex), non crollata secondo il criterio di S26 (2 fabbriche, ma unità poco sopra 100 alla fine, 96 al minuto 14). A2 e A3 dentro. Peggio in una A sola: non ho fatto altro. Visto il punto 4 (r. 190 mai raggiunta, `AttackerBST` mai attivo neanche prima), penso sia varianza del seme come in S25/S26, ma non l'ho provato.
+- C dentro i riferimenti (S24a, S25, S23).
+- Il primo «prima/dopo» del punto 4 (con la patch) dà anche le fini: prima 201 unità, 30 mex; dopo 156, 27.
+
+**Domanda**: correggo l'ordine azzeramento/lettura di `idleCount` in `AttackHST` (e `RaidHST`)? È il cambio di gioco che S24b voleva ottenere.
+
 ### S24a (agente locale, 25 novembre 2026) — verificato dal coordinatore. Le due cose «da decidere» (tetto di unità per messaggio, marcatore 65535) passano all'utente e al coordinatore del framework — `'1-2'` è un solo record, eseguito con `GiveOrderToUnitArray`
 
 **In breve**: fatto. Formato versione 2, tutto in `ordercodec.lua`. Test: 2808 successi, 0 fallimenti; `run_engine_tests.sh` `RESULT: ok`; StyLua pulito; EmmyLua senza avvisi nuovi nei file toccati (`.emmyrc.json` ripristinato). Partite A e C: 0 righe `[AI Loader] error`, gioco nei riferimenti.
