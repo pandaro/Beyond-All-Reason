@@ -19,32 +19,31 @@
 
 ## Compito attuale
 
-### S12b: `LosHST`, `TargetHST`, `DamageHST` in ambito `"ally"`
+Due compiti. L'utente dice «esegui s14»: fai **solo S14**, poi fermati e di' «fatto». Poi dice «esegui s15»: fai **solo S15**. Risultati separati (`### S14 (agente locale, …)`, `### S15 (agente locale, …)`).
 
-**Impegno: extra.** Decisione dell'utente del 25 novembre 2026: `DamageHST` registra i danni a **tutte le unità dell'alleanza**, anche dei giocatori umani alleati. **Stile**: `nuovo-stai.md` §7. Regole del framework: `drafts/README.md`, «Scopes» (un modulo ally vede moduli ally e global, non team; `self.ai` è lo `ShardAlly` con `allyId` e `AIs`; un evento arriva una volta all'oggetto che possiede il modulo).
+### S14: `EchoDebug` costosi dietro `if self.DebugEnabled` (punto 11)
 
-**0. Partita B di riferimento, prima di toccare il codice** (`b_2stai_vs_2simpleai.txt`, 15 minuti, `SHARD_MEM_STATS=1`, codice `65c0228d`): righe solite per **le due** STAI, più il tempo per frame delle AI se lo script lo dà. Serve per il confronto dopo (una partita sola: è un riferimento di massima, scrivilo).
+**Impegno: medio. Agente consigliato: Haiku 5.5.** Compito meccanico. **Il gioco non cambia.** **Stile**: `nuovo-stai.md` §7.
 
-**1. `Scope()`**: `loshst.lua` r. 12, `targethst.lua` r. 14, `damagehst.lua` r. 12 → `"ally"`.
+- `EchoDebug` (`shard_runtime/aibase.lua` r. 92, `behaviour.lua` r. 115) controlla già `DebugEnabled`, ma **gli argomenti si calcolano sempre**. In `luarules/gadgets/ai/STAI/` (circa 438 chiamate) cerca quelle con argomenti costosi: chiamate a funzioni o metodi (`self.ai.tool:distance(...)`, `#t` va bene, `GetPosition()`, `GetCellsFields`…), concatenazioni `..` in cicli o funzioni chiamate spesso, tabelle costruite (`{ ... }`), `tostring`/`string.format`.
+- Quelle: `if self.DebugEnabled then self:EchoDebug(...) end` (su una riga se StyLua lo lascia, se no su tre). Variabili semplici e costanti: **lascia com'è**.
+- Più chiamate costose vicine: un solo `if` per il gruppo.
+- Non cambiare cosa stampano. Non togliere `EchoDebug`. Non toccare `shard_runtime/`.
+- Elenco nei risultati: file, numero di chiamate avvolte, e i casi dubbi lasciati.
+- Controlli: grep che dentro gli `if` aggiunti non ci sia altro che `EchoDebug`; `lx --lua-version 5.1 test`; StyLua 2.5.2 (dalla radice); EmmyLua 0.24.0 (per file toccati, base contro finale); `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
+- **Una** partita A (righe solite); nessuna riga `[AI Loader] error`.
+- Commit, in inglese: uno per gruppo di file (per esempio moduli `*hst.lua`, behaviour `*bst.lua`), più uno per i risultati. Prima di `git add -A` o `git commit -a`: skill `submodule-pointer`.
 
-**2. `DamageHST:UnitDamaged`** r. 21–24: il loader consegna `UnitDamaged` a **ogni** `ShardAlly` (`DeliverToShared`), quindi arrivano i danni di tutte le unità della partita. Al posto di `teamID ~= self.ai.id`: `if defender:AllyTeam() ~= self.ai.allyId then return end` (commento a fine riga: danni di tutta l'alleanza, decisione dell'utente). Via la `local teamID` se resta inutile. Aggiorna `damagehst_spec.lua` (unità di un alleato umano registrata; unità di un'altra alleanza no).
+### S15: disegni di debug in ambito ally (framework)
 
-**3. Controlli sui tre moduli** (scrivi i risultati del grep):
+**Impegno: basso. Agente consigliato: Haiku 5.5.** Cambio al framework approvato dall'utente (25 novembre 2026): commit a parte che inizia con «Shard …».
 
-- nessun `self.ai.id`, `GetTeamID`, `self.ai.tool`, `self.ai.<modulo team>` (`buildingshst`, `labshst`, `attackhst`, …), `self.ai.<campo> =`;
-- gli eventi che ricevono adesso come ally (`UnitDead`, `UnitCreated` se c'è, eventi di los e radar, `UnitDamaged`, `Update`): un ally riceve `UnitDead` di **tutte** le unità e gli eventi di los e radar della sua alleanza una volta sola; controlla che ogni gestore faccia la cosa giusta (per esempio `cleanEnemy` su unità che non conosce);
-- i lettori di squadra (`AttackHST`, `RaidHST`, `ScoutHST`, `BomberHST`, behaviour, …) raggiungono i tre moduli come prima (`self.ai.loshst` ecc. da un modulo team punta all'istanza dell'alleanza);
-- `game` e `map` globali dentro i tre moduli: valgono quelli dell'oggetto ally (`ShardAI:Prepare`); scrivi se qualcosa dipende dal team (per esempio `game:GetTeamID()` indiretti, `map` per i disegni).
-
-**4. Prove**
-
-- **Partita B** con il codice finale: nei log **una** istanza per alleanza di ciascuno dei tre moduli (righe «adding … module» con `ally <id>`), nessuna riga `[AI Loader] error`; righe solite per le due STAI, confronto con la partita del punto 0. Il gioco in B **cambia per scelta** (la los, i blob e i danni sono comuni alle due STAI): scrivi soltanto se una delle due STAI gioca molto peggio.
-- **Tre partite A** con il codice finale (una STAI sola nell'alleanza: il gioco dovrebbe restare come prima, salvo il seme). Se vanno sotto i riferimenti, scrivilo e non tentare correzioni.
-- Memoria: con due STAI nella stessa alleanza i tre moduli girano una volta sola; scrivi memoria per frame e heap di B prima e dopo.
-
-**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato. Prima di `git add -A` o `git commit -a`: skill `submodule-pointer`. Se serve toccare il framework, **fermati** e scrivilo (commit «Shard …» solo con l'ok dell'utente).
-
-**Commit**, in inglese: uno per `DamageHST` (punto 2, con il test); uno per gli `Scope()` e quello che serve per farli girare; uno per i risultati.
+- `shard_runtime/spring_lua/map.lua`, `DrawRectangle`, `EraseRectangle`, `DrawCircle`, `EraseCircle`, `DrawLine` (r. 380, 399, 417, 435, 454 circa) e `EraseAll` se c'è, `DrawPoint` se c'è: passano `self.ai.game:GetTeamID()`, che su `ShardAlly` e `ShardGlobal` è `nil` (lo usano i disegni di `LosHST`, `TargetHST`, `DamageHST`, ora ally).
+- Una funzione locale in `map.lua`, per esempio `drawTeam(ai)`: `ai.id` se c'è, se no l'`id` della prima AI di `ai.AIs`, se no `nil`. Le funzioni di disegno usano quella. Commenti in inglese.
+- Prima, guarda il widget che riceve i disegni (`shard_help_draw`, cerca `ShardDraw` in `luaui/`): scrivi nei risultati come usa il team, e se un `nil` lo romperebbe.
+- Test busted (se `map.lua` ha già uno spec, lì; se no nuovo): team AI → il suo id; ally con due AI → id della prima; nessuna AI → `nil` senza errori.
+- Controlli come S14. Partita: **nessuna** (i disegni non girano in partita senza `DrawDisplay(true)`).
+- Commit: uno «Shard …» per `map.lua` e test; uno per i risultati.
 
 ## Risultati
 
