@@ -43,7 +43,7 @@
 
 **Punto 3, globali accidentali.** Controllo con `luac5.1 -l -p` (`SETGLOBAL` per ogni file di `STAI/`):
 - **Corretto** (commit `b322840014`): `JOB` in `buildersbst.lua` `ProgressQueue`, assegnato come globale nel ciclo. Ora `local JOB` prima del `for`. Effetto: la riga di debug `"JOB", JOB` del primo giro stampa `nil` invece del valore residuo di una chiamata precedente. Solo debug.
-- **Lasciati, da decidere:** in `tool.lua` le funzioni matematiche (`random`, `pi`, `halfPi`, `twicePi`, `sin`, `cos`, `abs`, `max`, `min`, `sqrt`, `floor`, `ceil`, `atan2`) sono globali. Non sono globali di Lua 5.1, e 11 file di `STAI/` le usano senza definirle (`max`/`min` in 9 file, `random` in 11, `floor` e `ceil` in 6): con un `local` in `tool.lua` si romperebbero. Cambiarle vuol dire far definire le locali in ogni file che le usa: scelta di stile del porting, non un refuso.
+- **Lasciati, da decidere:** in `tool.lua` le funzioni matematiche (`random`, `pi`, `halfPi`, `twicePi`, `sin`, `cos`, `abs`, `max`, `min`, `sqrt`, `floor`, `ceil`, `atan2`) sono globali. Non sono globali di Lua 5.1, e 11 file di `STAI/` le usano senza definirle (`random` in 11 file, `max` in 9, `min` in 8, `floor` in 5, `ceil` in 6 — conteggi senza `tool.lua`): con un `local` in `tool.lua` si romperebbero. Cambiarle vuol dire far definire le locali in ogni file che le usa: scelta di stile del porting, non un refuso.
 - **Lasciati, voluti:** i nomi di classe (`BootBST = class(…)`, `GridLayer`, `GraphAStar`, `PathfinderAStar`, `STAI`, …) e `ai` in `boot.lua`. `ai`, `u` e `dump` in `test.lua` sono globali di un file che non compare fra i moduli caricati (`modules.lua`): non ho verificato se il file viene mai incluso.
 
 **Controlli**
@@ -60,7 +60,7 @@
 | A, STAI vs SimpleAI | 2705 / 6094 / 7 | 0 | STAI: 1 unità, 0 fabbriche (SimpleAI: 96 unità) |
 | C, STAI vs STAI | 5137 / 23354 / 35 | 0 | 155 e 145 unità, 2 fabbriche ciascuna |
 
-Negli infolog delle partite ci sono errori di widget (`gui_pip` `CreateShader`, `gui_sensor_ranges_jammer_preview` `sheetShader`) e di shader: sono dell'engine in headless, non di STAI. La partita A finisce con STAI quasi distrutto: da tenere d'occhio, ma con una sola partita non si può attribuirlo a questo compito. Né `GetBestBombardCell` né il fix di `RandomAway` vengono chiamati in modo visibile nel log.
+Negli infolog delle partite ci sono errori di widget (`gui_pip` `CreateShader`, `gui_sensor_ranges_jammer_preview` `sheetShader`) e di shader: sono dell'engine in headless, non di STAI. La partita A finisce con STAI quasi distrutto: da tenere d'occhio, ma con una sola partita non si può attribuirlo a questo compito.
 
 **Domande per il coordinatore**
 1. `GetBestBombardCell`: portarlo in `targethst` o riscrivere `NukeBST` (righe 41–43)?
