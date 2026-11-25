@@ -108,6 +108,22 @@ describe("STAI GridHST", function()
 		assert.is_nil(grid:RawPosToCell(100, 1025))
 	end)
 
+	it("tells a raw position out of the map in the debug, and gives it back when in the map", function()
+		local debugGrid = newGridHST(1536, 1024)
+		local lines = {}
+		debugGrid.game.GetTeamID = function()
+			return 0
+		end
+		debugGrid.game.SendToConsole = function(_, ...)
+			lines[#lines + 1] = table.concat({ ... }, " ", 4) --after the team, AI and module names
+		end
+		debugGrid.DebugEnabled = true
+
+		assert.is_nil(debugGrid:RawPosIsInMap(1537, 7, 100))
+		assert.same({ "bad position: 1537, 100" }, lines)
+		assert.same({ 100, 7, 200 }, { debugGrid:RawPosIsInMap(100, 7, 200) })
+	end)
+
 	describe("layer", function()
 		local resets = {}
 		local function resetCell(CELL)

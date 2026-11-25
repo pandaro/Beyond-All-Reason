@@ -97,7 +97,7 @@ end
 
 function GridHST:RawPosIsInMap(x, y, z)
 	if (x <= 0) or (x > self.elmoMapSizeX) or (z <= 0) or (z > self.elmoMapSizeZ) then
-		self:EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)
+		self:EchoDebug("bad position: " .. x .. ", " .. z)
 		return nil
 	else
 		return x, y, z
