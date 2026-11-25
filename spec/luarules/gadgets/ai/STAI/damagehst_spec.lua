@@ -7,13 +7,7 @@ local ENEMY_ALLY = 1
 -- Loads the runtime's class, AIBase and Module, then STAI/damagehst.lua, in an environment of their own.
 -- AddBadPosition is replaced by a fake that keeps its arguments.
 local function newDamageHST()
-	local env = setmetatable({
-		game = {
-			GetTeamID = function()
-				return TEAM
-			end,
-		},
-	}, { __index = _G })
+	local env = setmetatable({}, { __index = _G })
 	for _, path in ipairs({
 		"luarules/gadgets/ai/shard_runtime/class.lua",
 		"luarules/gadgets/ai/shard_runtime/aibase.lua",
@@ -26,8 +20,8 @@ local function newDamageHST()
 	end
 	local damageHST = env.DamageHST()
 	damageHST.ai = {
+		id = TEAM,
 		allyId = ALLY,
-		friendlyTeamID = {},
 		armyhst = {
 			unitTable = {
 				defender = { name = "defender", defId = 11, metalCost = 50, mtype = "veh" },

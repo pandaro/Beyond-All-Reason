@@ -19,7 +19,6 @@ function LosHST:Init()
 	self.ghostEnemy = {} --mobile units seen in los and still on radar since: their type is known
 	self.needAntiAir = false --an enemy air unit was seen in los
 	self.ENEMY = self.ai.gridhst:NewLayer(self.resetCell) --the cells with enemies in this round
-	self.ai.friendlyTeamID = {}
 end
 
 function LosHST:Update()

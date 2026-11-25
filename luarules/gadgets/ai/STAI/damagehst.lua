@@ -20,7 +20,7 @@ end
 
 function DamageHST:UnitDamaged(defender, attacker, damage)
 	local teamID = defender:Team()
-	if teamID ~= game:GetTeamID() and not self.ai.friendlyTeamID[teamID] then
+	if teamID ~= self.ai.id then
 		return
 	end
 	local defenderID = defender:ID()
