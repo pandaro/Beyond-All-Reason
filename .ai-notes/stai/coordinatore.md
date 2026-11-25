@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S14 e S15 scritti e da eseguire** (l'utente li dà uno dopo l'altro). Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S14 e S15. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S16 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S16. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -33,6 +33,8 @@ Messaggio d'avvio per la chat:
 - quando il compito è scritto e pushato: «S<n> pronto, assegna impegno <x>»;
 - quando i risultati sono verificati: «concluso»;
 - quando propone il compito successivo: «go next».
+
+**Livello e modello** (utente, 25 novembre 2026): ogni compito indica il livello d'impegno (low, medium, high, extra, max) e il modello adatto all'esecutore (Haiku 5.5, Sonnet 5.5, Opus 5.5). Haiku per i compiti meccanici, Sonnet per indagini e lavoro medio, Opus per decisioni di progetto difficili. Il coordinatore resta su Opus 5.5.
 
 **Commit del coordinatore**: messaggio in inglese, chiuso dalle righe di attribuzione che il sistema indica nella chat. Push con `git -c push.negotiate=true push origin stai/porting`. Mai push su master, niente PR, niente force push.
 
@@ -82,6 +84,8 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S12a | preparazione degli ambiti d'alleanza: `CENTER`/`ownImmobile` in `BuildingsHST`, `needAntiAir` in `LosHST`, via `friendlyTeamID` e `isDamaged`, `Toolbox.COLOURS`, `TablePool` per i blob — verificato; la prova ha trovato che `CENTER` era la tabella viva della posizione del comandante (`GetPosition` riscrive sempre la stessa tabella): si completa in S12a2 |
 | S12a2 | `CENTER` = media degli edifici, senza edifici posizione attuale del comandante (`BuildingsHST:GetCenter`); ciclo numerico dei blob — verificato (prova: `metal` diverso solo nelle ultime cifre, 25 volte su 5767; tre partite A 134–179 unità, 25–35 mex) |
 | S12b | `LosHST`, `TargetHST`, `DamageHST` `"ally"`; `DamageHST` danni di tutta l'alleanza — verificato (B: una istanza per alleanza; tre partite A 155–204 unità, 34–37 mex) |
+| S14 | 84 `EchoDebug` costosi dietro `if self.DebugEnabled` — verificato |
+| S15 | `map.lua`: disegni sotto la prima AI in ambito ally/global (commit «Shard …») — verificato |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
 **Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §5, «Piano del 25 novembre 2026, dopo S8b»):

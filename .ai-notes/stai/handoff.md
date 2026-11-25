@@ -19,35 +19,20 @@
 
 ## Compito attuale
 
-Due compiti. L'utente dice «esegui s14»: fai **solo S14**, poi fermati e di' «fatto». Poi dice «esegui s15»: fai **solo S15**. Risultati separati (`### S14 (agente locale, …)`, `### S15 (agente locale, …)`).
+### S16: ordini grandi (punto 10) — indagine, niente cambio di gioco
 
-### S14: `EchoDebug` costosi dietro `if self.DebugEnabled` (punto 11)
+**Impegno: medio. Agente: Sonnet 5.5.** Solo misura e proposta; **non cambiare il codice di STAI né il framework**. Risultati come `### S16`.
 
-**Impegno: medio. Agente consigliato: Haiku 5.5.** Compito meccanico. **Il gioco non cambia.** **Stile**: `nuovo-stai.md` §7.
+1. **Framework**: leggi come il relay tratta un ordine per molte unità (cerca in `shard_runtime/` e `ShardAILoader.lua` il limite di 20, `excluded`, i «rifiutati», `GiveOrderArrayToUnitArray`). Scrivi in breve: cosa succede oltre 20 unità, cosa conta come «rifiutato» e perché.
+2. **STAI**: elenco dei punti che danno ordini a più unità insieme (grep `GiveOrder`, `GiveOrderToUnitArray`, `Tool:GiveOrder` con tabelle di id, ordini in cicli sui membri di squadre: `AttackHST`, `RaidHST`, `BomberHST`, `CleanHST`, …): file, riga, quante unità al massimo in pratica.
+3. **Misura** con una patch non committata: una partita C (15 minuti) che conta per ciascun punto del passo 2 le chiamate con più di 20 unità, e le righe «rifiutati» del relay con il motivo. Tabella nei risultati.
+4. **Proposta**: se ci sono ordini persi, 1–3 modi per correggerli (in STAI o nel framework), con pro e contro. Se non ce ne sono, scrivilo: il punto 10 si chiude.
 
-- `EchoDebug` (`shard_runtime/aibase.lua` r. 92, `behaviour.lua` r. 115) controlla già `DebugEnabled`, ma **gli argomenti si calcolano sempre**. In `luarules/gadgets/ai/STAI/` (circa 438 chiamate) cerca quelle con argomenti costosi: chiamate a funzioni o metodi (`self.ai.tool:distance(...)`, `#t` va bene, `GetPosition()`, `GetCellsFields`…), concatenazioni `..` in cicli o funzioni chiamate spesso, tabelle costruite (`{ ... }`), `tostring`/`string.format`.
-- Quelle: `if self.DebugEnabled then self:EchoDebug(...) end` (su una riga se StyLua lo lascia, se no su tre). Variabili semplici e costanti: **lascia com'è**.
-- Più chiamate costose vicine: un solo `if` per il gruppo.
-- Non cambiare cosa stampano. Non togliere `EchoDebug`. Non toccare `shard_runtime/`.
-- Elenco nei risultati: file, numero di chiamate avvolte, e i casi dubbi lasciati.
-- Controlli: grep che dentro gli `if` aggiunti non ci sia altro che `EchoDebug`; `lx --lua-version 5.1 test`; StyLua 2.5.2 (dalla radice); EmmyLua 0.24.0 (per file toccati, base contro finale); `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
-- **Una** partita A (righe solite); nessuna riga `[AI Loader] error`.
-- Commit, in inglese: uno per gruppo di file (per esempio moduli `*hst.lua`, behaviour `*bst.lua`), più uno per i risultati. Prima di `git add -A` o `git commit -a`: skill `submodule-pointer`.
-
-### S15: disegni di debug in ambito ally (framework)
-
-**Impegno: basso. Agente consigliato: Haiku 5.5.** Cambio al framework approvato dall'utente (25 novembre 2026): commit a parte che inizia con «Shard …».
-
-- `shard_runtime/spring_lua/map.lua`, `DrawRectangle`, `EraseRectangle`, `DrawCircle`, `EraseCircle`, `DrawLine` (r. 380, 399, 417, 435, 454 circa) e `EraseAll` se c'è, `DrawPoint` se c'è: passano `self.ai.game:GetTeamID()`, che su `ShardAlly` e `ShardGlobal` è `nil` (lo usano i disegni di `LosHST`, `TargetHST`, `DamageHST`, ora ally).
-- Una funzione locale in `map.lua`, per esempio `drawTeam(ai)`: `ai.id` se c'è, se no l'`id` della prima AI di `ai.AIs`, se no `nil`. Le funzioni di disegno usano quella. Commenti in inglese.
-- Prima, guarda il widget che riceve i disegni (`shard_help_draw`, cerca `ShardDraw` in `luaui/`): scrivi nei risultati come usa il team, e se un `nil` lo romperebbe.
-- Test busted (se `map.lua` ha già uno spec, lì; se no nuovo): team AI → il suo id; ally con due AI → id della prima; nessuna AI → `nil` senza errori.
-- Controlli come S14. Partita: **nessuna** (i disegni non girano in partita senza `DrawDisplay(true)`).
-- Commit: uno «Shard …» per `map.lua` e test; uno per i risultati.
+**Controlli**: nessun commit di codice; `git status` pulito a parte `.ai-notes/`. Commit solo dei risultati.
 
 ## Risultati
 
-### S15 (agente locale, 25 novembre 2026) — da verificare dal coordinatore. Il `nil` lo romperebbe: verificato leggendo il widget, non in partita
+### S15 (agente locale, 25 novembre 2026) — verificato dal coordinatore (caveat sulla prima AI fermata: accettato, raro e solo debug). Il `nil` lo romperebbe: verificato leggendo il widget, non in partita
 
 **In breve**: `map.lua` non passa più `self.ai.game:GetTeamID()` ai disegni, ma `drawTeam(self.ai)`: l'id del team se l'AI è un team AI, altrimenti l'id della prima team AI dell'ambito (`ai.AIs[1].id`), altrimenti `nil`. Nove funzioni attive cambiate (`DrawRectangle`, `EraseRectangle`, `DrawCircle`, `EraseCircle`, `DrawLine`, `EraseLine`, `DrawPoint`, `ErasePoint`, `EraseAll`). Partita: nessuna, come da compito.
 
@@ -86,7 +71,7 @@ Verifica che i test siano veri: con `map.lua` di `HEAD` i tre test danno errore 
 
 1. Il caveat sopra (prima AI fermata) va bene così, o vuoi che il team dell'ally team resti fisso (per esempio il primo id visto)?
 
-### S14 (agente locale, 25 novembre 2026) — da verificare dal coordinatore. Un caso da decidere: `buildersbst.lua:112` (vedi sotto)
+### S14 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `buildersbst.lua:112` resta così (errore possibile solo con il debug acceso; da sapere)
 
 **In breve**: 84 chiamate `EchoDebug` con argomenti che lavorano (chiamate, `..`, `#`, tabelle, `tostring`) avvolte in `if self.DebugEnabled then … end`, in 16 file, una volta per blocco. Gli argomenti semplici (variabili, campi, costanti, letterali) sono rimasti com'erano. La stampa non cambia. Partita A: uscita 0, nessuna riga `[AI Loader] error`. Busted, StyLua, EmmyLua e test in motore: come sotto.
 
