@@ -161,3 +161,24 @@ Altro:
 | vecchia `AttackHST:SquadAttack` (blocco `--[[ ... ]]` in fondo al file) | `attackhst.lua` | versione commentata con i rami `OWN` (difesa) e `ENEMY` (attacco) sulle griglie `[X][Z]` |
 | `TargetHST:NearbyVulnerable` | `targethst.lua` | id di un nemico in una zona senza armati e con disarmati; leggeva `subValues.armed`/`unarm` al posto di `ARMED`/`UNARM` (mai vero); mai chiamata |
 | `TargetHST:GetPathModifierFunc`, campi `pathModifierFuncs` e `pathModParam` di `TargetHST:Init` | `targethst.lua` | funzione di costo dei nodi per i percorsi, dal `defenderThreat` di `DAMAGED` vicino; mai chiamata (vedi il servizio percorsi, rinviato) |
+
+## S12a — `c3bd380549` «STAI DamageHST: remove friendlyTeamID, never filled, and compare the team with ai.id»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `self.ai.friendlyTeamID` (scritto vuoto da `LosHST:Init`) | `loshst.lua`, `damagehst.lua` | doveva elencare le squadre amiche i cui danni contano; mai riempito, quindi in `DamageHST:UnitDamaged` contavano solo i danni della propria squadra (resta così con `teamID ~= self.ai.id`; in S12b è il punto da decidere: propria squadra o tutta l'alleanza) |
+
+## S12a — `f5d2aecafc` «STAI DamageHST: remove isDamaged, read only by the debug drawing»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| campo `isDamaged` (e la `local defenderID` che serviva solo a lui) | `damagehst.lua` | le unità proprie colpite e non ancora riparate; lo leggeva solo `VisualDBG` |
+| `DamageHST:UpdateDamagedUnits` | `damagehst.lua` | toglieva da `isDamaged` le unità morte o con la salute piena, a ogni `Update` |
+| `DamageHST:UnitDead` | `damagehst.lua` | toglieva da `isDamaged` l'unità morta |
+| parte di `DamageHST:VisualDBG` | `damagehst.lua` | evidenziava in verde le unità di `isDamaged` |
+
+## S12a — `133689a252` «STAI TargetHST, DamageHST: no more use of Tool»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| blocco commentato in `DamageHST:Update` | `damagehst.lua` | leggeva `Spring.GetPathNodeCosts(game:GetTeamID())` e scriveva i costi positivi; commentato |

@@ -50,6 +50,84 @@
 
 ## Risultati
 
+### S12a (agente locale, 25 novembre 2026) — **fermato alla prova in partita**: due differenze, una vera (`CENTER`) e una di arrotondamento (`metal` dei blob)
+
+**In breve**: punti 1–5 fatti, un commit ciascuno, test busted per `getCenter` e per il ritorno dei blob (falliscono sulla base). La prova nella stessa partita C trova differenze, quindi mi sono fermato: **niente partita A**. La causa principale: nella base `CENTER` **non** era la posizione del comandante all'avvio, ma la **tabella che `ShardUnit:GetPosition` riscrive a ogni chiamata**. Il punto 1 (copia) cambia il gioco. Servono due decisioni (sotto, «Domande»).
+
+**Commit**
+
+- `d60cadd582` «STAI BuildingsHST: hold CENTER and the own buildings, moved from LosHST» (`buildingshst.lua`, `loshst.lua`, `commanderbst.lua`, `attackhst.lua`, `raidhst.lua`, `buildingshst_spec.lua` nuovo, `loshst_spec.lua`).
+- `9f43d6cf20` «STAI LosHST: keep needAntiAir in LosHST instead of on the AI» (`loshst.lua`, `buildersbst.lua`, `labsbst.lua`).
+- `c3bd380549` «STAI DamageHST: remove friendlyTeamID, never filled, and compare the team with ai.id» (`loshst.lua`, `damagehst.lua`, `damagehst_spec.lua`).
+- `f5d2aecafc` «STAI DamageHST: remove isDamaged, read only by the debug drawing» (`damagehst.lua`).
+- `133689a252` «STAI TargetHST, DamageHST: no more use of Tool» (`tool.lua`, `toolbox.lua`, `targethst.lua`, `damagehst.lua`, `targethst_spec.lua` nuovo).
+- Un commit per l'indice (`codice-tolto.md`, sezioni S12a) e questi risultati.
+
+**1. `CENTER`, `ownImmobile`**: `ownImmobile` in `BuildingsHST:Init`; in testa a `BuildingsHST:UnitCreated` (stesso controllo `teamId == self.ai.id` e `UnitDefs[...].speed == 0`) e a `UnitDead`, poi `getCenter` (copiata com'era dopo S11). `LosHST:UnitCreated` tolta (restava vuota). `CommanderBST:Init`: `self.ai.buildingshst.CENTER = { x = …, y = …, z = … } --a copy: getCenter writes in CENTER`. Lettori `attackhst.lua` r. 327 e `raidhst.lua` r. 398 su `self.ai.buildingshst.CENTER`. Il punto «BASE» di `LosHST:Draw` è passato in `BuildingsHST:VisualDBG` (nessuna delle due è chiamata da nessuno). Test «keeps the center on a copy of the commander position without buildings, on their mean with them» (`buildingshst_spec.lua`): `BuildingsHST` vero e `CommanderBST:Init` vero (con `UnitMexMoveTest` finta); `CENTER` ≠ `commander.position` ma con gli stessi valori, `getCenter` senza edifici non tocca né la tabella né i valori, con due edifici la media, e `commander.position` resta com'era. Il test vecchio di `loshst_spec.lua` è tolto.
+
+**2. `needAntiAir`**: `self.needAntiAir = false` in `LosHST:Init` (commento a fine riga), `setPosLayer2` scrive `self.needAntiAir = true` (tolto il `TODO need to move from here`); lettori su `self.ai.loshst.needAntiAir`. `false` al posto di `nil` non cambia niente: i lettori fanno solo `if check` e `not …`.
+
+**3. `friendlyTeamID`**: via da `LosHST:Init`; `DamageHST:UnitDamaged` → `if teamID ~= self.ai.id then`. Il `game` globale è quello dell'oggetto (`ShardAI:Prepare` lo imposta prima di ogni chiamata), e `game:GetTeamID()` restituisce `self.ai.id`: stesso effetto. Nello spec di `DamageHST` il finto `game.GetTeamID` diventa `ai.id`.
+
+**4. `isDamaged`**: grep in `luarules/` e `spec/`: solo `damagehst.lua`. Tolti il campo, la `local defenderID` (serviva solo a lui), `UpdateDamagedUnits` con la sua chiamata, `DamageHST:UnitDead` (restava vuota), la parte di `VisualDBG`. `UpdateDamagedUnits` leggeva solo la salute: niente effetti sul gioco.
+
+**5. `TargetHST` senza `Tool`**
+
+- `Toolbox.COLOURS` (la tabella com'era; commento di testa di `toolbox.lua`: «math and table helpers, and the debug colours»); `Tool.COLOURS = Toolbox.COLOURS --the same table`. Il ciclo di `tool.lua` che avvolge i metodi di `Toolbox` ora avvolge solo le funzioni (`type(func) == "function"`), altrimenti avrebbe fatto di `COLOURS` una funzione. `targethst.lua` e `damagehst.lua` leggono `Toolbox.COLOURS`.
+- `local TablePool = shard_include("tablepool")` in testa a `targethst.lua`, `self.blobPool = TablePool.New()` in `Init`, `Get` al posto di `RezTable`. `TargetHST:releaseBlobs(blobs)` rende le `cellCoord`, `cells`, `position`, `units`, `targetCell` e il blob, e toglie la chiave. `MOBILE_BLOBS`/`IMMOBILE_BLOBS` restano le stesse tabelle, come prima: anche `ResetTable` le rimetteva nella riserva e `RezTable` le riprendeva subito, buttando il risultato. Test «gives back to the pool the old blobs with the tables in them» (`targethst_spec.lua`): un blob di due celle, poi un giro senza celle. Risultato: blob vuoti, `freeCount == 7`, le 7 tabelle tutte nella riserva e vuote.
+- Tolto anche il blocco commentato di `DamageHST:Update` con `game:GetTeamID()` (codice morto; nell'indice).
+- Grep nei tre file dopo i commit: nessun `self.ai.tool`, `game:GetTeamID()` o `self.ai.<campo> =`. Resta **un** `self.ai.id`: `damagehst.lua` r. 22, voluto dal punto 3. Gli altri `self.ai.*` sono `gridhst`, `armyhst` (globali), `loshst`, `perceptionhandler` (ally), `allyId`, `drawDebug`.
+- `self.ai.drawDebug` **c'è** su `ShardAlly`: `ShardAlly` eredita `ShardAI:Init`, che chiama `self.game:DrawDisplay(false)`, e lì `game.ai` è lo `ShardAlly`. Nel repository nessuno chiama `DrawDisplay(true)`, quindi i disegni di debug non girano mai.
+
+**6. Prova nella stessa partita** (partita C, `c_stai_vs_stai.txt`, 15 minuti, `Echo` non committati, codice tolto con `git checkout`). Accanto al codice nuovo girava quello della base:
+
+- **blob**: `GetBlobs`/`Blobbing` della base, alla lettera (`Tool:RezTable`/`ResetTable`), su `REF_MOBILE_BLOBS`/`REF_IMMOBILE_BLOBS`, confrontati per `blobref` a ogni `Update`: chiavi, `metal`, `position`, `targetCell`, celle in ordine, insiemi di `units`;
+- **`CENTER`**: `ownImmobile`, `UnitCreated`, `UnitDead`, `getCenter` della base in `LosHST`, e `CommanderBST:Init` che scrive anche `self.ai.loshst.CENTER = self.position` come prima. Confronto dopo ogni `getCenter` della base (gira dopo quella di `BuildingsHST` nello stesso evento: `LosHST` viene dopo nell'elenco dei moduli) e anche a ogni `Update` di `TargetHST`.
+
+| | partita 1, squadra 0 / 1 | partita 2 (diagnosi), squadra 0 / 1 |
+| --- | --- | --- |
+| `Update` confrontati | 1501 / 1501 | 1501 / 1501 |
+| blob confrontati (max per giro) | 7948 (16) / 3983 (14) | 2614 (9) / 4270 (11) |
+| blob diversi | **14 / 63** | **4 / 7** |
+| blob mancanti o in più | 0 | 0 |
+| `getCenter` confrontate / diverse | 393 / 0 · 400 / 0 | 390 / 0 · 355 / 0 |
+| `CENTER` diverso a un `Update` | **1027 / 1362** | **1320 / 1357** |
+
+**Differenza A, `CENTER` (vera, cambia il gioco)**. `ShardUnit:GetPosition` (`shard_runtime/spring_lua/unit.lua` r. 461) tiene una sola tabella per unità (`self.position`) e la riscrive a ogni chiamata. Nella base, quindi:
+
+- `CENTER` era la tabella di posizione del comandante, e chiunque chiede la posizione del comandante la riscrive: `CommanderBST:Update` r. 25 (finché non c'è il laboratorio T2 e il comandante è sano) e il codice che lo usa come costruttore;
+- finché il comandante vive, `CENTER` segue la sua posizione viva; `getCenter` (a ogni `UnitCreated`/`UnitDead`) ci scrive la media degli edifici, ma solo fino alla `GetPosition` successiva sul comandante;
+- quando il comandante muore nessuno riscrive più la tabella, e `CENTER` resta la media degli edifici;
+- in più `getCenter` sporcava la posizione del comandante per chi teneva quella tabella fra due chiamate.
+
+Con la copia del punto 1 `CENTER` è la media degli edifici, sempre. Per questo il confronto a ogni `getCenter` dà 0 (in quel momento entrambi hanno la media) e quello a ogni `Update` dà diverso quasi sempre. Il test di S11 e quello di questo compito descrivono «posizione del comandante finché non ci sono edifici», che non era il comportamento vero.
+
+**Differenza B, `metal` dei blob (arrotondamento, c'era già)**. Seconda partita con una diagnosi a ogni differenza; tutte le 11 sono così:
+
+- solo `metal` diverso, nelle ultime cifre (es. 863,733398 contro 863,733337: precisione dei numeri Lua dell'engine);
+- posizione, `targetCell`, celle e unità uguali; sommando le celle in ordine numerico i due valori sono uguali;
+- in ogni caso **uno** dei due lati scorre `blob.cells` con `pairs` in un ordine non numerico, perché la tabella riciclata ha già una parte hash e `table.insert` ci mette le chiavi in ordine sparso: 8 volte il lato nuovo, **3 volte la base**.
+
+Il ciclo di riempimento di `GetBlobs` (`for i, v in pairs(blob.cells)`) somma quindi in un ordine che dipende da quale tabella torna dalla riserva. Prima era la riserva di `Tool`, condivisa con `AttackHST`, `RaidHST` e `BomberHST`; ora è quella dei blob.
+
+**Domande**
+
+1. `CENTER`: (a) tenere il comportamento della base: `CommanderBST:Init` scrive `self.ai.buildingshst.CENTER = self.position` (la tabella viva), e il test cambia (copia no, stessa tabella); il gioco non cambia. (b) Tenere la copia: `CENTER` è sempre la media degli edifici (o la posizione iniziale del comandante senza edifici), ed è un cambio di gioco da misurare. (c) Rendere esplicito il comportamento vero, per esempio `CENTER` = posizione del comandante finché vive, media degli edifici dopo. Senza (a) il gioco cambia: per questo non ho fatto la partita A.
+2. Blob: proposta, ciclo numerico in `GetBlobs` (`for n = 1, #blob.cells do`, come gli altri cicli «numeric loop keeps the order»). Così la somma non dipende più dalla riserva; rispetto alla base cambierebbe solo il `metal` nelle ultime cifre dei casi in cui la base sommava in ordine sparso. In alternativa si accetta la differenza come arrotondamento.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2773 successi, 0 falliti, 1 pending (2772 − 1 test di `getCenter` tolto da `loshst_spec` + 1 di `BuildingsHST` + 1 di `TargetHST`). Sulla base `451be31e89` (codice di STAI della base, spec nuovi): errori in `buildingshst_spec` (manca `getCenter` di `BuildingsHST`), `targethst_spec` (manca `blobPool`) e nei due test di `damagehst_spec` (lo spec non ha più il finto `game.GetTeamID`). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 su tutti i file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base: errori 19 → 19. Per file (avvisi / hint, base → finale): `targethst.lua` 63/9 → 43/9; `damagehst.lua` 8/6 → 4/5; `buildingshst.lua` 26/37 → 26/35; `raidhst.lua` 5/24 → **6**/24 (`Undefined field ENEMY` su `loshst.ENEMY` r. 400, lo stesso che c'era a r. 424: la `local loshst` ha perso l'uso di `CENTER` da cui il controllore ricavava il tipo); `tool.lua` 1/15 → **2**/15 (`assign-type-mismatch` r. 20: il controllore pensa che `Tool[name]` possa essere `COLOURS`); gli altri uguali; spec nuovi senza diagnostiche.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte `.ai-notes/`.
+
+**Da sapere**
+
+- La riserva di `Tool` (`Tool._TABLES` è un campo della classe, quindi condivisa da tutte le AI STAI del client) non riceve più le tabelle dei blob: `AttackHST`, `RaidHST`, `BomberHST` avranno più spesso tabelle nuove da `RezTable`. I valori non cambiano; l'ordine di `pairs` su quelle tabelle può cambiare, come in B.
+- `TargetHST:drawDBG` legge `cell.POS` sulle `cellCoord` dei blob, che hanno solo `X` e `Z`: se `drawDebug` fosse vero darebbe errore. C'era già; non l'ho toccato.
+- Le due partite C hanno girato con il codice di confronto, che usa la riserva di `Tool` anche per i blob della base: non valgono come partite di misura.
+
 ### S11 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il `git commit -a` del punto 4 senza la skill `submodule-pointer` è controllato (solo `loshst.lua`): la prossima volta passare dalla skill
 
 **In breve**: i quattro difetti corretti (un commit ciascuno, un test per i punti 1–3, ogni test nuovo fallisce sul codice di base) e il codice morto tolto in un commit, con l'indice aggiornato. Le tre partite A, con il codice finale, stanno tutte dentro i riferimenti di S1 e vicino a S8b; nessun errore del loader.
