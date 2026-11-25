@@ -97,4 +97,97 @@ describe("STAI GridHST", function()
 		assert.is_nil(grid:PosToIndex({ x = 100, y = 0, z = 1025 }))
 		assert.is_nil(grid:RawPosToIndex(1537, 100))
 	end)
+
+	it("gives the cell of CELLS holding a position, and no cell out of the edges", function()
+		assert.equal(grid.CELLS[grid:GridToIndex(2, 1)], grid:PosToCell({ x = 257, y = 0, z = 256 }))
+		assert.equal(grid.CELLS[grid:GridToIndex(1, 2)], grid:RawPosToCell(256, 257))
+		assert.is_nil(grid:PosToCell({ x = 0, y = 0, z = 100 }))
+		assert.is_nil(grid:PosToCell({ x = 100, y = 0, z = 1025 }))
+		assert.is_nil(grid:RawPosToCell(1537, 100))
+		assert.is_nil(grid:RawPosToCell(100, 0))
+		assert.is_nil(grid:RawPosToCell(100, 1025))
+	end)
+
+	describe("layer", function()
+		local resets = {}
+		local function resetCell(CELL)
+			resets[#resets + 1] = CELL
+			CELL.metal = 0
+		end
+
+		before_each(function()
+			resets = {}
+		end)
+
+		it("makes the data of a cell once, resets it when made, and does not mark it", function()
+			local layer = grid:NewLayer(resetCell)
+			assert.is_nil(layer.CELLS[5])
+			local CELL = layer:Get(5)
+			assert.equal(0, CELL.metal)
+			assert.equal(1, #resets)
+			assert.equal(CELL, resets[1])
+			CELL.metal = 7
+			assert.equal(CELL, layer:Get(5))
+			assert.equal(7, CELL.metal)
+			assert.equal(1, #resets)
+			assert.equal(CELL, layer.CELLS[5])
+			assert.equal(0, #layer.LIST)
+		end)
+
+		it("makes empty cells without a reset function", function()
+			local layer = grid:NewLayer()
+			assert.same({}, layer:Get(3))
+			layer:Mark(3)
+			layer:Clear()
+			assert.same({}, layer.CELLS[3])
+		end)
+
+		it("puts a cell marked twice in the list once, in order of arrival", function()
+			local layer = grid:NewLayer(resetCell)
+			layer:Mark(9)
+			layer:Mark(2)
+			layer:Mark(9)
+			assert.same({ 9, 2 }, layer.LIST)
+		end)
+
+		it("resets only the cells in the list and keeps the same tables", function()
+			local layer = grid:NewLayer(resetCell)
+			local LIST = layer.LIST
+			local marked, unmarked = layer:Get(4), layer:Get(6)
+			marked.metal, unmarked.metal = 3, 5
+			layer:Mark(4)
+			resets = {}
+			layer:Clear()
+			assert.equal(1, #resets)
+			assert.is_true(rawequal(marked, resets[1]))
+			assert.equal(0, marked.metal)
+			assert.equal(5, unmarked.metal)
+			assert.is_true(rawequal(LIST, layer.LIST))
+			assert.equal(0, #layer.LIST)
+			assert.is_nil(layer.LIST[1])
+			resets = {}
+			assert.is_true(rawequal(marked, layer:Get(4)))
+			assert.is_true(rawequal(unmarked, layer.CELLS[6]))
+			assert.equal(0, #resets)
+		end)
+
+		it("marks a cell again after the clear", function()
+			local layer = grid:NewLayer(resetCell)
+			layer:Get(4)
+			layer:Mark(4)
+			layer:Clear()
+			layer:Mark(4)
+			assert.same({ 4 }, layer.LIST)
+			layer:Clear()
+			assert.equal(0, #layer.LIST)
+		end)
+
+		it("keeps the layers apart", function()
+			local first, second = grid:NewLayer(), grid:NewLayer()
+			first:Get(1)
+			first:Mark(1)
+			assert.is_nil(second.CELLS[1])
+			assert.equal(0, #second.LIST)
+		end)
+	end)
 end)

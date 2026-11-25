@@ -34,7 +34,7 @@ function GridHST:basicGridInfo() --capture the map size and set the grid geometr
 end
 
 function GridHST:createCells() --the cells of the grid, one for every index
-	self.CELLS = {}
+	self.CELLS = {} ---@type table<integer, table>
 	for X = 1, self.gridSideX do
 		for Z = 1, self.gridSideZ do
 			local i = self:GridToIndex(X, Z)
@@ -72,6 +72,27 @@ function GridHST:RawPosToIndex(x, z) --the index of the cell holding x, z, nil o
 		return
 	end
 	return self:GridToIndex(X, Z)
+end
+
+function GridHST:PosToCell(pos) --the cell of CELLS holding pos, nil out of the grid
+	local i = self:PosToIndex(pos)
+	if not i then
+		return
+	end
+	return self.CELLS[i]
+end
+
+function GridHST:RawPosToCell(x, z) --the cell of CELLS holding x, z, nil out of the grid
+	local i = self:RawPosToIndex(x, z)
+	if not i then
+		return
+	end
+	return self.CELLS[i]
+end
+
+function GridHST:NewLayer(resetCell) --a layer of data with the index of CELLS, see GridLayer
+	---@diagnostic disable-next-line: call-non-callable
+	return GridLayer(resetCell)
 end
 
 function GridHST:RawPosIsInMap(x, y, z)
@@ -191,4 +212,44 @@ function GridHST:getCellsFields(p, fields, range, grid) --return the required li
 		end
 	end
 	return value, subValues, cells
+end
+
+GridLayer = class(function(layer, resetCell) --the data of one owner over the grid, cell by cell with the index of CELLS
+	layer.CELLS = {} ---@type table<integer, table> index -> data of the cell, made when needed
+	layer.LIST = {} --the index of the true cells, in order of arrival
+	layer.marked = {} --index -> true for the cells in LIST
+	layer.resetCell = resetCell --the owner's function that clears the data of a cell, optional
+end)
+
+function GridLayer:Get(i) --the data of the cell i, made the first time; it does not mark the cell
+	if self.CELLS[i] then
+		return self.CELLS[i]
+	end
+	local CELL = {}
+	if self.resetCell then
+		self.resetCell(CELL)
+	end
+	self.CELLS[i] = CELL
+	return CELL
+end
+
+function GridLayer:Mark(i) --put the cell i in LIST, once
+	if self.marked[i] then
+		return
+	end
+	self.marked[i] = true
+	self.LIST[#self.LIST + 1] = i
+end
+
+function GridLayer:Clear() --reset the cells in LIST and empty it; the tables stay for the next use
+	local LIST = self.LIST
+	for n = 1, #LIST do
+		local i = LIST[n]
+		local CELL = self.CELLS[i]
+		if self.resetCell and CELL then
+			self.resetCell(CELL)
+		end
+		self.marked[i] = nil
+		LIST[n] = nil
+	end
 end
