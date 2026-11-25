@@ -56,6 +56,56 @@ Grep in tutto `luarules/` e `spec/` prima di togliere.
 
 ## Risultati
 
+### S11 (agente locale, 25 novembre 2026)
+
+**In breve**: i quattro difetti corretti (un commit ciascuno, un test per i punti 1–3, ogni test nuovo fallisce sul codice di base) e il codice morto tolto in un commit, con l'indice aggiornato. Le tre partite A, con il codice finale, stanno tutte dentro i riferimenti di S1 e vicino a S8b; nessun errore del loader.
+
+**Commit**
+
+- `b3dd879373` «STAI LosHST: clear the factory of an ENEMY cell when the cell is cleared» (`loshst.lua`, `loshst_spec.lua`).
+- `bdb27d2c82` «STAI LosHST: keep CENTER where it is when there are no own buildings, instead of dividing by zero» (`loshst.lua`, `loshst_spec.lua`).
+- `7a180ee4ab` «STAI DamageHST: give the attacker its own defId in the los, and accept an attacker out of unitTable» (`damagehst.lua`, `damagehst_spec.lua` nuovo).
+- `821b9ecae7` «STAI LosHST: make the draw positions of LosHST:Draw local» (`loshst.lua`).
+- `c59c12a597` «STAI AttackHST, TargetHST: remove SquadAttackbackup, the commented SquadAttack, NearbyVulnerable and GetPathModifierFunc» (`attackhst.lua`, `targethst.lua`).
+- Un commit per l'indice e questi risultati.
+
+**1. `CELL.base`**: in `resetCell`, dopo `unitsCount`, `CELL.base = nil --the name of the last factory seen in this round`. Test «forgets the factory of a cell when the cell is cleared and used again» (nel finto `unitTable` un tipo `factory` con `isFactory`): fabbrica → `base == "factory"`; `resetCell` (quello che fa `ENEMY:Clear` sulle celle della lista), poi un edificio → `BUILDINGS` 100 e `base` nil. Codice di base: fallisce.
+
+**2. `getCenter`**: somme in `x, y, z` locali; con `count == 0` `return` senza toccare `CENTER`; con `count > 0` `self.CENTER = self.CENTER or {}` e i tre campi come prima. Commento a fine riga sulla funzione. Test «keeps the center where it is without own buildings, and puts it in their mean position with them»: `CENTER` = una tabella del comandante, `ownImmobile` vuoto → stessa tabella e stessi valori; due edifici (100, 300) e (300, 500) → `{ x = 200, y = 0, z = 400 }`. Codice di base: fallisce (NaN).
+
+**3. `DamageHST:UnitDamaged`**: `attackerThreat = attackerut and attackerut.metalCost or damage or 100` (commento a fine riga), così il resto non cambia; r. 41 `attackerut.defId`. Test nuovi in `damagehst_spec.lua` (stesso schema di `loshst_spec.lua`, `AddBadPosition` finta che registra gli argomenti): «puts a building that hits our unit in the los with the type of the building» (`losEnemy[30] == 22`, tolto da `radarEnemy`, `AddBadPosition` con minaccia 300/50 e durata 900); «counts an attacker out of unitTable as its damage» (nessun errore, `losEnemy` vuota, `AddBadPosition` con minaccia 40 = `damage`). Codice di base: 1 fallito e 1 errore.
+
+**4. `LosHST:Draw`**: `local` per `posG`, `posS`, `posB`, `posA`. Grep: nessun altro uso in `luarules/gadgets/ai/`. EmmyLua: `loshst.lua` da 10 a 3 avvisi (resta un hint: `posB` mai usata, c'era già).
+
+**5. Codice morto**: grep in `luarules/` e `spec/` su `SquadAttackbackup`, `NearbyVulnerable`, `GetPathModifierFunc`, `pathModifierFuncs`, `pathModParam`: solo le definizioni e i due campi di `Init`. Tolti, con la vecchia `SquadAttack` commentata in fondo a `attackhst.lua` (115 righe in tutto). Indice in `codice-tolto.md` (sezione S11).
+
+**Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice finale `c59c12a597`, uscita 0, 19–23 s)
+
+| | partita 1 | partita 2 | partita 3 | S10 (tre partite) | S9 | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 36 / 104 / 146 | 5 / 37 / 103 / 179 | 5 / 33 / 100 / 160 | 6/36/83/124 · 5/39/97/154 · 6/40/92/114 | 6 / 38 / 84 / 142 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14): unità, fabbriche, mex | 172, 2, 27 | 203, 2, 31 | 168, 2, 34 | 145/175/132, 1/2/2, 19/32/28 | 161, 2, 32 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 196, 2, 30 | 230, 2, 36 | 177, 2, 38 | 173/203/153, 1/2/2, 20/34/30 | 169, 2, 34 | — |
+| relay: messaggi / ordini / rifiutati | 2724 / 12797 / 9 | 3460 / 16921 / 1 | 3691 / 13962 / 10 | 2733–4005 / 10860–15659 / 6–35 | 2912 / 11906 / 7 | 3405–3933 / 10445–15948 / 9–16 |
+| memoria per frame: media per minuto, picco | 0,18–0,59 KB, 68,6 KB | 0,18–0,57 KB, 50,4 KB | 0,18–0,57 KB, 92,9 KB | 0,18–0,76 KB, fino a 35 KB | — | picchi 68–74 KB |
+| heap | 12,9–14,7 MB | 12,9–15,1 MB | 12,9–14,8 MB | 12,8–15,3 | 13,0–14,9 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 | 0 | 0 |
+
+- Nessuna partita sotto i riferimenti. Le unità al minuto 10 (100–104) e la partita 2 al minuto 13–14 (179, 203) stanno appena sopra l'intervallo di S1, come S8b; con il seme che cambia a ogni avvio non lo attribuisco alle correzioni.
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown).
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2772 successi, 0 falliti, 1 pending (2768 + 2 di `LosHST` + 2 di `DamageHST`). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 su tutti i file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `46e2f73cc1`: errori 19 → 19. Per file (base → finale, avvisi / hint): `loshst.lua` 10 / 17 → 3 / 18; `damagehst.lua` 7 / 6 → **8** / 6; `attackhst.lua` 7 / 24 → 7 / 23; `targethst.lua` 63 / 15 → 63 / 9; `damagehst_spec.lua` senza diagnostiche. L'avviso in più di `damagehst.lua` è `Undefined field defId` su `attackerut`, lo stesso tipo dei due che c'erano già (`metalCost`, `isBuilding` sullo stesso `attackerut`: `unitTable` non ha tipo).
+- `.emmyrc.json` ripristinato; `git status` pulito a parte `.ai-notes/`.
+
+**Da sapere**
+
+- Punto 3: il `defId` scritto in `losEnemy` oggi non cambia niente di quello che `LosHST` scrive nelle celle (`setCellLos` usa `unit:Name()`), ma ora è giusto per chi lo leggerà come tipo (le ombre di `UnitLeftLos`, per esempio).
+- Il commit del punto 4 l'ho fatto con `git commit -a` senza passare dalla skill `submodule-pointer`: ho controllato, contiene solo `loshst.lua`.
+
 ### S10 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il gioco non cambia su Comet Catcher (nessun lettore di `unarm*` fuori da `LosHST`, 0 spot senza cella, `SimplifyMetalSpots` non entra): le partite 1 e 3 sotto S1 sono varianza del seme
 
 **In breve**: i cinque difetti corretti, un commit e un test per ciascuno (il punto 5 è una riga tolta, senza test); ogni test nuovo fallisce sul codice di base. **Il gioco non cambia su Comet Catcher, nemmeno per il punto 1**: fuori da `LosHST` nessuno legge `unarm*`, `A`/`S`/`G` o `*_balance` (solo `LosHST:Draw`, con `drawDebug`). Delle tre partite A, **la 1 va sotto S1** (19 mex e 1 fabbrica al minuto 14) e **la 3 va sotto S1 per unità ai minuti 13–14** e ha 35 ordini rifiutati: non ho tentato correzioni; visto che il codice gioca come in S9, lo attribuisco al seme, ma decide l'utente.

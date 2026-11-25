@@ -152,3 +152,12 @@ Altro:
 | nome | file | cosa faceva |
 | --- | --- | --- |
 | `ArmyHST.UWMetalSpotCheckUnit` (`"cormex"`) e il commento sopra | `armyhst.lua` | unità di prova per dividere i metal spot in sott'acqua e a terra; il suo lettore (`map:CanBuildHere` in `metalScan`) è stato tolto in S3. Grep in tutto il repository (fuori da `.ai-notes/`): nessun altro uso |
+
+## S11 — `c59c12a597` «STAI AttackHST, TargetHST: remove SquadAttackbackup, the commented SquadAttack, NearbyVulnerable and GetPathModifierFunc»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `AttackHST:SquadAttackbackup` | `attackhst.lua` | `FIGHT` di tutta la squadra verso il bersaglio quando la squadra è a meno di 256 elmo da una cella di `ENEMY`; mai chiamata |
+| vecchia `AttackHST:SquadAttack` (blocco `--[[ ... ]]` in fondo al file) | `attackhst.lua` | versione commentata con i rami `OWN` (difesa) e `ENEMY` (attacco) sulle griglie `[X][Z]` |
+| `TargetHST:NearbyVulnerable` | `targethst.lua` | id di un nemico in una zona senza armati e con disarmati; leggeva `subValues.armed`/`unarm` al posto di `ARMED`/`UNARM` (mai vero); mai chiamata |
+| `TargetHST:GetPathModifierFunc`, campi `pathModifierFuncs` e `pathModParam` di `TargetHST:Init` | `targethst.lua` | funzione di costo dei nodi per i percorsi, dal `defenderThreat` di `DAMAGED` vicino; mai chiamata (vedi il servizio percorsi, rinviato) |
