@@ -20,6 +20,7 @@ function BuildingsHST:Init()
 	self.roles = {}
 	self.allyMex = {}
 	self.trampledCells = {} --positions of the most trampled cells, TasksHST holds this table
+	self.ownImmobile = {} --the own buildings, their mean position is CENTER
 	self:DontBuildOnMetalOrGeoSpots()
 
 	-- Shared rectangle helper so we can test pure logic without spinning up AI.
@@ -453,6 +454,10 @@ function BuildingsHST:CheckForDuplicates(unitName)
 end
 
 function BuildingsHST:UnitCreated(unit, unitDefId, teamId, builderID)
+	if teamId == self.ai.id and UnitDefs[unitDefId].speed == 0 then
+		self.ownImmobile[unit:ID()] = unitDefId
+	end
+	self:getCenter()
 	local unitName = unit:Name()
 	local position = unit:GetPosition()
 	local unitID = unit:ID()
@@ -488,11 +493,35 @@ end
 
 function BuildingsHST:UnitDead(unit)
 	local unitID = unit:ID()
+	self.ownImmobile[unitID] = nil
+	self:getCenter()
 	local sketch = self.sketch[unitID]
 	if sketch then
 		self:ClearMyProjects(self.sketch[unitID].builderID)
 	end
 	self:DoBuildRectangleByUnitID(unitID)
+end
+
+function BuildingsHST:getCenter() --the mean position of the own buildings; with none, CENTER stays as it is
+	local x, y, z = 0, 0, 0
+	local count = 0
+	for uid in pairs(self.ownImmobile) do
+		local u = game:GetUnitByID(uid)
+		local ux, uy, uz = u:GetRawPos()
+		if ux then
+			x = x + ux
+			y = y + uy
+			z = z + uz
+			count = count + 1
+		end
+	end
+	if count == 0 then
+		return
+	end
+	self.CENTER = self.CENTER or {}
+	self.CENTER.x = x / count
+	self.CENTER.y = y / count
+	self.CENTER.z = z / count
 end
 
 function BuildingsHST:ClearMyProjects(builderID)
@@ -715,6 +744,7 @@ function BuildingsHST:VisualDBG()
 		builder:EraseHighlight(nil, nil, ch)
 		builder:DrawHighlight(colours[role.role], role.role, ch)
 	end
+	map:DrawPoint(self.CENTER, { 1, 1, 1, 1 }, "BASE", ch)
 	for i, sketch in pairs(self.sketch) do
 		map:DrawRectangle(
 			{ x = sketch.x1, y = 0, z = sketch.z1 },

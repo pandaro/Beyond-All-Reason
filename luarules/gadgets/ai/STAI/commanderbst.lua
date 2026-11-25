@@ -10,7 +10,7 @@ function CommanderBST:Init()
 	self.id = u:ID()
 	self.save = false
 	self.position = self.unit:Internal():GetPosition()
-	self.ai.loshst.CENTER = self.position
+	self.ai.buildingshst.CENTER = { x = self.position.x, y = self.position.y, z = self.position.z } --a copy: getCenter writes in CENTER
 	self.ai.buildingshst:UnitMexMoveTest(self)
 	self:EchoDebug("init")
 end

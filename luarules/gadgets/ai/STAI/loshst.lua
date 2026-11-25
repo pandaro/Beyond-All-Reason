@@ -17,7 +17,6 @@ function LosHST:Init()
 	self.losEnemy = {}
 	self.radarEnemy = {}
 	self.ghostEnemy = {} --mobile units seen in los and still on radar since: their type is known
-	self.ownImmobile = {}
 	self.ENEMY = self.ai.gridhst:NewLayer(self.resetCell) --the cells with enemies in this round
 	self.ai.friendlyTeamID = {}
 end
@@ -113,15 +112,6 @@ end
 
 function LosHST:UnitDead(unit) --this is a bit cheat, we always know if a unit died but is not computability to track allways all dead unit and try it everytime
 	self:cleanEnemy(unit:ID())
-	self.ownImmobile[unit:ID()] = nil
-	self:getCenter()
-end
-
-function LosHST:UnitCreated(unit, unitDefID, teamId)
-	if teamId == self.ai.id and UnitDefs[unitDefID].speed == 0 then
-		self.ownImmobile[unit:ID()] = unitDefID
-	end
-	self:getCenter()
 end
 
 function LosHST:cleanEnemy(id)
@@ -159,28 +149,6 @@ function LosHST:setPosLayer2(unitName, x, y, z)
 		floating = true
 	end
 	return 0, floating
-end
-
-function LosHST:getCenter() --the mean position of the own buildings; with none, CENTER stays as it is
-	local x, y, z = 0, 0, 0
-	local count = 0
-	for uid in pairs(self.ownImmobile) do
-		local u = game:GetUnitByID(uid)
-		local ux, uy, uz = u:GetRawPos()
-		if ux then
-			x = x + ux
-			y = y + uy
-			z = z + uz
-			count = count + 1
-		end
-	end
-	if count == 0 then
-		return
-	end
-	self.CENTER = self.CENTER or {}
-	self.CENTER.x = x / count
-	self.CENTER.y = y / count
-	self.CENTER.z = z / count
 end
 
 function LosHST:getEnemyCell(X, Z) --the cell X, Z of ENEMY, marked as true for this round
@@ -458,7 +426,6 @@ function LosHST:Draw()
 	if self.enemyBasePosition then
 		map:DrawPoint(self.enemyBasePosition, { 1, 1, 1, 1 }, "BASE", ch)
 	end
-	map:DrawPoint(self.CENTER, { 1, 1, 1, 1 }, "BASE", ch)
 	local cellElmosHalf = self.ai.gridhst.gridSizeHalf ---@type number
 	for n = 1, #self.ENEMY.LIST do --numeric loop keeps the order of the cells
 		local cell = self.ENEMY.CELLS[self.ENEMY.LIST[n]]

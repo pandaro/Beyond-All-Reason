@@ -324,7 +324,7 @@ function AttackHST:SquadsTargetPrevent2(squad)
 	local targetDist = math.huge
 	local targetCell
 	for index, blob in pairs(self.ai.targethst.MOBILE_BLOBS) do
-		local dist = self.ai.tool:distance(blob.position, self.ai.loshst.CENTER)
+		local dist = self.ai.tool:distance(blob.position, self.ai.buildingshst.CENTER)
 		if dist < targetDist then
 			targetDist = dist
 			targetCell = { X = blob.targetCell.X, Z = blob.targetCell.Z }
