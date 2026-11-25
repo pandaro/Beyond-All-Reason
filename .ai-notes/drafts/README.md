@@ -23,9 +23,10 @@ The design behind these choices is in the architecture proposal. This guide only
 9. [Units and behaviours](#units-and-behaviours)
 10. [The API: `game`, `map`, units](#the-api-game-map-units)
 11. [Logging and debugging](#logging-and-debugging)
-12. [Testing](#testing)
-13. [Rules for code that runs every frame](#rules-for-code-that-runs-every-frame)
-14. [How an AI runs in a game](#how-an-ai-runs-in-a-game)
+12. [How to debug](#how-to-debug)
+13. [Testing](#testing)
+14. [Rules for code that runs every frame](#rules-for-code-that-runs-every-frame)
+15. [How an AI runs in a game](#how-an-ai-runs-in-a-game)
 
 ## Files and folders
 
@@ -424,6 +425,38 @@ At most 20 orders go in one message (`MAX_ORDERS_PER_MESSAGE` in `ordercodec.lua
 - `self:EchoDebug(...)`: printed only when `self.DebugEnabled` is true. Set it in `Init()` per module or behaviour.
 
 The map can draw shapes for debugging, shown by the `shard_help_draw` widget: `DrawPoint`, `DrawLine`, `DrawCircle`, `DrawRectangle` and the matching `Erase*`, plus `EraseAll(channel)`. Every call takes a `channel` number, so different modules can draw without clearing each other's drawings. `ShardUnit:DrawHighlight(color, label, channel)` highlights a unit.
+
+## How to debug
+
+**Experimental.** Two switches, both constants at the top of their file in `luarules/gadgets/ai/shard_runtime/loader/`, on today. They are not settings: change the file and restart the game.
+
+**Timers** (`timers.lua`, `TIMERS_ON`). Every call the runtime makes into a module (`Init`, `Update`, every event) and into a behaviour (`Update`, `Activate`, every event) is timed. A call longer than `SPIKE_MS` (10 ms) writes one line to the infolog:
+
+```
+[Shard timer] frame=1234 ai=STAI team=1 ally=0 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4
+```
+
+- `team` is `-` for ally and global modules, `ally` is `-` for global modules.
+- `behaviour=-` for a module. For a behaviour, `module` is the module whose call was running when the behaviour was called (the one that holds the unit), or `-`.
+- `call` is the method called; `ScheduledUpdate` is a module's `Update` in its scheduler turn.
+- A module's time includes the behaviours it calls, so a slow behaviour gives two lines: its own and its module's.
+- `ms` has one decimal. The clock is `Spring.GetTimerMicros`, whose step grows with the uptime of the engine process (2 us at start, 256 us after 45 minutes).
+
+At `GameOver` (or at shutdown, if the game did not end), one line per module or behaviour name, the largest total first:
+
+```
+[Shard timer summary] name=BuildersBST kind=behaviour calls=51234 min=0.002 max=37.4 avg=0.081 sum=4150.2 spikes=3
+```
+
+Times in ms; `spikes` counts the calls above `SPIKE_MS`. To find the worst calls: `grep '\[Shard timer\] ' infolog.txt | awk -F'ms=' '{print $NF, $0}' | sort -g -r | head`.
+
+**Memory** (`memstats.lua`, `SHARD_MEM_STATS`). Once a minute of game, the Lua memory the loader and the AIs allocate in `GameFrame`:
+
+```
+[AI Loader] memory per frame: avg 12.40 KB max 210.00 KB over 1800 frames, heap 95.3 MB
+```
+
+A step of the garbage collector in the middle of a frame lowers that frame's figure, even below zero. At shutdown, `Shard memory record:` gives the peak heap, in KB, whatever the switch.
 
 ## Testing
 
