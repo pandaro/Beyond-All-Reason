@@ -56,6 +56,35 @@ Obiettivo: uno spec busted che **carica STAI fuori dall'engine** con `shard_null
 
 ## Risultati
 
+### S17 (agente locale, 25 novembre 2026) — STAI sotto `shard_null`: spec in verde con 3 casi, il gioco non cambia
+
+**In breve**: fatto, due commit di codice (`5f2637ae50` `boot.lua`, `8b619014e0` lo spec). STAI si carica fuori dall'engine, fa `Init` di global, ally e team, `Update` e un comandante che ordina il primo mex. Test: 2816 successi (2813 + 3), 0 fallimenti; StyLua 2.5.2 pulito sui due file; EmmyLua: lo spec 0 avvisi, `boot.lua` gli stessi 2 di prima (`STAI()` «call-non-callable», lo stesso di `Shard/boot.lua`), `.emmyrc.json` ripristinato; `run_engine_tests.sh` `RESULT: ok`. Lo spec dura 0,02 s.
+
+**1. `STAI/boot.lua`**: ora come `Shard/boot.lua`: `ShardNull = require("shard_runtime/shard_null/boot")`, `ShardNull.SetAIFolder("STAI")`, `ShardNull.Start(ai, "STAI")` (global, ally, team nell'ordine del loader). Il ramo `ShardSpringLua` non è cambiato. Prima del commit lo spec fallisce (nessun `Init`: `ai.loaded` resta `nil`).
+
+**2. Nomi dei file**: 39 `shard_include` distinti in STAI (più quelli del runtime): **nessuna differenza di maiuscole**, file e nomi sono tutti minuscoli. Niente da correggere. Altri `require`/`VFS.Include` in STAI: `boot.lua` (sopra), `buildingshst.lua:27` (`VFS.Include("common/stai_factory_rect.lua")`, funziona nell'ambiente dello spec) e `test.lua:15` (`require("boot")`, vecchio, non lo carica nessuno: da guardare in chiusura, come già annotato in S25).
+
+**3. Cosa ho dovuto fingere** (tutto nello spec, STAI e framework intatti)
+- **Ambiente**: lo spec non scrive nessun globale della suite. `SpecEnv.new` dà un ambiente con `Spring`/`VFS`/… a strati; ci metto un `require` e un `package` miei (cercano sotto `luarules/gadgets/ai/` e eseguono ogni file in quell'ambiente), quindi `class`, `STAI`, `ai`, `game`, `map`, `continue`, `parent` di `armyhst.lua` restano lì dentro. `print` dell'ambiente raccoglie le righe: **ogni riga con «Warning» fa fallire** lo spec.
+- **`UnitDefs`/`UnitDefNames`/`FeatureDefs`/`WeaponDefs`**: 60 tipi, non «pochi»: `ArmyHST` nomina unità vere in più punti e indicizza senza guardia. Servono: `armcom`/`corcom`, `armmex`/`cormex`, `armpw`/`corpw`, i nano `*nanotc`/`*nanotcplat` (il comandante li conta per scegliere il ruolo, `tool.lua:187`), **tutte e 28 le fabbriche di `factoryMobilities`** (`LabsHST:factoriesRating` le valuta in `Init` e indicizza `unitTable[factory].unitsCanBuild`; ognuna costruisce `*pw`), e i sei costruttori d'esempio di `mobUnitExampleName` (`armcv`, `armck`, `armbeaver`, `armch`, `armcs`, `armacsub`: `MapHST:moveLayerTest` chiede all'engine dove possono andare). Ogni def ha tutti i campi che `GetUnitTable` legge (valori semplici).
+- **`Spring.*`** (4): `GetGameRulesParam` (nil), `GetTeamResources`, `TestMoveOrder` (sempre vero), `GetGroundHeight`.
+- **Mappa** (`shard_null/map.lua`, a cui lo spec aggiunge): `game_engine:Map():MapDimensions()` (128 × 128, che `shard_null` chiama ma non definisce), `GetGroundHeight`, `CanBuildHere` (vero), `TestPath` (50), `GetPathObject`/`GetPathWaypoints` (percorso senza punti), `GetMetalSpots` (3 spot). Griglia 4 × 4 celle; tutta transitabile, una sola rete. Limite: nessun terreno, acqua o geotermia.
+- **Gioco** (`shard_null/game.lua`, a cui lo spec aggiunge): `GiveOrder` (registra), `GetTypeByName` (da `UnitDefNames`, con `ID`, `Name`, `CanBuild`), `GetUnitByID`, `GetTeamUnitDefCount`, `GetTeamUnitsByDefs`, `getUnitsInCylinder`. `Frame` resta 0 per sempre in `shard_null`.
+- **Unità del motore**: una sola (il comandante): `ID`, `Team`, `IsMine`, `Name`, `GetRawPos`, `GetPosition`, `GetHealth`, `GetMaxHealth`, `GetHealtsParams`, `CanBuild`, `Move`, `Patrol`, `Guard`.
+- **Non fingo**: LOS/radar, nessun nemico, nessuna fabbrica costruita, `Frame` fermo a 0 (quindi i comportamenti a tempo non scattano), nessuna altra unità. Lo spec non prova il gioco: prova che il codice carica, parte e non rompe.
+
+**4. Spec** `spec/luarules/gadgets/ai/STAI/stai_null_spec.lua` (3 casi, 339 righe; più del doppio del codice cambiato, ma il codice cambiato è `boot.lua` e quasi tutto è l'ambiente finto)
+1. boot di global, ally e team: i moduli stanno nel proprio ambito (`maphst` del global è lo stesso oggetto per l'AI, `loshst` dell'ally idem), nessun «Warning».
+2. `Update` su global, ally e AI, e tutti i turni dello scheduler (`ScheduledUpdate` di 1…`#MScheduler`) per 3 giri, senza errori né avvisi.
+3. Il comandante (`UnitCreated`, `UnitBuilt`, un `Update`): ha `BootBST`, `BuildersBST`, `CommanderBST` e dà **un ordine**, costruire `armmex` (`cmd = -id`, unità 1).
+- **Mutazione**: `error("boom")` come prima riga di `DamageHST:Update`, di `MapHST:Init` e di `BuildersBST:Update` (tolti con `git checkout`): lo spec fallisce ogni volta (1 caso, 3 casi, 1 caso).
+
+**5. Partita A** (`run_engine_game.sh`, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0): fine STAI **145 unità, 2 fabbriche, 16 mex**; SimpleAI 56, 1, 6. Relay: 3280 messaggi / 13226 ordini / 7 rifiutati; 2550 gruppi; `Shard memory record` 15502. Righe `[AI Loader] error`: 0 (nell'infolog restano solo gli errori di rendering dell'headless). Il gioco non cambia (`boot.lua` non si carica in partita): 145 unità sta fra A1 (110) e A2/A3 di S24b, sotto S26 (188–203), come varianza del seme.
+
+**Trovato mentre fingevo** (non toccato)
+- `LabsHST:factoriesRating` (`labshst.lua` r. 70–96) divide per `topRatingSpots`: su una mappa **senza spot di metallo** vale 0, `v.allSpots / 0` dà NaN e `rank[rating]` fallisce con «table index is NaN» (provato nello spec togliendo gli spot). Le mappe di BAR hanno spot, quindi in partita non succede; da sapere.
+- `shard_null/game.lua` e `map.lua` non hanno quello che STAI chiama (sopra); non li ho toccati (cambio al framework, non chiesto). Se vuoi che lo spec si semplifichi, si possono spostare lì i finti comuni a tutte le AI.
+
 ### S24b (agente locale, 25 novembre 2026) — verificato dal coordinatore. L'ordine azzeramento/lettura di `idleCount` (r. 233/190 di `AttackHST`, r. 248/204 di `RaidHST`) va in S24c, se l'utente lo vuole
 
 **In breve**: fatto, commit `a51a5d646e`. Test: 2813 successi, 0 fallimenti; `run_engine_tests.sh` `RESULT: ok`; StyLua pulito; EmmyLua su `attackerbst.lua` da 20 a 13 avvisi (`.emmyrc.json` ripristinato). **Ma la correzione non arriva a r. 190**: `MemberIdle` ora è chiamato (0 → 208 in una partita A), r. 190 scatta ancora 0 volte, perché la condizione è irraggiungibile per un altro motivo (sotto). Partite: A2, A3 e C nei riferimenti, A1 sotto (una sola).
