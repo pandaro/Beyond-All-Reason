@@ -48,6 +48,46 @@ Due compiti. L'utente dice «esegui s22»: fai **solo S22**, fermati, «fatto».
 
 ## Risultati
 
+### S22 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+
+**In breve**: regola nuova d'elezione (`STAI.legacyElection = false`), `CleanerBST:Priority` a `0`, `labshst.lua` non più indicizza una rete `nil` (il caso di S21 è ora coperto da test), `bomberhst` con contatore. Tre commit di codice più questo. Una partita A e una C, nessuna riga `[AI Loader] error`.
+
+**Commit**
+- `1ea1b59fe8` «STAI: elect only a priority above zero; CleanerBST priority 0» (`ai.lua`, `cleanerbst.lua`).
+- `2805256c24` «STAI: skip lab spots with no network of their layer» (`labshst.lua`, `spec/luarules/gadgets/ai/STAI/labshst_spec.lua`, nuovo).
+- `3cf5f0f6da` «STAI: index bomber command ids from a counter» (`bomberhst.lua`).
+- Più il commit di questi risultati.
+
+**Punto 1**: `ai.lua` r. 3 ora `STAI.legacyElection = false` con il commento proposto. `CleanerBST:Priority` restituisce `0`.
+
+**Punto 2**: `PostPositionalFilter` prende `NETWORK = networks[mtype][network]` con i controlli su `network` e sul layer; se manca, il punto è scartato come «area too small». Test busted nuovo con tre casi (rete grande, layer senza reti, rete piccola). Sul codice di base il primo caso senza rete dà errore a `labshst.lua:367` (`attempt to index field '?' (a nil value)`): il test fallisce sulla base e passa dopo la correzione.
+
+**Punto 3**: `BomberHST:SquadsPerformBombing` riempie `squad.cmdUnitId` con un contatore `n`, come in S21. **Senza test** (il compito lo chiedeva solo «se semplice»; non l'ho fatto, lo dico qui). Non cambia il gioco oggi (S16: `bomberhst:163` non è chiamato in partita).
+
+**Controlli**
+- `lx --lua-version 5.1 test`: 2784 successi, 0 fallimenti, 0 errori, 1 in sospeso (`def_invariants_spec.lua:321`, già prima). Sulla base con il solo `labshst.lua` originale: 1 errore (il test del nil).
+- `stylua --check --respect-ignores` su `ai.lua`, `cleanerbst.lua`, `labshst.lua`, `bomberhst.lua`, `labshst_spec.lua`: pulito.
+- `emmylua_check -c .emmyrc.json .`: exit 1 come prima (il repo ha già migliaia di avvisi e hint). Nei file toccati **nessun errore**; avvisi nuovi: `unnecessary-if` e `need-check-nil` nel punto di `labshst.lua`, non ho fatto il confronto con la base riga per riga.
+- `run_engine_tests.sh`: `RESULT: ok`; sincrono 3 ok, asincrono 3 ok, controllo negativo rilevato.
+- `.emmyrc.json`: `lx test` lo riscrive; ripristinato con `git checkout`, non nei commit.
+
+**Partite** (15 minuti, `SHARD_MEM_STATS=1`, uscita 0, 20–30 s ciascuna; righe `[AI Loader] error`: **0** in tutte e due)
+
+| partita | unità STAI min. 10 / 13 / 14 | fine (SUMMARY): unità, fabbriche, mex | relay: messaggi / ordini / rifiutati | memoria |
+| --- | --- | --- | --- | --- |
+| A (STAI vs SimpleAI) | 103 / 159 / 174 (min. 9–14 sopra) | 198, 2, 32 (SimpleAI 72) | — | — |
+| C (STAI vs STAI) | 90 / 154 / 148 (team 0); 107 / 159 / 149 (team 1) | 146, 2, 25 · 164, 2, 26 | 4298 / 30392 / 44 | record 17425 |
+
+Riferimenti (S21, partite A): min. 13 194 / 152 / 147 / 217; fine 161–217, 2, 29–36. Con la nuova regola la partita A sta dentro il range di S21 (min. 13 159, fine 198). **Una partita sola per tipo**, come da compito: la varianza è quella di sempre, non la misuro qui.
+
+**Da sapere**
+- Partita C: 44 ordini rifiutati, sopra i 6–21 di S16 e S21. Non l'ho indagato; è in S22 perché il compito non lo chiedeva. Lo segnalo come dato da tenere d'occhio.
+- Prima partita con `legacyElection = false` in gioco: i numeri restano nel range di S13 (sei partite di controllo per tipo). Il giudizio sul passaggio resta dell'utente (domanda 1 di S13).
+
+**Domande**
+1. Il test di `bomberhst` (punto 3) lo faccio in un compito a parte, o va bene così?
+2. I 44 ordini rifiutati nella partita C: li guardo?
+
 ### S13 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Decisione dell'utente: **regola nuova sì** (in S22); `AttackerBST` resta com'è per ora
 
 **In breve**: con STAI le due regole differiscono solo quando la legacy elegge `BootBST` (priorità sempre 0) o `CleanerBST` (`nil`); con la nuova quelle unità restano senza behaviour attivo. Nessuno dei due fa qualcosa quando è attivo, quindi il gioco non dovrebbe cambiare. **Correzioni in STAI: nessuna** (passo 3 saltato). Ma due delle tre partite A con `legacyElection = false` sono sotto S1 in qualche numero: per la regola del compito **non ho tenuto il passaggio**, `ai.lua` resta `true`. Sei partite di controllo con la legacy (codice di base) danno lo stesso quadro (2 su 6 sotto S1): tabella al punto 4. Decide l'utente.
