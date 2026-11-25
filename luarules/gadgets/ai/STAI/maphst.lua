@@ -427,11 +427,11 @@ function MapHST:AccessibleSpotsHere(mtype, position)
 end
 
 function MapHST:DrawDebug()
-	for i = 0, 9 do
-		self.map:EraseAll(i)
-	end
 	if not self.ai.drawDebug then
 		return
+	end
+	for i = 0, 9 do
+		self.map:EraseAll(i)
 	end
 	local ch = 1
 	local colours = {
