@@ -4,8 +4,9 @@
 #
 # Usage: .ai-notes/tools/run_engine_game.sh <startscript> <minutes>
 #   The startscript (see .ai-notes/tools/startscripts/) has @QUIT_FRAME@ where the game must end, in debugcommands.
-# Environment: ENGINE_DIR, WRITE_DIR as in run_engine_tests.sh (default write dir: ${TMPDIR:-/tmp}/shard-engine-game);
-#   SHARD_MEM_STATS=1 for the loader's memory lines.
+# Environment: ENGINE_DIR, WRITE_DIR as in run_engine_tests.sh (default write dir: ${TMPDIR:-/tmp}/shard-engine-game).
+# The loader's memory lines and timer lines have their switches in the code (loader/memstats.lua, loader/timers.lua).
+# Of the timer lines only their number is printed, and the summary; the lines themselves are in the infolog.
 set -u
 
 if [ "$#" -ne 2 ]; then
@@ -38,12 +39,9 @@ if [ -z "${WRITE_DIR:-}" ]; then
 	fi
 fi
 
-# SHARD_MEM_STATS=1 turns on the loader's memory lines (ShardMemStats), only in the temporary write dir
+# ShardMemStats in springsettings.cfg is no longer read
 if [ "$TEMP_WRITE_DIR" = "1" ]; then
 	sed -i '/^ShardMemStats/d' "$WRITE_DIR/springsettings.cfg"
-	if [ "${SHARD_MEM_STATS:-0}" = "1" ]; then
-		echo "ShardMemStats = 1" >> "$WRITE_DIR/springsettings.cfg"
-	fi
 fi
 
 if [ -e "$GADGET" ]; then
@@ -72,6 +70,8 @@ status=$?
 cleanup
 
 echo "engine exit status: $status after $(($(date +%s) - started)) s; infolog: $WRITE_DIR/infolog.txt"
-grep -E "\[SHARD-GAME\]|\[AI Loader\]|Shard relay|Shard AI (un)?sync gadget|Shard memory record|[Ee]rror" "$WRITE_DIR/infolog.txt" \
+grep -E "\[SHARD-GAME\]|\[AI Loader\]|Shard relay|Shard AI (un)?sync gadget|Shard memory record|Shard timer summary|[Ee]rror" \
+	"$WRITE_DIR/infolog.txt" \
 	| grep -v "setfenv: cannot change this environment" \
 	| sed -E 's/^\[t=[^]]*\]\[f=[^]]*\] //'
+echo "[Shard timer] lines: $(grep -c "\[Shard timer\] " "$WRITE_DIR/infolog.txt")"
