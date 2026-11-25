@@ -47,6 +47,97 @@
 
 ## Risultati
 
+### S8b (agente locale, 25 novembre 2026)
+
+**In breve**: `PerceptionHandler` del runtime è in `modules.lua` (una istanza per alleanza, riceve ogni evento prima di `LosHST`: 0 eccezioni su 457 eventi per team); un'unità mobile che esce dalla los restando nel radar diventa un'**ombra** (`ghostEnemy`) e si segna in `ENEMY` come unità di tipo noto. Nelle partite: 71–233 ombre per partita, al massimo 1–12 insieme, **nessuna ombra appesa**, nessun avviso «più di un insieme». Le tre partite A **non stanno sotto** i riferimenti.
+
+**Commit**
+
+- `606b509498` «STAI: load the runtime's PerceptionHandler in the ally scope»: `shard_include("perceptionhandler")` (dopo `tool`) e `PerceptionHandler` nella lista subito dopo `MapHST` (prima i globali, poi l'alleanza, poi i team). Il `shard_include` di STAI ricade sul runtime (`shard_generate_include_func(RUNTIME_PATH, AI_PATH .. aiName, env)`), quindi niente file in `STAI/`.
+- `ec4da06c64` «STAI LosHST: keep a mobile unit that leaves the los on radar as a ghost»: `loshst.lua` e il test nuovo `loshst_spec.lua`.
+- Un commit per questi risultati.
+
+**1. Una istanza, eventi prima di `LosHST`**
+
+- Dal codice: `DeliverSight` (`loader/delivery.lua` r. 173) manda l'evento prima agli oggetti `ShardAlly` dell'alleanza **che vede** (`Shard.alliesByAllyID[allyTeam]`), poi a tutte le AI. Quindi `PerceptionHandler` vede solo gli eventi della sua alleanza (non gli serve il filtro `allyTeam` che ha `LosHST`) e li vede prima. Il team prende l'istanza dell'alleanza in `LoadModule` (`self[internalname] = shared`).
+- Prova (patch `[S8B-PH]` non committata, partita B: due STAI nell'alleanza 0, 10 minuti): una sola riga `ally 0, ShardAlly, Info: , adding PerceptionHandler module`; in ogni evento di `LosHST`, dopo il filtro, controllo che `PerceptionHandler` lo abbia già registrato (`Sees` vero in `UnitEnteredLos`, falso in `UnitLeftLos`; `OnRadar` vero in `UnitEnteredRadar`, falso in `UnitLeftRadar`): **457 eventi per ciascuno dei due team, 0 al contrario**. Nessuna riga `[AI Loader] error`.
+
+**2. Le ombre** (`loshst.lua`)
+
+- `Init`: `self.ghostEnemy = {}` (`[unitID] = unitDefID`), commento a fine riga.
+- `UnitLeftLos`: fra il ramo degli edifici e quello di prima, `elseif self.ai.perceptionhandler:OnRadar(unitID) then` → `losEnemy` nil, `ghostEnemy[unitID] = unitDefID`. Edifici e unità mobili fuori dal radar come prima.
+- Uscite: `UnitEnteredLos` (torna in `losEnemy`), `UnitLeftRadar`, `cleanEnemy` (quindi anche `UnitDead` e le unità morte o senza posizione in `Update`).
+- `Update`: terzo ciclo, su `ghostEnemy`, uguale a quello del radar ma con `setCellLos` (tipo noto) alla posizione di `GetRawPos`, come oggi per il radar.
+- Il `Warn` vale per i tre insiemi: `LosHST:countSets(id)` (in quanti dei tre è l'unità), `if self:countSets(id) > 1` nei tre cicli; testo «unit in more than one of los, radar and ghost, with losStatus:». Nelle partite non è mai uscito.
+- `Draw`: le ombre in giallo, come gli altri due insiemi.
+- Ordine degli eventi dell'engine, da sapere: quando un'unità esce insieme da los e radar, `UnitLeftLos` arriva prima di `UnitLeftRadar`, quindi diventa ombra per un attimo e l'evento dopo la toglie. Le misure (nessuna appesa) lo confermano.
+- `UnitEnteredRadar` non l'ho toccato: un'ombra non può ricevere `UnitEnteredRadar` (il radar non si è interrotto); se succedesse, il `Warn` lo direbbe.
+
+**Lettori di `losEnemy` fuori da `LosHST`**: nessuno cambia.
+
+- `damagehst.lua` r. 41–42: scrive in `losEnemy` solo un attaccante **edificio** (`attackerut.isBuilding`), e gli edifici non diventano mai ombre. **Difetto visto**: scrive il `defId` del **difensore** (`defenderUt.defId`), non dell'attaccante. Le misure lo mostrano: 1–3 unità «mobili» in `losEnemy` che `PerceptionHandler` non vede, e sono torrette che sparano da fuori vista (`corllt` scritta come `armham`, `armhlt` come `corstorm`, `armbeamer` come `corthud`…). Oggi senza effetti: il valore di `losEnemy` non lo legge nessuno (`Update` usa `unit:Name()`), e per `UnitLeftLos` conta l'`unitDefID` dell'evento. Non toccato.
+- `scoutbst.lua` r. 135 (`Attacking`): l'esploratore insegue solo ciò che vede (`self.attacking` viene da `Spring.GetUnitNearestEnemy` con `useLos`, nel raggio di vista). Ho deciso di **non** fargli inseguire le ombre: comportamento uguale a prima (lascia il bersaglio quando esce dalla vista), e la posizione dell'ombra è quella del radar, imprecisa. Se vuoi che insegua anche le ombre è una riga (`and not self.ai.loshst.ghostEnemy[...]`).
+
+**3. Coerenza con l'engine**: `PerceptionHandler` serve in un punto solo, `UnitLeftLos` (`OnRadar`), dove `LosHST` da solo non lo sa. Il resto resta sugli eventi, perché:
+
+- il filtro `allyTeam ~= self.ai.allyId` serve finché `LosHST` è `"team"` (le AI ricevono gli eventi di tutte le alleanze);
+- `UnitEnteredRadar` controlla `losEnemy`, che è **memoria** (gli edifici usciti dalla vista restano), non un fatto dell'engine: con `Sees` un edificio ricordato che entra nel radar finirebbe anche in `radarEnemy`;
+- leggere in `Update` gli insiemi di `PerceptionHandler` al posto degli eventi toglierebbe il momento in cui un'unità passa da los a ombra, cioè proprio la memoria.
+- Nessuna lettura nuova di `Spring.*`.
+
+**4. Misure** (`[S8B-MEASURE]`, non committate: al primo `Update` di `LosHST` ogni 300 frame, per team; in più contatori delle ombre fatte e di come escono, ombre appese = in `ghostEnemy` ma non `OnRadar`, ombre che `Sees`)
+
+| partita | campioni | `losEnemy` media (max) | `radarEnemy` media | `ghostEnemy` media | campioni con ombre | celle vere di `ENEMY` media (max) | ombre fatte | → los | → fuori radar | → `cleanEnemy` | max insieme | appese | in los |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A1 | 89 | 1,5 (6) | 0,01 | 0 | 0 | 1,2 (5) | 71 | 5 | 66 | 0 | 1 | 0 | 0 |
+| A2 | 89 | 5,9 (14) | 0,44 | 0,34 | 12 | 5,3 (11) | 176 | 59 | 117 | 0 | 6 | 0 | 0 |
+| A3 | 89 | 12,5 (27) | 0,06 | 0 | 0 | 9,1 (20) | 125 | 17 | 108 | 0 | 3 | 0 | 0 |
+| C, team 0 | 89 | 4,2 | 2,0 | 0,87 | 9 | 4,1 | 233 | 57 | 176 | 0 | 12 | 0 | 0 |
+| C, team 1 | 89 | 2,7 | 1,6 | 0,33 | 8 | 2,9 | 182 | 56 | 124 | 0 | 12 | 0 | 0 |
+
+- **Quante ombre**: di solito **nessuna** nell'istante del campione; durano poco. Per partita se ne fanno 71–233; il 65–90 % esce perché l'unità lascia anche il radar, il resto torna in los. Al massimo 1–6 insieme nelle partite A, 12 nella C (STAI contro STAI, più radar).
+- **Ombre appese: 0** in ogni campione, e nessuna ombra mentre `PerceptionHandler` la vede in los. Nessuna esce con `cleanEnemy`: nessuna ombra è morta da ombra, o l'engine manda `UnitLeftRadar` prima di `UnitDestroyed` (non l'ho verificato).
+- `radarEnemy` è quasi sempre vuoto nelle partite A: contro SimpleAI su Comet Catcher STAI vede poco in solo radar.
+
+**Test** (`spec/luarules/gadgets/ai/STAI/loshst_spec.lua`; `LosHST` si carica come `MapHST` nel suo test, con `gridhst`, `UnitDefs`, `game` e `PerceptionHandler` finti)
+
+- «keeps a mobile unit that leaves the los while on radar as a ghost of its type»; «forgets a mobile unit that leaves the los off radar»; «moves a ghost back to the los when it enters the los again»; «forgets a ghost when it leaves the radar, or dies» (`UnitLeftRadar` e `cleanEnemy`); «keeps a building that leaves the los in the los, on radar or not»; «marks a ghost in the cell of its radar position as a unit of known type» (`Update` con `setCellLos`/`setCellRadar` registrati; c'è anche un'unità di un'altra alleanza, che resta fuori).
+- Mutazioni, ognuna fa fallire almeno un test: `loshst.lua` della base (1 fallito, 5 in errore: anche il test degli edifici, che legge `ghostEnemy`); ombra mai fatta (2); ombra sempre, senza `OnRadar` (1); `UnitEnteredLos` che lascia l'ombra (1); `UnitLeftRadar` che la lascia (1); `cleanEnemy` che la lascia (1); ombra segnata con `setCellRadar` (1). Col codice giusto 2757 successi, 0 falliti.
+
+**Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice `ec4da06c64` più la patch di misura, uscita 0 tutte e tre)
+
+| | partita 1 | partita 2 | partita 3 | S8a | S6 | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 5 / 38 / 108 / 152 | 5 / 38 / 86 / 149 | 6 / 37 / 101 / 171 | 6/34/91/160 · 6/36/89/148 · 5/37/96/174 | 6/33/79/138 · 5/36/101/154 · 6/33/88/133 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14) | 168 unità, 2 fabbriche, 33 mex | 166, 2, 29 | 198, 2, 39 | 182/178/202, 2, 34/34/38 | 157/178/155, 1–2, 26/33/30 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 190, 2, 34 | 197, 2, 34 | 212, 2, 43 | 202/194/219 | 175/200/181 | — |
+| relay: messaggi | 3891 | 3359 | 3301 | 3825 / 4389 / 3316 | 3095 / 3572 / 3247 | 3405–3933 |
+| relay: ordini dati | 13383 | 14721 | 19508 | 13138 / 18564 / 16422 | 12678 / 15278 / 14002 | 10445–15948 |
+| relay: ordini rifiutati | 16 | 8 | 13 | 17 / 11 / 19 | 7 / 4 / 8 | 9–16 |
+| messaggi rifiutati | nessuno | nessuno | nessuno | nessuno | nessuno | nessuno |
+| memoria per frame, medie per minuto | 0,19–0,76 (media 0,40) | 0,18–0,67 (0,37) | 0,18–0,62 (0,38) | 0,36–0,38 di media | 0,35 / 0,37 / 0,39 | 0,37–0,45 |
+| memoria per frame, picco | 127,8 KB (min. 11) | 64,2 KB (min. 13) | 75,0 KB (min. 11) | 111,9 / 104,2 / 217,9 | 159,0 / 124,6 / 90,1 | 67,9–73,5 |
+| heap | 12,9–14,8 MB | 12,9–14,4 MB | 12,9–15,1 MB | 12,9–15,5 | 13,1–16,0 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 | 0 | 0 |
+| tempo reale | 20 s | 19 s | 20 s | 18–20 s | 18–21 s | 19–21 s |
+
+- **Nessuna partita sta sotto i riferimenti**: a fine partita 168/166/198 unità e 33/29/39 mex, dentro o sopra S1 e S6; la partita 3 è la più alta finora per mex al `SUMMARY` (43). Al minuto 13 le partite 1 e 2 sono nell'intervallo di S1, la 3 sopra (171).
+- Ordini: la partita 3 (19508) sopra S1, come la 2 di S8a; rifiutati 8–16, nell'intervallo. Messaggi delle partite 2 e 3 (3359, 3301) un po' sotto S1, come in S6 e S8a.
+- Memoria: medie come S1–S8a; la partita 1 ha l'ultimo minuto a 0,76 (dopo il `SUMMARY`), il valore più alto delle medie per minuto finora; picchi 64–128 KB, sotto S8a. Heap come prima. Con il seme che cambia a ogni partita non lo attribuisco al cambio.
+- Partita C (`c_stai_vs_stai.txt`, solo per le misure): team 0 146 unità, 2 fabbriche, 26 mex al minuto 14, team 1 162, 1, 23; relay 5204 / 29055 / 40 rifiutati (S7: 4551–4826 / 23553–26134 / 16–31).
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown). Nessuno cita Shard, STAI, `LosHST` o `PerceptionHandler`.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2757 successi, 0 falliti, 1 pending (2751 + 6). `run_engine_tests.sh` (codice finale): `RESULT: ok`.
+- StyLua 2.5.2 (dalla radice) su `loshst.lua`, `modules.lua`, `loshst_spec.lua`: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `7ba9c26c05`: 20 errori, negli stessi file. `loshst.lua` 10 avvisi prima e dopo, hint 15 → 17 (i due `def` non usati dei cicli nuovi su `ghostEnemy`, in `Update` e `Draw`, scritti come gli altri cicli di STAI); `modules.lua` e `loshst_spec.lua` senza diagnostiche.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte i file di `.ai-notes/`. Niente codice tolto, quindi `codice-tolto.md` non cambia.
+
+**Difetti visti, non toccati**
+
+- `DamageHST` r. 41: `losEnemy[attacker:ID()] = defenderUt.defId` scrive il tipo del difensore (sopra).
+
 ### S8a (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **In breve**: `ENEMY` è uno strato di `GridHST`; `OWN`, `ALLY`, `ALLIES`, i pool e il resto morto di `LosHST` sono tolti. **La condizione di stop del punto 4 è scattata** (righe separate al frame 4200, prima di un nemico in vista nella partita di partenza), ma la prova fra partite diverse non può funzionare: **due partite con lo stesso codice di partenza si separano anche loro**, perché il seme di `math.random` di ogni AI viene dal `GameID`, diverso a ogni avvio. Al suo posto ho fatto la prova **nella stessa partita** (vecchia griglia ricalcolata accanto allo strato, confronto cella per cella a ogni `Update`): **0 differenze in tutta la partita**. L'utente ha visto i numeri e ha deciso di proseguire. Le tre partite A non stanno sotto i riferimenti.
