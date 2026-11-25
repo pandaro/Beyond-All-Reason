@@ -166,6 +166,10 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 	if minDist < 1 then
 		minDist = 1
 	end
+	if not self:depthFitsNear(unittype:Name(), bx, bz, maxDist) then
+		self:EchoDebug("no ground with the water depth of", unittype:Name(), "near", bx, bz)
+		return
+	end
 
 	local twicePi = math.pi * 2
 	local angleIncMult = twicePi / minDist
@@ -239,6 +243,22 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 	end
 end
 
+function BuildingsHST:depthFits(unitName, y) --unitName can be built at the water depth over the ground height y
+	local utable = self.ai.armyhst.unitTable[unitName]
+	local depth = -y
+	return depth >= utable.minWaterDepth and depth <= utable.maxWaterDepth
+end
+
+function BuildingsHST:depthFitsNear(unitName, x, z, range) --false when no ground within range of x, z fits depthFits
+	local utable = self.ai.armyhst.unitTable[unitName]
+	local reach = range + math.max(utable.xsize, utable.zsize) * 4 --the footprint of a building at range sticks out of it
+	local lowest, highest = self.ai.maphst:HeightsNear(x, z, reach)
+	if not lowest then
+		return true
+	end
+	return -lowest >= utable.minWaterDepth and -highest <= utable.maxWaterDepth
+end
+
 function BuildingsHST:CanBuildHere(unittype, x, y, z) -- returns boolean
 	local newX, newY, newZ = Spring.Pos2BuildPos(unittype:ID(), x, y, z)
 	local buildable = Spring.TestBuildOrder(unittype:ID(), newX, newY, newZ, 1) --TODO check if it really necessary
@@ -258,6 +278,10 @@ function BuildingsHST:CheckBuildPos(
 	builder --[[, originalPosition]]
 ) --TODO clean this
 	if not pos then
+		return
+	end
+	if not self:depthFits(unitTypeToBuild:Name(), pos.y) then
+		self:EchoDebug("blocked by the water depth")
 		return
 	end
 	if not self.ai.gridhst:isInMap(pos) then
@@ -348,7 +372,10 @@ function BuildingsHST:searchPosNearCategories(utype, builder, minDist, maxDist, 
 				local unit = self.game:GetUnitByID(unitID)
 				local unitName = unit:Name()
 				local bx, by, bz = unit:GetRawPos()
-				if not neighbours or not self:unitsNearCheck(bx, by, bz, maxDist, number, neighbours) then
+				if
+					self:depthFitsNear(utype:Name(), bx, bz, maxDist)
+					and (not neighbours or not self:unitsNearCheck(bx, by, bz, maxDist, number, neighbours))
+				then
 					p = self:FindClosestBuildSite(utype, bx, by, bz, minDist, maxDist, builder, p)
 					if p and p.x then
 						return p
@@ -374,7 +401,10 @@ function BuildingsHST:searchPosInList(utype, builder, minDist, maxDist, list, ne
 		return
 	end
 	for index, pos in pairs(self.ai.tool:sortByDistance(builder:GetPosition(), list)) do
-		if not neighbours or not self:unitsNearCheck(pos.x, pos.y, pos.z, maxDist, number, neighbours) then
+		if
+			self:depthFitsNear(utype:Name(), pos.x, pos.z, maxDist)
+			and (not neighbours or not self:unitsNearCheck(pos.x, pos.y, pos.z, maxDist, number, neighbours))
+		then
 			tmpPos = self:FindClosestBuildSite(utype, pos.x, pos.y, pos.z, minDist, maxDist, builder, tmpPos)
 			if tmpPos and tmpPos.x then
 				if self.DebugEnabled then

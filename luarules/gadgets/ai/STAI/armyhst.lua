@@ -1265,6 +1265,8 @@ function ArmyHST:GetUnitTable()
 			utable.airRange = utable.groundRange
 		end
 		utable.needsWater = unitDef.minWaterDepth > 0
+		utable.minWaterDepth = unitDef.minWaterDepth --the water depths where this unit can be built
+		utable.maxWaterDepth = unitDef.maxWaterDepth
 		if unitDef["canFly"] then
 			utable.mtype = "air"
 			utable.LAYER = "A"

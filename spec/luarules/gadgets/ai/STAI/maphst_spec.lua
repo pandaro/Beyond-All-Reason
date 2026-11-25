@@ -1,7 +1,7 @@
 ---@diagnostic disable: undefined-field, call-non-callable, inject-field
 
 -- Loads the runtime's class, AIBase and Module, then STAI/maphst.lua, in an environment of their own; the map
--- records the channels EraseAll gets.
+-- records the channels EraseAll gets. Returns the environment too.
 local function newMapHST(drawDebug)
 	local env = setmetatable({
 		shard_include = function() end,
@@ -24,7 +24,7 @@ local function newMapHST(drawDebug)
 			erased[#erased + 1] = channel
 		end,
 	}
-	return mapHST, erased
+	return mapHST, erased, env
 end
 
 -- Two cells, index 1 and 2, the index of a spot is its x; a spot with x below 1 is out of the map. Both cells are
@@ -111,5 +111,42 @@ describe("STAI MapHST", function()
 			end
 		end
 		assert.equal(16, beyondX)
+	end)
+
+	it("gives the lowest and the highest ground height of the cells near a point", function()
+		local mapHST, _, env = newMapHST(false)
+		env.map = {
+			GetGroundHeight = function(_, x, z)
+				if x > 512 then
+					return -100
+				elseif x > 256 then
+					return -40
+				elseif x == 112 and z == 176 then
+					return 90 --a hill under one sample of the first cell
+				end
+				return 10
+			end,
+		}
+		mapHST.ai.gridhst = {
+			gridSize = 256,
+			gridSideX = 3,
+			gridSideZ = 1,
+			GridToIndex = function(_, X, Z)
+				return (X - 1) * 1 + Z
+			end,
+		}
+		mapHST.GRID = { CELLS = {} }
+		for X = 1, 3 do
+			local CELL = {}
+			CELL.lowestHeight, CELL.highestHeight = mapHST:cellHeights({ X = X, Z = 1 })
+			mapHST.GRID.CELLS[X] = CELL
+		end
+
+		assert.same({ 10, 90 }, { mapHST.GRID.CELLS[1].lowestHeight, mapHST.GRID.CELLS[1].highestHeight })
+		assert.same({ 10, 90 }, { mapHST:HeightsNear(100, 128, 50) })
+		assert.same({ -40, 90 }, { mapHST:HeightsNear(200, 128, 100) })
+		assert.same({ -100, -40 }, { mapHST:HeightsNear(600, 128, 100) })
+		assert.same({ -100, 90 }, { mapHST:HeightsNear(700, 128, 5000) })
+		assert.same({}, { mapHST:HeightsNear(-5000, 128, 10) })
 	end)
 end)

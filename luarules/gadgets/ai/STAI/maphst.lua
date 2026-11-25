@@ -1,5 +1,7 @@
 shard_include("toolbox")
 
+local HEIGHT_SAMPLE_STEP = 32 --elmos between two ground height samples of a cell: about the narrowest building
+
 MapHST = class(Module)
 
 function MapHST:Name()
@@ -80,6 +82,28 @@ function MapHST:NewCell(i)
 	CELL.metalSpots = {} --hold the metalSpots of this cell
 	CELL.geoSpots = {} --hold the geoSpots of this cell
 	CELL.allSpots = {} --hold all the interesting spots
+	CELL.lowestHeight, CELL.highestHeight = self:cellHeights(self.ai.gridhst.CELLS[i]) --the lowest and highest ground height here
+end
+
+function MapHST:cellHeights(cell) --the lowest and highest ground height of a cell, every HEIGHT_SAMPLE_STEP elmos
+	local gridSize = self.ai.gridhst.gridSize
+	local x1 = (cell.X - 1) * gridSize
+	local z1 = (cell.Z - 1) * gridSize
+	local half = HEIGHT_SAMPLE_STEP / 2
+	local lowest = math.huge
+	local highest = -math.huge
+	for x = x1 + half, x1 + gridSize, HEIGHT_SAMPLE_STEP do
+		for z = z1 + half, z1 + gridSize, HEIGHT_SAMPLE_STEP do
+			local y = map:GetGroundHeight(x, z)
+			if y < lowest then
+				lowest = y
+			end
+			if y > highest then
+				highest = y
+			end
+		end
+	end
+	return lowest, highest
 end
 
 function MapHST:moveLayerTest(pos) --check where units can stay or not
@@ -380,6 +404,28 @@ function MapHST:MobilityNetworkHere(mtype, position)
 	if index then
 		return self.GRID.CELLS[index].moveLayers[mtype]
 	end
+end
+
+function MapHST:HeightsNear(x, z, range) --lowest and highest ground height of the cells in range; nil off the grid
+	local grid = self.ai.gridhst
+	local gridSize = grid.gridSize
+	local X1 = math.max(1, math.ceil((x - range) / gridSize))
+	local X2 = math.min(grid.gridSideX, math.ceil((x + range) / gridSize))
+	local Z1 = math.max(1, math.ceil((z - range) / gridSize))
+	local Z2 = math.min(grid.gridSideZ, math.ceil((z + range) / gridSize))
+	local lowest, highest
+	for X = X1, X2 do
+		for Z = Z1, Z2 do
+			local CELL = self.GRID.CELLS[grid:GridToIndex(X, Z)]
+			if not lowest or CELL.lowestHeight < lowest then
+				lowest = CELL.lowestHeight
+			end
+			if not highest or CELL.highestHeight > highest then
+				highest = CELL.highestHeight
+			end
+		end
+	end
+	return lowest, highest
 end
 
 function MapHST:MobilityOfUnit(unit)
