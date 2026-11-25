@@ -47,6 +47,45 @@ Due compiti. L'utente dice «esegui s14»: fai **solo S14**, poi fermati e di' �
 
 ## Risultati
 
+### S15 (agente locale, 25 novembre 2026) — da verificare dal coordinatore. Il `nil` lo romperebbe: verificato leggendo il widget, non in partita
+
+**In breve**: `map.lua` non passa più `self.ai.game:GetTeamID()` ai disegni, ma `drawTeam(self.ai)`: l'id del team se l'AI è un team AI, altrimenti l'id della prima team AI dell'ambito (`ai.AIs[1].id`), altrimenti `nil`. Nove funzioni attive cambiate (`DrawRectangle`, `EraseRectangle`, `DrawCircle`, `EraseCircle`, `DrawLine`, `EraseLine`, `DrawPoint`, `ErasePoint`, `EraseAll`). Partita: nessuna, come da compito.
+
+**Come usa il team il widget** (`luaui/Widgets/shard_help_draw.lua`): ogni forma va in `aiTeams[teamID][channel]` (`GetShapes`, r. 251), e `AddShape`, `EraseShapes` e `ClearShapes` chiamano `GetShapes(teamID, channel)`. Con `teamID == nil`, `aiTeams[nil] = {}` dà l'errore di Lua 5.1 «table index is nil»: quindi un `nil` lo romperebbe, come previsto dal compito. Il selettore di team (tasti `t` e `0`–`9`) elenca i team con forme: un ally team con due AI compare sotto l'id della prima.
+
+**Commit**
+
+- `71fb3121b2` «Shard runtime: file map drawings under a team in ally and global scopes» — `spring_lua/map.lua` e `spec/.../spring_lua/map_spec.lua`.
+- Più il commit di questi risultati.
+
+**Dettagli**
+
+- `drawTeam` è una funzione locale in `map.lua`, prima della sezione «DRAWING FUNCTIONS», con commento in inglese. Nessuna tabella nuova: il percorso non alloca.
+- Le righe commentate (`--SendToUnsynced(…)`, `--Script.LuaUI…`) contengono ancora `self.ai.game:GetTeamID()`: non le ho toccate, perché sono codice commentato.
+- Il file ha terminazioni CRLF; i due file lo mantengono.
+
+**Test** (`map_spec.lua`, nuovo `describe("map drawings")`; `loadMap` accetta ora la lista delle chiamate a `Script.LuaUI`)
+
+1. Team AI (`id = 3`): `ShardDrawAddPoint` riceve 3 come team.
+2. Ally team con due AI (`5`, `7`): `ShardDrawClearShapes` riceve `5` e il canale `2`.
+3. Ally team senza AI: `ShardDrawAddRectangle` riceve `nil` come team, senza errori.
+
+Verifica che i test siano veri: con `map.lua` di `HEAD` i tre test danno errore (`2777 successi / 0 fallimenti / 3 errori`); con la modifica `2780 successi / 0 fallimenti`.
+
+**Caveat**: se la prima AI di un ally team viene fermata, i disegni successivi vanno sotto la nuova prima AI. I disegni già fatti restano sotto l'id vecchio, e un `EraseAll` dell'ally team pulisce solo il nuovo. Il compito non copriva questo caso: lo segnalo, non l'ho cambiato.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2780 successi, 0 fallimenti, 0 errori, 1 in sospeso (`spec/gamedata/def_invariants_spec.lua:321`, già prima).
+- `stylua --check --respect-ignores` sui due file: pulito.
+- `emmylua_check -c .emmyrc.json` sulla cartella `spring_lua`, base contro finale: `map.lua` 56 errori, 10 avvisi, 25 suggerimenti in entrambi; conteggi per file identici. Nessuna segnalazione sul file di spec.
+- `.ai-notes/tools/run_engine_tests.sh`: `RESULT: ok`; sincrono 3 ok, asincrono 3 ok, controllo negativo rilevato.
+- `.emmyrc.json`: `lx test` lo riscrive; l'ho ripristinato con `git checkout`, non è nei commit.
+
+**Domande**
+
+1. Il caveat sopra (prima AI fermata) va bene così, o vuoi che il team dell'ally team resti fisso (per esempio il primo id visto)?
+
 ### S14 (agente locale, 25 novembre 2026) — da verificare dal coordinatore. Un caso da decidere: `buildersbst.lua:112` (vedi sotto)
 
 **In breve**: 84 chiamate `EchoDebug` con argomenti che lavorano (chiamate, `..`, `#`, tabelle, `tostring`) avvolte in `if self.DebugEnabled then … end`, in 16 file, una volta per blocco. Gli argomenti semplici (variabili, campi, costanti, letterali) sono rimasti com'erano. La stampa non cambia. Partita A: uscita 0, nessuna riga `[AI Loader] error`. Busted, StyLua, EmmyLua e test in motore: come sotto.
