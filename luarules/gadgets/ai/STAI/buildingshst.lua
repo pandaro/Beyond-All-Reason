@@ -502,7 +502,25 @@ function BuildingsHST:UnitDead(unit)
 	self:DoBuildRectangleByUnitID(unitID)
 end
 
-function BuildingsHST:getCenter() --the mean position of the own buildings; with none, CENTER stays as it is
+function BuildingsHST:GetCenter() --CENTER: the mean of the own buildings; with none, the commander position; with no commander, the last CENTER
+	if self.buildingsCenter then
+		return self.CENTER
+	end
+	local commander = game:GetUnitByID(self.commanderID) --nil without a registered commander
+	local x, y, z
+	if commander then
+		x, y, z = commander:GetRawPos()
+	end
+	if x then
+		self.CENTER = self.CENTER or {}
+		self.CENTER.x = x
+		self.CENTER.y = y
+		self.CENTER.z = z
+	end
+	return self.CENTER
+end
+
+function BuildingsHST:getCenter() --the mean position of the own buildings in CENTER, if there are any; buildingsCenter says if there are
 	local x, y, z = 0, 0, 0
 	local count = 0
 	for uid in pairs(self.ownImmobile) do
@@ -515,6 +533,7 @@ function BuildingsHST:getCenter() --the mean position of the own buildings; with
 			count = count + 1
 		end
 	end
+	self.buildingsCenter = count > 0
 	if count == 0 then
 		return
 	end
@@ -744,7 +763,7 @@ function BuildingsHST:VisualDBG()
 		builder:EraseHighlight(nil, nil, ch)
 		builder:DrawHighlight(colours[role.role], role.role, ch)
 	end
-	map:DrawPoint(self.CENTER, { 1, 1, 1, 1 }, "BASE", ch)
+	map:DrawPoint(self:GetCenter(), { 1, 1, 1, 1 }, "BASE", ch)
 	for i, sketch in pairs(self.sketch) do
 		map:DrawRectangle(
 			{ x = sketch.x1, y = 0, z = sketch.z1 },

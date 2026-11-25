@@ -395,7 +395,7 @@ function RaidHST:SquadsTargetDefense(squad)
 	local loshst = self.ai.loshst
 	local tool = self.ai.tool
 	local maphst = self.ai.maphst
-	local center = self.ai.buildingshst.CENTER
+	local center = self.ai.buildingshst:GetCenter()
 	for index, blob in pairs(self.ai.targethst.MOBILE_BLOBS) do
 		if self.ai.gridhst:GetCell(blob.targetCell.X, blob.targetCell.Z, loshst.ENEMY) then
 			if maphst:UnitCanGoHere(game:GetUnitByID(squad.leader), blob.position) then
