@@ -50,6 +50,26 @@
 
 ## Risultati
 
+### S27 (agente locale, 25 novembre 2026) — **fermato al passo 1**: A non gioca STAI, nessuna partita di misura
+
+**In breve**: il commit `57992771` non contiene il loader, quindi in A l'engine non carica STAI: la squadra 0 resta con la sola unità iniziale per tutta la partita. Come da compito mi sono fermato, senza correggere il codice di A e senza giocare le 20 partite. Nessuna statistica.
+
+**Cosa ho fatto**
+- Due worktree detached (`../bar-s27-a` a `57992771`, `../bar-s27-b` a `ab926056`), strumenti copiati nel worktree A (non tracciati). Il gioco si carica da una cartella di scrittura temporanea con `games/bar-s27-a.sdd` come link al worktree (non ho toccato i link di `~/.spring/games`; la cartella deve finire in `.sdd`, altrimenti l'engine dice «Dependent archive … not found»). Lo script gira senza modifiche, con `TMPDIR` diverso per tenere separata la cartella di scrittura.
+- Una partita A di prova (`a_stai_vs_simpleai.txt`, 15 minuti, Comet Catcher Remake 1.8): uscita pulita, ma `[SHARD-GAME]` a ogni minuto, squadra 0: **1 unità, 0 fabbriche, 0 mex**; fine partita SimpleAI 95 unità, 3 fabbriche, 14 mex. Nell'infolog: `local skirmish AI "STAI(1)" (ID: 0) being removed from team 0` al frame 1; nessuna riga di STAI, di `[AI Loader]` o del vecchio loader.
+- Worktree rimossi, cartella temporanea cancellata, `git status` pulito.
+
+**Perché**
+- `57992771` ripristina `luarules/gadgets/ai/Shard`, `ai/STAI`, `ai/shard_runtime` e `common/stai_factory_rect.lua`, ma **non** `luarules/gadgets/AILoader.lua` (709 righe, tolto da `3ad8f3fb`) né le voci `STAI` e `Shard` di `luaai.lua` (tolte da `3ad8f3fb`, 8 righe; `git show 3ad8f3fb^:luaai.lua` righe 28 e 32). Senza `luaai.lua` l'engine non conosce `STAI` e toglie la IA; senza `AILoader.lua` non ci sarebbe comunque chi la fa giocare.
+- Alla fine l'unico gadget AI di A è `ai_simpleai.lua`, uguale in A e B (`git diff 57992771 ab926056 --stat -- luarules/gadgets/ai_simpleai.lua` vuoto): SimpleAI non è un problema.
+
+**Cosa servirebbe per far partire A**
+1. Un commit «A+» su `57992771` che aggiunga `luarules/gadgets/AILoader.lua` e `luaai.lua` come in `3ad8f3fb^` (`git checkout 3ad8f3fb^ -- luarules/gadgets/AILoader.lua luaai.lua`). Non ho controllato se bastano: `luaui/Widgets/shard_help_draw.lua` e `luaui/Tests/ai_stai_factory_rect.lua` (anch'essi tolti da `3ad8f3fb`) non servono in headless; non so se `AILoader.lua` di `3ad8f3fb^` dipende da altro tolto in quel commit (98 file nel commit, ho guardato solo quelli fuori da `ai/`: i soli altri sono `common/stai_factory_rect.lua`, già in A, e uno startscript).
+2. Poi rifare il passo 1 (partita di prova: STAI deve avere unità, fabbriche, mex e nell'infolog le righe del vecchio loader). Il confronto sarebbe fra A+ e B, non fra `57992771` e B: va deciso dal coordinatore se A+ vale come «fase 0» (è il codice di `3ad8f3fb^`, cioè STAI com'era in BAR prima della rimozione).
+
+Domanda: creo A+ come commit su un branch a parte (non su `stai/porting`) e riparto dal passo 1?
+
+
 ### S24c (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il fix resta (corretto, provato dai test); A2 bassa: una partita su tre, varianza come in S24b e S25. Niente quarta partita
 
 **Codice (commit `6d07383819`, «STAI: read squad idle count before resetting it»).** `SquadAdvance` azzera `idleCount` dopo `SquadStepComplete` in `attackhst.lua` e `raidhst.lua`; nel ramo `prevent` (che non legge il conteggio) l'azzeramento resta prima del `return`, così il conteggio non si accumula fra un avanzamento e l'altro. Gli altri azzeramenti (`attackhst.lua` r. 402 e `raidhst.lua` r. 461, in `SquadResetTarget`) restano: servono al cambio di bersaglio, non vanno fra lettura e avanzamento.
