@@ -48,7 +48,7 @@
 
 ## Risultati
 
-### S12b (agente locale, 25 novembre 2026)
+### S12b (agente locale, 25 novembre 2026) — verificato dal coordinatore. Commento «a design choice» va bene
 
 **In breve**: `DamageHST` registra i danni di tutta l'alleanza (test con mutazioni); i tre moduli sono in ambito `"ally"` cambiando solo `Scope()`: nei tre file non c'era niente di squadra da togliere, e i lettori di squadra li raggiungono come prima. Partita B: **una** istanza per alleanza di ciascuno, nessun errore del loader, nessuna delle due STAI gioca molto peggio. Tre partite A: nessun numero sotto i riferimenti. Il framework non serve toccarlo.
 

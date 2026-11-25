@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12a2 verificati, **S12b scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S12b (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S14 da proporre** (roadmap in §5). Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Prossimo passo: proporre S14. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -81,6 +81,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S11 | difetti di tattica: `CELL.base` azzerato, `getCenter` senza NaN, `defId` dell'attaccante e `attackerut` nil in `DamageHST`, `local` in `LosHST:Draw`; via `SquadAttackbackup`, la vecchia `SquadAttack`, `NearbyVulnerable`, `GetPathModifierFunc` — verificato (tre partite A 168–203 unità, 27–34 mex) |
 | S12a | preparazione degli ambiti d'alleanza: `CENTER`/`ownImmobile` in `BuildingsHST`, `needAntiAir` in `LosHST`, via `friendlyTeamID` e `isDamaged`, `Toolbox.COLOURS`, `TablePool` per i blob — verificato; la prova ha trovato che `CENTER` era la tabella viva della posizione del comandante (`GetPosition` riscrive sempre la stessa tabella): si completa in S12a2 |
 | S12a2 | `CENTER` = media degli edifici, senza edifici posizione attuale del comandante (`BuildingsHST:GetCenter`); ciclo numerico dei blob — verificato (prova: `metal` diverso solo nelle ultime cifre, 25 volte su 5767; tre partite A 134–179 unità, 25–35 mex) |
+| S12b | `LosHST`, `TargetHST`, `DamageHST` `"ally"`; `DamageHST` danni di tutta l'alleanza — verificato (B: una istanza per alleanza; tre partite A 155–204 unità, 34–37 mex) |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
 **Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §5, «Piano del 25 novembre 2026, dopo S8b»):
@@ -90,6 +91,21 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 3. ~~S11 — difetti di tattica e codice morto~~: verificato.
 4. ~~S12a, S12a2~~ verificati. S12b (passaggio a `"ally"`, partita B): scritto (impegno extra). Verificarlo.
 5. S13 — elezione.
+
+**Roadmap** (25 novembre 2026, dopo S12b; impegno e agente consigliati; il coordinatore resta Opus 5.5):
+
+| Compito | Cosa | Impegno | Agente |
+| --- | --- | --- | --- |
+| S14 | `EchoDebug` costosi dietro `if self.DebugEnabled` (punto 11), meccanico | medio | Haiku 5.5 |
+| S15 | disegni di debug in ambito ally (`map` con team `nil`) | basso | Haiku 5.5 |
+| S16 | ordini grandi (>20 per chiamata, punto 10) | medio | Sonnet 5.5 |
+| S13 | elezione (`legacyElection` o regola nuova, punto 7) | alto | Opus 5.5 |
+| S17 | `shard_null` (punto 12) | alto | Sonnet 5.5 |
+| S18 | `ShardMemStats` autocontenuto (framework, commit «Shard …») | medio | Sonnet 5.5 |
+| S19 | `gridSize` 128 (§5b, ritarare i raggi) | alto | Opus 5.5 |
+| S20 | chiusura: guida per STAI, partite finali, branch pulito | medio | Sonnet 5.5 |
+
+Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku.
 
 **Cose imparate in questa chat** (per il coordinatore):
 - Il seme di `math.random` cambia a ogni partita e in Lua unsynced non si può fissare con `math.randomseed` (salato con un indirizzo): due partite con lo stesso codice si separano presto. Le prove «gioco invariato» si fanno **nella stessa partita** (la struttura vecchia ricalcolata accanto alla nuova e confrontata cella per cella, come in S8a); per i cambi di gioco tre partite A.
