@@ -69,6 +69,12 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 
 Decisione del 25 novembre 2026 (utente): S8 diviso in **S8a** (strato `ENEMY`, via `OWN`, `ALLY`, `ALLIES` mai riempite e il resto che non serve) e **S8b** (percezione).
 
+Decisioni del 25 novembre 2026 (utente, dopo S8b), sui consigli del coordinatore:
+- **`GridLayer:Unmark(i)`** per gli strati che durano (`DAMAGED`, `SCOUTED`): una cella esce dalla lista tenendo l'ordine delle altre.
+- **`TRAMPLED` resta com'è** (lo legge solo `UnitMexMoveTest`, una volta all'avvio; fuori serve solo `trampledCells`): niente strato.
+- **Difetti**: un commit e un test per difetto, **tre partite A per gruppo** (S10, S11), non per ogni difetto.
+- **L'esploratore non insegue le ombre** (`scoutbst.lua` r. 135 resta su `losEnemy`).
+
 **Cose da fare dell'utente** (sue, non compiti S):
 - sincronizzare `UnitHandler` del framework con il modello di `UnitHST` di STAI;
 - prima o poi: studiare il pathfinding dell'engine (`RequestPath`): se è difettoso come aggiustarlo, se no come si usa; da lì dipende `astarclass.lua`.
@@ -81,6 +87,15 @@ Un compito per riga, come per il framework; l'impegno si decide compito per comp
 2. **Scheduler** (punto 1): liste nella classe, via `SchedulerHST` e i controlli di turno. Confronto con le partite di riferimento.
 3. ~~**Ambiti globali** (punti 2 e 4): `ArmyHST`, poi `MapHST`.~~
 4. ~~**Discussione con l'utente sulla griglia** (punto 5), poi **ambiti d'alleanza** (punti 3 e 4) con la griglia nuova.~~
+
+Piano del 25 novembre 2026, dopo S8b (proposto dal coordinatore, approvato dall'utente):
+
+- **S9** strati che durano: `GridLayer:Unmark`, `DAMAGED` (`DamageHST`) e `SCOUTED` (`ScoutHST`, scritto solo dal padrone); via `areaGridCells`/`getGridCellsFields`. Gioco invariato, prova nella stessa partita.
+- **S10** difetti della mappa e della griglia (punto 15): `metalScan`/`geoScan` (`return` su cella mancante), `SimplifyMetalSpots`, `RawPosIsInMap`, `unarmAI = unarmAM + M` (e `SI`, `GI`) in `setCellLos`/`setCellRadar`; via `ArmyHST.UWMetalSpotCheckUnit`. Tre partite A.
+- **S11** difetti di tattica (punto 19): `CELL.base` mai azzerato, `NearbyVulnerable` (chiavi `ARMED`/`UNARM`), `getCenter` NaN, globali in `LosHST:Draw`, `defId` del difensore in `DamageHST`; via `SquadAttackbackup` e la vecchia `SquadAttack` commentata di `AttackHST`. Tre partite A.
+- **S12a** preparazione degli ambiti d'alleanza (gioco invariato): fuori da `LosHST`, `TargetHST`, `DamageHST` le cose di squadra — `CENTER` (scritto anche da `CommanderBST`) e `ownImmobile`, `self.ai.id`, `needAntiAir` in `LosHST`; `self.ai.tool` (8 volte in `TargetHST`, `RezTable`: `Toolbox` o `TablePool`); `isDamaged` di `DamageHST` (lo usa solo il debug). **S12b** `LosHST`, `TargetHST`, `DamageHST` `"ally"`, `friendlyTeamID` su `ShardAlly`; prova con una partita B (due STAI nella stessa alleanza). Impegno extra.
+- **S13** elezione (punto 7): prima `BootBST` (priorità zero), `CleanerBST` (priorità vuota), i behaviour che agiscono in `Activate`; poi partite con `legacyElection = false` contro quelle di oggi.
+- Dopo, da ordinare: `EchoDebug` costoso (punto 11), ordini grandi (punto 10), `shard_null` (punto 12), `gridSize` 128 (§5b), `ShardMemStats` autocontenuto.
 
 Ordine del 25 novembre 2026 (utente: «prima si parte dai fondamenti»; separare quello che non cambia il gioco da quello che lo cambia):
 

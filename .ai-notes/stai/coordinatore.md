@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting (S5, S6, S7, S8a verificati; **S8b scritto e da verificare**). Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 ordine, §7 stile) e i risultati in `handoff.md`; se l'utente dice «fatto», verificare S8b (`git pull`, risultati, diff a campione, partite contro S8a/S6/S1). Per risparmiare contesto: leggere di `handoff.md` solo «Compito attuale» e l'ultimo risultato, non tutta la storia. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S8b verificati, **S9 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni con il piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S9 (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -78,11 +78,16 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S8s | seme fisso: saltato dall'utente (25 novembre 2026) per risparmiare token; le prove «gioco invariato» si fanno nella stessa partita (come S8a) |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
-**Piano** (aggiornato alla fine della seconda chat, 25 novembre 2026; il piano del 26 novembre, S5–S8, è fatto salvo la verifica di S8b):
+**Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §4, «Piano del 25 novembre 2026, dopo S8b»):
 
-1. Verificare S8b (percezione, ombre `ghostEnemy`). Se le tre partite A stanno sotto S8a/S6, parlarne con l'utente prima di andare avanti.
-2. Strati negli altri moduli, uno alla volta: `DamageHST` (`DAMAGED`; poi via `areaGridCells` e `getGridCellsFields` di `GridHST`), `ScoutHST`, `TRAMPLED`. Prova nella stessa partita, come S8a.
-3. Ambiti d'alleanza (punti 3 e 4): `LosHST`, `TargetHST`, `DamageHST` `"ally"`, `friendlyTeamID` su `ShardAlly`.
-4. Difetti dei punti 15 e 19 (un commit per difetto, con partite), insieme al codice morto di `AttackHST` (`SquadAttackbackup`, vecchia `SquadAttack` commentata): approvato dall'utente.
-5. Elezione (punto 7): regola nuova se migliore, con partite.
-6. In sospeso: seme fisso (S8s, saltato; il generatore dovrebbe essere dell'AI, `math.random` unsynced è salato); `ShardMemStats` legge `springsettings.cfg`, contro la regola «tutto autocontenuto»: chiedere all'utente se spostarla.
+1. S9 — strati che durano (`Unmark`, `DAMAGED`, `SCOUTED`): scritto. Verificarlo.
+2. S10 — difetti della mappa e della griglia: tre partite A per il gruppo.
+3. S11 — difetti di tattica e codice morto di `AttackHST`: tre partite A per il gruppo.
+4. S12a/S12b — ambiti d'alleanza (prima la preparazione a gioco invariato, poi il passaggio, partita B).
+5. S13 — elezione.
+
+**Cose imparate in questa chat** (per il coordinatore):
+- Il seme di `math.random` cambia a ogni partita e in Lua unsynced non si può fissare con `math.randomseed` (salato con un indirizzo): due partite con lo stesso codice si separano presto. Le prove «gioco invariato» si fanno **nella stessa partita** (la struttura vecchia ricalcolata accanto alla nuova e confrontata cella per cella, come in S8a); per i cambi di gioco tre partite A.
+- L'esecutore a volte fa più del compito (funzioni morte in più, guardie): va bene se lo scrive; chiedere all'utente e registrare l'approvazione.
+- Per risparmiare contesto: `git pull --depth`, leggere solo il blocco dei risultati con `awk '/^### S<n> \(agente/,/^### S<n-1> \(agente/'`, diff a campione con `git diff <base> HEAD -- luarules/`.
+- I compiti funzionano meglio quando il coordinatore ha già letto il codice e scrive righe e nomi precisi (lettori, scrittori, campi).
