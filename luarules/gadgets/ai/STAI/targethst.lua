@@ -17,8 +17,6 @@ function TargetHST:Init()
 	self.enemyCenter = self.elmoMapCenter
 	self.IMMOBILE_BLOBS = {}
 	self.MOBILE_BLOBS = {}
-	self.pathModParam = 0.3
-	self.pathModifierFuncs = {}
 	self.enemyFrontList = {}
 	self.blobchecked = {}
 	self.enemyCenter = { x = 0, y = 0, z = 0 }
@@ -135,18 +133,6 @@ function TargetHST:EnemiesCellsAnalisy() --TODO:--MOVE TO TACTICALHST!!!
 	end
 end
 
-function TargetHST:NearbyVulnerable(position)
-	local danger, subValues, cells =
-		self.ai.gridhst:getCellsFields(position, { "ARMED", "UNARM" }, 1, self.ai.loshst.ENEMY)
-	if subValues.armed == 0 and subValues.unarm > 0 then
-		for index, cell in pairs(cells) do
-			for id, name in pairs(cell.units) do
-				return id
-			end
-		end
-	end
-end
-
 function TargetHST:IsSafeCell(position, unitName, threshold, adjacent) --TODO move and improve in damagehst
 	if not position then
 		self:Warn("nil position in safe position check")
@@ -161,27 +147,6 @@ function TargetHST:IsSafeCell(position, unitName, threshold, adjacent) --TODO mo
 	--WARNING here implement a count of danger per layer, but now we count all danger layer as dangerous
 	local danger = self.ai.gridhst:getCellsFields(position, { "ARMED" }, adjacent, self.ai.loshst.ENEMY)
 	return danger <= threshold
-end
-
-function TargetHST:GetPathModifierFunc(unitName, adjacent)
-	local divisor = self.ai.armyhst.unitTable[unitName].metalCost * self.pathModParam
-	local modifier_node_func = function(node, distanceToGoal, distanceStartToGoal)
-		local threatMod =
-			self.ai.gridhst:getCellsFields(node.position, { "defenderThreat" }, 1, self.ai.damagehst.DAMAGED) --/ divisor
-		self:EchoDebug("threatMod", threatMod)
-		if distanceToGoal then
-			if distanceToGoal <= 500 then
-				return 0
-			else
-				return threatMod * (distanceToGoal - 500)
-			end
-		else
-			return threatMod
-		end
-	end
-	self:EchoDebug("modifier_node_func", modifier_node_func)
-	self.pathModifierFuncs[unitName] = modifier_node_func
-	return modifier_node_func
 end
 
 function TargetHST:drawDBG()
