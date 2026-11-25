@@ -42,7 +42,7 @@
 
 ## Risultati
 
-### S12a2 (agente locale, 25 novembre 2026)
+### S12a2 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Partita 2 sotto S1 (134 unità, una fabbrica): come la partita 1 di S10 a codice invariato, varianza; le altre due dentro. `GetCenter` può dare `nil` prima del primo edificio (nessuno la chiama prima: da sapere)
 
 **In breve**: `CENTER` è la media degli edifici, o la posizione attuale del comandante senza edifici, o l'ultimo `CENTER` senza comandante vivo, tramite `BuildingsHST:GetCenter()`; `GetBlobs` e `drawDBG` scorrono `blob.cells` con un ciclo numerico. Test busted con mutazioni. Partita C: blob uguali a quelli con `pairs` tranne `metal` nelle ultime cifre (25 volte, scarto massimo 0,00049); `CENTER` sempre la media degli edifici dal frame 180. Tre partite A: la **partita 2 va sotto i riferimenti a fine partita** (134 unità al minuto 14, S1 141–186); nessuna correzione tentata.
 
