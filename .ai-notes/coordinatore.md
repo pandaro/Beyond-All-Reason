@@ -109,7 +109,9 @@ Claude-Session: <link della sessione>
 | T15 | `collect` d'avvio rimessa; `MAX_ORDERS_PER_MESSAGE` unico in `ordercodec.lua`; `shard_runtime/tablepool.lua` |
 | T16 | `maxInstances` per partita (`loader/admission.lua`, primi 2 team per tipo, per ID; il relay rifiuta gli esclusi); 20 ordini per messaggio |
 
-**Stato**: il framework è fermo dopo T16. Il porting di STAI va avanti in un'altra chat, sul branch `stai/porting` (`.ai-notes/stai/`, compiti S1, S2, …). Questa chat riprende solo se serve toccare il framework: un cambio chiesto dal porting si fa su `shard/fase1` e poi si porta su `stai/porting`.
+**Stato (25 novembre 2026)**: porting di STAI chiuso (S1–S26 verificati, branch `stai/porting`). Commit «Shard …» solo su `stai/porting`: `5d8d4a9b6e` collect alla fine di `StartAIs` (S7, chiude la nota del 25 novembre), `c7debb58fb` commento di `outbox.lua` (S6), `71fb3121b2` disegni di `map.lua` sotto la prima AI in ambito ally/global (S15), `fa4789d5` + `dec92f8f` ordercodec v2 con gruppi (S24a). Aperti per l'utente: tetto di unità per messaggio, marcatore 65535 o byte di tipo, `UnitHandler` sul modello di `UnitHST`, `ShardMemStats` solo da codice, come portare i commit su `shard/fase1`. La PR di STAI (S20) non parte prima del 2 dicembre e aspetta i primi due punti.
+
+Prima: il framework era fermo dopo T16. Il porting di STAI va avanti in un'altra chat, sul branch `stai/porting` (`.ai-notes/stai/`, compiti S1, S2, …). Questa chat riprende solo se serve toccare il framework: un cambio chiesto dal porting si fa su `shard/fase1` e poi si porta su `stai/porting`.
 
 **Prossimi passi del framework** (nessuno urgente)
 
