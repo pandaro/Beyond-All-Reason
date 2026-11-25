@@ -538,22 +538,6 @@ function AttackHST:SquadAttackbackup(squad)
 	local _params = {}
 	local _options = {}
 	local _cmd = {}
-	if self.ai.loshst.OWN[squad.target.X] and self.ai.loshst.OWN[squad.target.X][squad.target.Z] then
-		self:EchoDebug("squad", squad.squadID, "attack a defensive position", squad.target.X, squad.target.Z)
-		for i, member in pairs(squad.members) do
-
-		end
-		for i, member in pairs(squad.members) do
-			table.insert(_ids, member.unit:Internal():ID())
-			table.insert(_params, squad.target.POS)
-			table.insert(_options, 0)
-			table.insert(_cmd, CMD.FIGHT)
-
-		end
-		self.ai.tool:GiveOrder(_ids, _cmd, _params, _options, "2-2")
-		self:EchoDebug("squad", squad.squadID, "execute defense")
-		return true
-	end
 	if
 		self.ai.gridhst:GetCell(squad.target.X, squad.target.Z, self.ai.loshst.ENEMY)
 		and self.ai.tool:distance(squad.position, squad.target.POS) < 256
