@@ -233,8 +233,10 @@ function AttackHST:SquadAdvance(squad)
 	squad.idleCount = 0
 	squad.cmdUnitId = self.ai.tool:ResetTable(squad.cmdUnitId)
 	if squad.role == "prevent" then
-		for i, member in pairs(squad.members) do
-			squad.cmdUnitId[i] = member.unit:Internal():ID()
+		local n = 0
+		for _, member in pairs(squad.members) do
+			n = n + 1
+			squad.cmdUnitId[n] = member.unit:Internal():ID()
 		end
 		self.ai.tool:GiveOrder(
 			squad.cmdUnitId,
@@ -249,8 +251,10 @@ function AttackHST:SquadAdvance(squad)
 	if self.DebugEnabled then
 		self:EchoDebug("advance #members", #squad.members, "remaining step", #squad.path)
 	end
-	for i, member in pairs(squad.members) do
-		squad.cmdUnitId[i] = member.unit:Internal():ID() --:TODO unit can be nil!!
+	local n = 0
+	for _, member in pairs(squad.members) do
+		n = n + 1
+		squad.cmdUnitId[n] = member.unit:Internal():ID() --:TODO unit can be nil!!
 	end
 	if self.ai.tool:distance(squad.position, self.ai.gridhst:GridToPos(squad.target.X, squad.target.Z)) < 512 then
 		self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.FIGHT, squad.path[squad.step], 0, "1-2")

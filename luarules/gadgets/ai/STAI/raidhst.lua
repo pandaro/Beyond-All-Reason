@@ -260,23 +260,27 @@ function RaidHST:SquadAdvance(squad)
 
 		end
 		if preventThreat then
-			for i, member in pairs(squad.members) do
-				squad.cmdUnitId[i] = member.unit:Internal():ID()
+			local n = 0
+			for _, member in pairs(squad.members) do
+				n = n + 1
+				squad.cmdUnitId[n] = member.unit:Internal():ID()
 			end
 			self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.FIGHT, preventThreat, 0, "1-2")
 			self:EchoDebug("preventThreat", preventThreat)
 			return
 		end
 
-		for i, member in pairs(squad.members) do
+		local n = 0
+		for _, member in pairs(squad.members) do
 			local lastCommand, lastTarget = member:GetLastCommandReceived()
 			self:EchoDebug("lastCommand,lastTarget", lastCommand, lastTarget)
 			if lastCommand ~= CMD.GUARD or lastTarget ~= squad.target then
-				squad.cmdUnitId[i] = member.unit:Internal():ID()
+				n = n + 1
+				squad.cmdUnitId[n] = member.unit:Internal():ID()
 				member:SetLastCommandReceived(CMD.GUARD, squad.role)
 			end
 		end
-		if #squad.cmdUnitId > 0 then
+		if n > 0 then
 			self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.GUARD, squad.role, 0, "1-2")
 			self:EchoDebug("prevent normal guard")
 		end
@@ -287,8 +291,10 @@ function RaidHST:SquadAdvance(squad)
 		self:EchoDebug("advance #members", #squad.members, "path lenght", #squad.path)
 	end
 
-	for i, member in pairs(squad.members) do
-		squad.cmdUnitId[i] = member.unit:Internal():ID()
+	local n = 0
+	for _, member in pairs(squad.members) do
+		n = n + 1
+		squad.cmdUnitId[n] = member.unit:Internal():ID()
 	end
 	self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.MOVE, squad.path[squad.step], 0, "1-2")
 	self:EchoDebug("advance after members move")
