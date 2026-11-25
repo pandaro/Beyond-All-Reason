@@ -3,7 +3,8 @@
 -- shardai.lua and unit.lua call BeginModule/EndModule around every call into a module, Begin/EndBehaviour around
 -- every call into a behaviour. A call longer than SPIKE_MS writes one line:
 -- "[Shard timer] frame=<n> ai=<AI> team=<id|-> ally=<id|-> scope=<scope> module=<name|-> behaviour=<name|->
--- call=<method> ms=<ms>"
+-- call=<method> ms=<ms> kb=<KB>"
+-- kb is the change of the Lua heap during the call: well below zero, the garbage collector ran inside it.
 -- A behaviour's module is the module whose call is running when the behaviour is called. A module's time
 -- includes the behaviours it calls. GameOver and Shutdown write one summary line per name, the first time only.
 --
@@ -17,6 +18,7 @@ local spEcho = Spring.Echo
 local spGetTimerMicros = Spring.GetTimerMicros
 local spDiffTimers = Spring.DiffTimers
 local spGetGameFrame = Spring.GetGameFrame
+local gcCount = collectgarbage
 local stringFormat = string.format
 
 local enabled = TIMERS_ON
@@ -32,7 +34,7 @@ local currentModule = nil ---@type string? the module whose call is running
 local stats = {} ---@type table<string, ShardTimerStat>
 local summaryWritten = false
 
-local function Record(name, kind, ms, object, moduleName, behaviourName, call)
+local function Record(name, kind, ms, kb, object, moduleName, behaviourName, call)
 	local entry = stats[name] ---@type ShardTimerStat?
 	if entry == nil then
 		entry = { kind = kind, calls = 0, min = ms, max = ms, sum = 0, spikes = 0 }
@@ -55,7 +57,7 @@ local function Record(name, kind, ms, object, moduleName, behaviourName, call)
 	local ally = object and object.allyId or "-"
 	spEcho(
 		stringFormat(
-			"[Shard timer] frame=%d ai=%s team=%s ally=%s scope=%s module=%s behaviour=%s call=%s ms=%.1f",
+			"[Shard timer] frame=%d ai=%s team=%s ally=%s scope=%s module=%s behaviour=%s call=%s ms=%.1f kb=%.1f",
 			spGetGameFrame(),
 			tostring(object and object.fullname or "-"),
 			tostring(team),
@@ -64,51 +66,56 @@ local function Record(name, kind, ms, object, moduleName, behaviourName, call)
 			moduleName or "-",
 			behaviourName or "-",
 			call,
-			ms
+			ms,
+			kb
 		)
 	)
 end
 
---- Before a call into a module: the start time, and the module whose call was running, for EndModule
+--- Before a call into a module: the start time and heap, and the module whose call was running, for EndModule
 ---@return any? startTimer nil when the timers are off
 ---@return string? outerModule
+---@return number? startKb
 local function BeginModule(module)
 	if not enabled then
-		return nil, nil
+		return nil, nil, nil
 	end
 	local outer = currentModule
 	currentModule = module:Name()
-	return spGetTimerMicros(), outer
+	return spGetTimerMicros(), outer, gcCount("count")
 end
 
 --- After a call into a module of `object` (the team, ally or global object that called it)
-local function EndModule(startTimer, outerModule, object, module, call)
+local function EndModule(startTimer, outerModule, startKb, object, module, call)
 	if startTimer == nil then
 		return
 	end
 	local ms = spDiffTimers(spGetTimerMicros(), startTimer, true, true)
+	local kb = gcCount("count") - startKb
 	currentModule = outerModule
 	local name = module:Name()
-	Record(name, "module", ms, object, name, nil, call)
+	Record(name, "module", ms, kb, object, name, nil, call)
 end
 
 --- Before a call into a behaviour
 ---@return any? startTimer nil when the timers are off
+---@return number? startKb
 local function BeginBehaviour()
 	if not enabled then
-		return nil
+		return nil, nil
 	end
-	return spGetTimerMicros()
+	return spGetTimerMicros(), gcCount("count")
 end
 
 --- After a call into a behaviour of a unit of `ai`
-local function EndBehaviour(startTimer, ai, behaviour, call)
+local function EndBehaviour(startTimer, startKb, ai, behaviour, call)
 	if startTimer == nil then
 		return
 	end
 	local ms = spDiffTimers(spGetTimerMicros(), startTimer, true, true)
+	local kb = gcCount("count") - startKb
 	local name = behaviour:Name()
-	Record(name, "behaviour", ms, ai, currentModule, name, call)
+	Record(name, "behaviour", ms, kb, ai, currentModule, name, call)
 end
 
 --- One line per name, the largest sum first; only the first call writes

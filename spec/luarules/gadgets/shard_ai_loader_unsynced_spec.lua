@@ -1838,10 +1838,13 @@ describe("ShardAILoader unsynced side", function()
 		-- Team 0 gets a unit with SpecTimedBehaviour and a team module SpecTimedRunner that updates it, as
 		-- UnitHandler does. world.costs.runner and world.costs.behaviour are the milliseconds their Update takes;
 		-- SpecHooks.Update, with world.costs.ally and world.costs.global, those of the ally and global modules.
+		-- world.kb.behaviour is the heap change of the behaviour's Update, in KB.
 		local function timedWorld(timers)
 			local world = defaultWorld()
 			world.timers = timers
 			world.costs = { runner = 0, behaviour = 0, ally = 0, global = 0 } ---@type table<string, number>
+			world.kb = { behaviour = 0 } ---@type table<string, number>
+			world.heap = 50000
 			return world
 		end
 
@@ -1876,6 +1879,7 @@ describe("ShardAILoader unsynced side", function()
 			end
 			function Timed:Update()
 				spend(world, world.costs.behaviour)
+				world.heap = world.heap + world.kb.behaviour
 			end
 			unit:AddBehaviour(Timed())
 			local Runner = env.class(env.Module)
@@ -1921,9 +1925,9 @@ describe("ShardAILoader unsynced side", function()
 
 			assert.same({
 				"[Shard timer] frame=5 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
-					.. " behaviour=SpecTimedBehaviour call=Update ms=12.3",
+					.. " behaviour=SpecTimedBehaviour call=Update ms=12.3 kb=0.0",
 				"[Shard timer] frame=5 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
-					.. " behaviour=- call=Update ms=14.3",
+					.. " behaviour=- call=Update ms=14.3 kb=0.0",
 			}, timerLines(loader))
 		end)
 
@@ -1949,9 +1953,31 @@ describe("ShardAILoader unsynced side", function()
 
 			assert.same({
 				"[Shard timer] frame=3 ai=SpecAI team=- ally=- scope=global module=SpecGlobalModule"
-					.. " behaviour=- call=Update ms=20.0",
+					.. " behaviour=- call=Update ms=20.0 kb=0.0",
 				"[Shard timer] frame=3 ai=SpecAI team=- ally=0 scope=ally module=SpecAllyModule"
-					.. " behaviour=- call=Update ms=11.0",
+					.. " behaviour=- call=Update ms=11.0 kb=0.0",
+			}, timerLines(loader))
+		end)
+
+		it("writes the heap change of the call, with its sign", function()
+			local world = timedWorld(true)
+			local loader = startedTimed(world)
+			world.costs.behaviour = 12
+			world.kb.behaviour = -48210.34
+
+			frame(loader, 4)
+			world.kb.behaviour = 1536.26
+			frame(loader, 5)
+
+			assert.same({
+				"[Shard timer] frame=4 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
+					.. " behaviour=SpecTimedBehaviour call=Update ms=12.0 kb=-48210.3",
+				"[Shard timer] frame=4 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
+					.. " behaviour=- call=Update ms=12.0 kb=-48210.3",
+				"[Shard timer] frame=5 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
+					.. " behaviour=SpecTimedBehaviour call=Update ms=12.0 kb=1536.3",
+				"[Shard timer] frame=5 ai=SpecAI team=0 ally=0 scope=team module=SpecTimedRunner"
+					.. " behaviour=- call=Update ms=12.0 kb=1536.3",
 			}, timerLines(loader))
 		end)
 
@@ -1969,7 +1995,7 @@ describe("ShardAILoader unsynced side", function()
 
 			assert.same({
 				"[Shard timer] frame=7 ai=SpecAI team=1 ally=0 scope=team module=SpecTeamModule"
-					.. " behaviour=- call=UnitCreated ms=15.0",
+					.. " behaviour=- call=UnitCreated ms=15.0 kb=0.0",
 			}, timerLines(loader))
 		end)
 
