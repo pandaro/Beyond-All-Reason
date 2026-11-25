@@ -39,6 +39,129 @@ Le due regole (`shard_runtime/unit.lua`): **legacy** (r. 40–61, `STAI.legacyEl
 
 ## Risultati
 
+### S13 (agente locale, 25 novembre 2026)
+
+**In breve**: con STAI le due regole differiscono solo quando la legacy elegge `BootBST` (priorità sempre 0) o `CleanerBST` (`nil`); con la nuova quelle unità restano senza behaviour attivo. Nessuno dei due fa qualcosa quando è attivo, quindi il gioco non dovrebbe cambiare. **Correzioni in STAI: nessuna** (passo 3 saltato). Ma due delle tre partite A con `legacyElection = false` sono sotto S1 in qualche numero: per la regola del compito **non ho tenuto il passaggio**, `ai.lua` resta `true`. Sei partite di controllo con la legacy (codice di base) danno lo stesso quadro (2 su 6 sotto S1): tabella al punto 4. Decide l'utente.
+
+**Commit**: solo quello di questi risultati. Nessun commit di codice (né correzioni né passaggio).
+
+**1. Lettura**
+
+La lista dei behaviour viene sempre da `BehaviourFactory:defaultBehaviours` (`behaviourfactory.lua` r. 38): `behaviours.lua` restituisce `{}`, quindi `self.behaviours[nome]` è sempre `nil`. Ordine: `BootBST` primo per ogni fabbrica e ogni unità mobile (`isFactory or speed > 0`), poi i behaviour delle categorie nell'ordine del file; i doppioni si tolgono tenendo l'ultima occorrenza (ciclo da `#b` a 1).
+
+| Behaviour | `Priority()` | `Activate` / `Deactivate` |
+| --- | --- | --- |
+| `BootBST` | 120 se `self.factory` o (`repairedBy` e `mobile`), altrimenti 0. **In pratica sempre 0**: `FindMyFactory` (r. 108) mette `self.factory = nil` dopo il ciclo, sempre; `repairedBy` non è mai assegnato | `active`; `SetMoveState`/`ExitFactory` solo con `repairedBy`/`factory` → **niente** |
+| `CommanderBST` | 200 con `save` (1, 2 o `true`), altrimenti 0 | `active`; GUARD su `safeBuilder` o `HelpFactory` / `active = false` |
+| `BuildersBST` | 100 | GUARD sul progetto in corso o `UnitIdle` (nuovo lavoro) / `ClearMyProjects` |
+| `EngineerBST` | 1000 | quelli di `Behaviour` (vuoti); `Init` mette `active = true` |
+| `LabsBST` | non definita → `Behaviour:Priority` = `self.priority` = **0** (da `Behaviour.init`, chiamato dal costruttore di `class`) | vuoti |
+| `ScoutBST` | 100 | debug / toglie `target`, `evading`, `attacking` |
+| `RaidBST` | 200 se `RaiderHaveTarget(squad)`, altrimenti 0 | vuoti |
+| `AttackerBST` | 200 se `attacking`, altrimenti 0. **Sempre 0**: `attacking` è assegnato solo a `false`/`nil` (r. 49, 58, 109) | `active` |
+| `ReclaimBST` | 101 se `self.act`, altrimenti 0. **Sempre 0**: `self.act` non è mai assegnato (esiste solo il metodo `Act`) | vuoti |
+| `CleanerBST` | **`nil`** (corpo vuoto) | solo `EchoDebug` |
+| `BomberBST` | 100 | `active` / `active = false` e due ordini MOVE verso casa |
+| `AntinukeBST`, `NukeBST` | 100 | `NukeBST`: `active` |
+| `MexUpBST` | non caricato (commentato in `behaviours.lua`) | — |
+
+Liste per tipo di unità (le principali):
+
+| Unità | Lista | Vince (legacy) | Vince (nuova) |
+| --- | --- | --- | --- |
+| fabbrica | Boot, Labs | Boot (0) | nessuno |
+| costruttore (`armck`…) | Boot, Builders | Builders | Builders |
+| comandante | Boot, Commander, Builders | Builders o Commander | uguale |
+| ingegnere | Boot, Engineer | Engineer | Engineer |
+| rez (`armrectr`, `cornecro`) | Boot, Reclaim **o** Attacker (50 %) | Boot (0) | nessuno |
+| combattenti (`armham`, `corthud`, `armrock`, `corstorm`, `armwar`…) | Boot, Attacker | Boot (0) | nessuno |
+| raider | Boot, Raid, Scout | Scout (100) o Raid (200) | uguale |
+| bombardiere, antinuke mobile | Boot, Bomber / Antinuke | 100 | uguale |
+| mobili senza categoria (AA, caccia, radar…) | Boot | Boot (0) | nessuno |
+| nano (`armnanotc`, `cornanotc`) | Cleaner (+ Labs se `isStaticBuilder`) | Cleaner (`nil`) | nessuno |
+| silo / antinuke fisso | Nuke / Antinuke | 100 | uguale |
+
+C'è anche un'elezione a lista parziale: `BuildersBST:Init` chiama `ElectBehaviour` prima di essere aggiunto (`t:Init()` poi `unit:AddBehaviour(t)`), quindi un costruttore elegge una volta su `{Boot}` o `{Boot, Commander}` → Boot. Con la nuova: nessuno, poi `UnitBuilt` elegge Builders come prima.
+
+**Unità senza behaviour attivo con la nuova regola: chi dà loro ordini?** Gli stessi di oggi. `Unit:Update` chiama `Update` di **tutti** i behaviour, attivi o no, e nessuno dei behaviour coinvolti dipende da `active` per dare ordini:
+- combattenti: gli ordini li dà `AttackHST` alle squadre. `AttackerBST` non è attivo con nessuna delle due regole (priorità sempre 0), quindi `OwnerIdle → MemberIdle` (solo se `active`) non gira mai, oggi come dopo;
+- rez: `ReclaimBST:Update` chiama `Act` (RECLAIM) sempre; `AttackerBST` come sopra;
+- nano: `CleanerBST:Update` fa `Search`/`Clean` sempre;
+- fabbriche: `LabsBST:Update` sempre;
+- mobili con solo Boot: nessun behaviour dà loro ordini, né con la legacy (Boot non fa niente) né con la nuova.
+
+**`nil` non primo con la legacy** (`score > 0` con `score == nil` → errore): l'unico `nil` è `CleanerBST`, che è primo nella sua lista (le nano non hanno `BootBST`: velocità 0, non fabbriche). Dopo un primo `nil`, `bestScore` è `nil` e un secondo behaviour con priorità > 0 darebbe errore in `score > bestScore`; il secondo possibile è `LabsBST`, sempre 0, quindi `0 > 0` si ferma prima. **Non succede**: 0 casi misurati (punto 2).
+
+Differenze di codice oltre alla regola (`unit.lua`): la legacy, cambiando behaviour, chiama `Deactivate` ma lascia `activeBehaviour` impostato fino al prossimo `Update`; una seconda elezione prima di quell'`Update` può (a) chiamare di nuovo `Deactivate` sullo stesso behaviour, (b) lasciare in attesa un `nextBehaviour` peggiore se rivince quello attivo. La nuova non ha né (a) né (b). Misurati: 0 casi di tutti e due (punto 2).
+
+**2. Misura nella stessa partita** (patch non committata in `LegacyElection`, tolta con `git checkout`; partita C, 15 minuti, legacy attiva). Due partite (la seconda con il contatore delle doppie `Deactivate`):
+
+| | partita C 1 | partita C 2 |
+| --- | --- | --- |
+| elezioni | 4991 | 5363 |
+| diverse fra le due regole | 206 (4,1 %) | 268 (5,0 %) |
+| `nil` dopo il primo | 0 | 0 |
+| `nextBehaviour` peggiore lasciato in attesa (b) | 0 | 0 |
+| doppia `Deactivate` (a) | — | 0 |
+| righe `[AI Loader] error` | 0 | 0 |
+
+Coppie diverse (partita C 2; la 1 ha le stesse coppie, con numeri simili): **solo** `BootBST(0) → nessuno` (252) e `CleanerBST(nil) → nessuno` (16). Per tipo di unità:
+
+| unità | Boot → nessuno | | unità | Boot/Cleaner → nessuno |
+| --- | --- | --- | --- | --- |
+| `corthud` | 90 | | `corck` / `armck` | 8 / 9 |
+| `armham` | 70 | | `corack` / `armack` | 3 / 3 |
+| `corstorm` / `armrock` | 20 / 20 | | `armwar` | 4 |
+| `cornecro` / `armrectr` | 10 / 9 | | `cornanotc` / `armnanotc` (Cleaner) | 8 / 8 |
+| `corlab`, `armlab`, `coralab`, `armalab`, `corcom`, `armcom` | 1 ciascuno | | | |
+
+Nessuna elezione in cui la nuova regola sceglie un altro behaviour: cambia solo «Boot/Cleaner attivo» contro «nessuno attivo». Siccome Boot e Cleaner non fanno niente in `Activate`/`Deactivate` (sopra), il gioco non dovrebbe cambiare.
+
+**3. Correzioni**: nessuna necessaria. `CleanerBST:Priority` con `nil` funziona con la nuova regola (`or 0`); un `return 0` esplicito sarebbe solo pulizia, non l'ho fatto (il compito dice «solo se necessarie»). Dimmi se lo vuoi.
+
+**4. Passaggio** (`STAI.legacyElection = false`, con commento `--only a priority above zero wins: a unit whose behaviours are all at zero has none active`; 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, 19–22 s ciascuna). Partite A 1–3 sono quelle del compito; 4–6 e le sei di controllo (codice di base `da7b012a7a`, `legacyElection = true`) le ho aggiunte per vedere la varianza:
+
+| `false` | unità min. 1 / 5 / 10 / 13 | fine (min. 14): unità, fabbriche, mex | `SUMMARY` | relay: messaggi / ordini / rifiutati | memoria: media per minuto, picco | heap |
+| --- | --- | --- | --- | --- | --- | --- |
+| A1 | 5 / 39 / 98 / 134 | **136**, 2, **21** | 149, 2, 25 | 3989 / 13309 / 7 | 0,18–0,69 KB, 77,5 KB | 12,8–14,7 |
+| A2 | 6 / 37 / 80 / **113** | 137, **1**, **14** | 157, 2, 17 | 4025 / 15241 / 7 | 0,17–0,75 KB, **251,0 KB** | 13,0–15,2 |
+| A3 | 5 / 37 / 100 / 173 | 192, 2, 33 | 228, 2, 38 | 3709 / 16068 / 6 | 0,18–0,62 KB, 84,2 KB | 13,0–14,6 |
+| A4 | 6 / 35 / 91 / 164 | 183, 2, 31 | 203, 2, 33 | 3942 / 15271 / 7 | 0,17–0,87 KB, 61,2 KB | 13,0–15,3 |
+| A5 | 6 / 36 / 100 / 148 | 157, 2, 32 | 171, 2, 35 | 4165 / 14592 / 9 | 0,17–1,04 KB, 89,2 KB | 12,9–14,6 |
+| A6 | 6 / 42 / 113 / 181 | 206, 2, 33 | 234, 2, 38 | 4465 / 24486 / 13 | 0,17–0,70 KB, 86,8 KB | 12,9–15,6 |
+
+| `true` (controllo) | unità min. 1 / 5 / 10 / 13 | fine (min. 14): unità, fabbriche, mex | `SUMMARY` | relay: messaggi / ordini / rifiutati | memoria: media per minuto, picco | heap |
+| --- | --- | --- | --- | --- | --- | --- |
+| C1 | 5 / 35 / 88 / 156 | 184, 2, 31 | 210, 2, 37 | 3384 / 16941 / 6 | 0,18–0,63 KB, 94,7 KB | 12,9–15,2 |
+| C2 | 6 / 39 / 98 / 175 | 196, 2, 37 | 202, 2, 42 | 4076 / 16806 / 13 | 0,17–0,79 KB, 114,8 KB | 12,9–14,8 |
+| C3 | 6 / 37 / 85 / **107** | **114**, 2, **16** | 133, 2, 19 | 3123 / **9244** / 11 | 0,17–0,79 KB, 95,9 KB | 12,9–14,5 |
+| C4 | 5 / 38 / 98 / 154 | 185, 2, 31 | 203, 2, 33 | 4296 / 17017 / 19 | 0,18–0,64 KB, 183,9 KB | 12,9–15,1 |
+| C5 | 6 / 40 / 76 / 123 | 143, 2, 23 | 140, 2, 24 | 2977 / 11104 / 9 | 0,17–0,59 KB, 82,2 KB | 13,0–14,5 |
+| C6 | 6 / 36 / 82 / 122 | **136**, **1**, **18** | 141, 1, 16 | 3750 / 17082 / 13 | 0,17–0,52 KB, 51,3 KB | 13,0–15,2 |
+
+Riferimenti: S1 6 / 25–41 / 54–101 / 117–159, fine 141–186, 2, 23–35; S21 5–6 / 36–42 / 96–110 / 147–194, fine 161–217, 2, 29–36; S12b (A) 6 / 36–37 / 95–112 / 136–180, fine 155–204, 2, 34–37. In grassetto i valori sotto S1.
+
+- **Sotto S1**: con `false` A1 (136 unità e 21 mex a fine partita) e A2 (113 al minuto 13, 1 fabbrica e 14 mex a fine partita); con `true` C3 (107 al minuto 13, 114 e 16 mex alla fine) e C6 (136, 1 fabbrica, 18 mex). **2 su 6 per parte.**
+- **Memoria**: picco di A2 251,0 KB, il più alto visto finora (S21 fino a 130,3; S12a2 fino a 90,2); ma anche il controllo ha 183,9 (C4) e 114,8 (C2). Medie per minuto e heap uguali fra le due parti. Un picco solo per partita: varianza, come in S21.
+- Medie su sei partite: `false` 152 unità al minuto 13, 168 a fine partita, 27,3 mex; `true` 140, 160, 26,0.
+- Per la regola del compito («sotto i riferimenti in più di una partita»: A1 e A2) **non** ho tenuto il passaggio. Il controllo dice che le partite basse capitano allo stesso modo con la legacy, e la lettura dice che il gioco non cambia. Se l'utente decide di tenerlo, il commit è solo `ai.lua` r. 3–4 come sopra.
+- **Partita C** (`false`, 15 minuti, uscita 0, 22 s): team 0 / team 1: unità min. 1 / 5 / 10 / 13 7/36/92/116 · 5/39/103/153; fine 126, 2, 21 · 171, 2, 30; `SUMMARY` 124, 2, 20 · 175, 2, 32; 184 morti; relay 4741 / 26817 / 33 (S16: 4364 / 26954 / 21); memoria 0,27–1,05 KB, picco 135,3 KB, heap 13,3–16,6 MB; `Shard memory record` 17651.
+- **Righe `[AI Loader] error`: 0** in tutte le 15 partite (3 + 3 A `false`, 6 A `true`, 1 C `false`, 2 C di misura). Errori del log solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown).
+
+**Controlli**: nessun file di codice nel commit, quindi StyLua, EmmyLua, `lx test` e `run_engine_tests.sh` non sono cambiati rispetto a S21 e non li ho rifatti. `git status` pulito a parte `.ai-notes/`; `unit.lua` e `ai.lua` ripristinati con `git checkout`.
+
+**Da sapere** (non toccati)
+
+1. `BootBST:FindMyFactory` (r. 108–115) mette sempre `self.factory = nil` dopo il ciclo: un'unità non riconosce mai la fabbrica in cui si trova, e l'uscita dalla fabbrica (`ExitFactory`) non gira mai. Inoltre `self.mobile = speed == 0` è al contrario (vero per gli edifici), e `ignoreFactories` ne dipende: per tutte le unità mobili è vero, quindi il ramo della fabbrica in `Update` è comunque saltato.
+2. `AttackerBST.attacking` e `ReclaimBST.act` non diventano mai veri: i due behaviour non sono mai attivi. Per `AttackerBST`, `Update` chiama `ElectBehaviour` a ogni turno finché ha `squad` e `target` (elezione inutile: dà sempre lo stesso risultato).
+3. Con la nuova regola il commento di `Behaviour:YieldControlOfUnit` («there may be no other behaviours to take control») resta vero; nessun behaviour di STAI usa `YieldControlOfUnit`.
+
+**Domande**
+
+1. Tenere il passaggio a `legacyElection = false` nonostante A1 e A2 (il controllo con la legacy ha lo stesso tasso di partite basse)?
+2. `CleanerBST:Priority` con `return 0` esplicito: lo faccio (solo pulizia)?
+3. I punti 1 e 2 di «Da sapere» (`FindMyFactory`, `mobile`, `attacking`, `act`): compiti a parte?
+
 ### S21 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `labshst.lua:367` (rete `nil`) e `bomberhst.lua:158–160` annotati in `nuovo-stai.md` punto 19
 
 **In breve**: `cmdUnitId` ora si riempie con un contatore (`n`) in `raidhst.lua` (prevent, GUARD, MOVE) e in `attackhst.lua` (FIGHT/MOVE); il GUARD di `raidhst` usa `if n > 0`. Il test nuovo fallisce sul codice di base (nessun ordine emesso: `#` dà 0) e passa dopo la correzione. Il gioco cambia solo dove c'era un buco: nelle tre partite A non è comparso nessun caso in cui la vecchia `#` desse un numero diverso da `n` (vedi sotto).
