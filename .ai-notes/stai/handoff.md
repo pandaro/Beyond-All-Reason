@@ -32,7 +32,7 @@
 
 ## Risultati
 
-### S16 (agente locale, 25 novembre 2026) — punto 10: nessun ordine perso per dimensione, si chiude (con un'osservazione su `#` in `raidhst.lua:280`)
+### S16 (agente locale, 25 novembre 2026) — verificato dal coordinatore; `#` con buchi confermato in `raidhst.lua` r. 271–280 (difetto vero: ordini GUARD saltati) — punto 10: nessun ordine perso per dimensione, si chiude (con un'osservazione su `#` in `raidhst.lua:280`)
 
 **1. Framework.** Il limite è `MAX_ORDERS_PER_MESSAGE = 20` ordini a messaggio (`ordercodec.lua`), 1 messaggio per frame (max 2 per frame di emissione nel relay).
 - `1-2` / `2-2` (molte unità, un ordine ciascuna) non hanno gruppo: ogni ordine è un gruppo a sé, `Flush` ne mette 20 per messaggio e il resto va ai frame dopo. Oltre 20 unità non si perde nulla: costa solo latenza (circa 1 frame ogni 20 unità; 100 unità = 5 frame).
