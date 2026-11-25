@@ -42,6 +42,81 @@
 
 ## Risultati
 
+### S12a2 (agente locale, 25 novembre 2026)
+
+**In breve**: `CENTER` è la media degli edifici, o la posizione attuale del comandante senza edifici, o l'ultimo `CENTER` senza comandante vivo, tramite `BuildingsHST:GetCenter()`; `GetBlobs` e `drawDBG` scorrono `blob.cells` con un ciclo numerico. Test busted con mutazioni. Partita C: blob uguali a quelli con `pairs` tranne `metal` nelle ultime cifre (25 volte, scarto massimo 0,00049); `CENTER` sempre la media degli edifici dal frame 180. Tre partite A: la **partita 2 va sotto i riferimenti a fine partita** (134 unità al minuto 14, S1 141–186); nessuna correzione tentata.
+
+**Commit**
+
+- `07469c52c4` «STAI BuildingsHST: CENTER is the mean of the own buildings, or the commander position without them» (`buildingshst.lua`, `commanderbst.lua`, `attackhst.lua`, `raidhst.lua`, `buildingshst_spec.lua`).
+- `ddc812ace2` «STAI TargetHST: walk the cells of the blobs with a numeric loop» (`targethst.lua`).
+- Un commit per questi risultati.
+
+**1. `CENTER`**: la proposta, con due scelte mie.
+
+- `BuildingsHST:GetCenter()`: se `self.buildingsCenter`, restituisce `CENTER` (la media che tiene `getCenter`); se no `game:GetUnitByID(self.commanderID)` e `GetRawPos()`, e con una posizione copia `x, y, z` in `CENTER` (`self.CENTER = self.CENTER or {}`, campo per campo); senza, `CENTER` resta com'è. `getCenter` scrive `self.buildingsCenter = count > 0` e per il resto è quella di prima.
+- Ho usato `GetRawPos` e non `GetPosition`: non tocca la tabella di posizione del comandante (`ShardUnit:GetPosition` la riscrive a ogni chiamata, era la causa di S12a). Comandante morto: `Spring.GetUnitPosition` dà `nil`, quindi `x` è `nil` (stesso criterio di `GetPosition`). `game:GetUnitByID(nil)` restituisce `nil` (`Shard:shardify_unit` esce subito), quindi senza comandante registrato non serve un controllo a parte.
+- `CommanderBST:Init`: `self.ai.buildingshst.commanderID = self.id --CENTER without buildings; the last registered commander wins`. Con più comandanti vale l'**ultimo registrato** (l'ultimo `CommanderBST:Init`); se muore, senza edifici `CENTER` resta fermo anche se ce n'è un altro vivo. `self.position` di `CommanderBST` resta (lo legge `UnitMexMoveTest`), ma non va più in `CENTER`.
+- Lettori: `attackhst.lua` (`SquadsTargetPrevent2`: `local center = self.ai.buildingshst:GetCenter()` prima del ciclo dei blob, non a ogni giro), `raidhst.lua` r. 398, `BuildingsHST:VisualDBG` (`map:DrawPoint(self:GetCenter(), …)`).
+- Grep `CENTER` in `luarules/gadgets/ai/STAI/`: lo scrivono solo `GetCenter` e `getCenter`, sempre campo per campo; nessuna tabella di posizione di un'unità dentro `CENTER`. `TargetHST` usa la parola «CENTER» solo come etichetta del disegno di `enemyCenter`.
+- `buildingsCenter` **non** è inizializzato in `Init`: con `self.buildingsCenter = false` in `Init` EmmyLua dava un avviso nuovo (`unnecessary-if`: deduce il tipo `false` dalla prima assegnazione e dice che `if self.buildingsCenter` è sempre falso). Senza, `nil` fino al primo `getCenter`, stesso effetto. Allo stesso modo `game:GetUnitByID(self.commanderID)` al posto di `self.commanderID and …` (stesso avviso su `if commander`).
+- Test (`buildingshst_spec.lua`, sostituiscono quello di S12a; unità finte con posizione modificabile, `GetPosition` che riscrive una sola tabella come `ShardUnit`):
+  - «gives as center the current commander position without buildings, in a table of its own»: posizione del comandante, poi il comandante si muove e `GetCenter` lo segue; `CENTER` ≠ la tabella di `GetPosition`;
+  - «gives as center the mean of the buildings, even when the commander moves»;
+  - «goes back to the commander when all the buildings are lost»;
+  - «keeps the last center with no buildings and the commander dead».
+- Mutazioni (4 test): M1 niente ramo del comandante → 3 falliti; M2 il comandante vince sugli edifici → 2; M3 `buildingsCenter` mai scritto → 2; M4 `buildingsCenter` mai rimesso a falso → 1; M5 `CENTER = commander:GetPosition()` → 1; M6 comandante morto azzera `CENTER` → 1. Codice di S12a (`349eafe8b3`) con i test nuovi: 4 errori (manca `GetCenter`).
+
+**2. Ciclo numerico**: `GetBlobs` r. 53 `for n = 1, #blob.cells do --numeric loop keeps the order of the cells` + `local v = blob.cells[n]`; uguale nei due cicli di `drawDBG` (r. 189 e 202, `local cell = blob.cells[n]`). Il test dei blob di S12a resta verde. (`drawDBG` legge ancora `cell.POS` sulle `cellCoord`, che non ce l'hanno: c'era già, non toccato.)
+
+**3. Partita C** (`c_stai_vs_stai.txt`, 15 minuti, codice di prova non committato e tolto con `git checkout`, uscita 0, 21 s). `TargetHST:cmpBlobPairs`: dopo il riempimento di ogni blob, la stessa somma con `pairs(blob.cells)` sulle stesse celle, confrontata con il blob (`position` x, y, z; `targetCell`; insieme di `units`; `metal`).
+
+| | ally 0 | ally 1 |
+| --- | --- | --- |
+| blob confrontati | 4166 | 1601 |
+| `position`, `targetCell`, `units` diversi | 0 | 0 |
+| `metal` diverso | 21 | 4 |
+| scarto massimo di `metal` | 0,000488 | 0,000244 |
+| blob dove `pairs` non va in ordine numerico | 1457 | 636 |
+
+`CENTER` (contato in `GetCenter` e a ogni `getCenter`, frame passati in ciascun modo):
+
+| | squadra 0 | squadra 1 |
+| --- | --- | --- |
+| posizione del comandante: chiamate / frame | 0 / 0 | 0 / 0 |
+| media degli edifici: chiamate / frame | 856 / 26829 | 2064 / 26828 |
+| nessuno dei due (`CENTER` ancora `nil`): frame | 181 | 180 |
+
+Il primo edificio nasce al frame 180–181; prima nessuno chiama `GetCenter`, e la `getCenter` del `UnitCreated` del comandante gira prima di `CommanderBST:Init`, quindi in quei frame `CENTER` è `nil` (prima era la tabella del comandante, ma nessuno la leggeva). In questa partita nessuna squadra ha perso tutti gli edifici: il ramo del comandante non è mai servito.
+
+**4. Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice finale `ddc812ace2`, uscita 0, 18–20 s)
+
+| | partita 1 | partita 2 | partita 3 | S11 (tre partite) | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 37 / 106 / 176 | 6 / 33 / 81 / 117 | 5 / 39 / 94 / 146 | 6/36/104/146 · 5/37/103/179 · 5/33/100/160 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14): unità, fabbriche, mex | 179, 2, 35 | **134**, **1**, 25 | 163, 2, 31 | 172/203/168, 2/2/2, 27/31/34 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 188, 2, 35 | 149, 1, 26 | 171, 2, 35 | 196/230/177, 2/2/2, 30/36/38 | — |
+| relay: messaggi / ordini / rifiutati | 4138 / 16511 / 9 | 4030 / 14603 / 11 | 3117 / 13879 / 21 | 2724–3691 / 12797–16921 / 1–10 | 3405–3933 / 10445–15948 / 9–16 |
+| memoria per frame: media per minuto, picco | 0,18–0,94 KB, 72,9 KB | 0,17–0,51 KB, 31,9 KB | 0,18–0,74 KB, 90,2 KB | 0,18–0,59 KB, 50–93 KB | picchi 68–74 KB |
+| heap | 12,9–14,8 MB | 12,9–15,5 MB | 13,0–14,7 MB | 12,9–15,1 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 | 0 |
+
+- **Sotto i riferimenti**: la partita 2 a fine partita (134 unità al minuto 14, S1 141–186; una sola fabbrica, come una partita di S10), e al minuto 13 è al bordo basso (117). Le partite 1 e 3 stanno dentro S1 (la 1 al minuto 10 e 13 appena sopra, come S11). Con il seme che cambia a ogni avvio non so dire se sia il cambio di `CENTER`; non ho tentato correzioni.
+- Fuori dagli intervalli anche: messaggi del relay delle partite 1 e 2 (4138, 4030, sopra S1 e S11), ordini della partita 1 (16511, sopra S1), rifiutati della partita 3 (21, sopra S1 e S11), media di memoria per minuto della partita 1 fino a 0,94 KB (S11 fino a 0,59, S10 fino a 0,76) e picco della partita 3 a 90,2 KB (S11 92,9).
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown).
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2776 successi, 0 falliti, 1 pending (2773 − 1 test di S12a + 4 nuovi). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 sui file toccati: ok.
+- EmmyLua 0.24.0, confronto con la base `042550bd50` (stash): per file (avvisi / hint, base → finale) `buildingshst.lua` 26/35 → 26/35; `targethst.lua` 43/9 → 43/6; `commanderbst.lua` 4/4, `attackhst.lua` 7/23, `raidhst.lua` 6/24 uguali; `buildingshst_spec.lua` senza diagnostiche.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte `.ai-notes/`.
+
+**Da sapere**
+
+- Il comandante che riprende `CENTER` senza edifici è quello di `CommanderBST`, cioè di questa squadra; se ne nasce un secondo (per esempio regalato), diventa lui il riferimento.
+- `attackhst.lua` chiama `GetCenter` una volta prima del ciclo; senza edifici, `CENTER` è la posizione del comandante in quel momento.
+
 ### S12a (agente locale, 25 novembre 2026) — verificato dal coordinatore: punti 1–5 accettati; `CENTER` e il ciclo dei blob si completano in S12a2 (decisioni dell'utente). — **fermato alla prova in partita**: due differenze, una vera (`CENTER`) e una di arrotondamento (`metal` dei blob)
 
 **In breve**: punti 1–5 fatti, un commit ciascuno, test busted per `getCenter` e per il ritorno dei blob (falliscono sulla base). La prova nella stessa partita C trova differenze, quindi mi sono fermato: **niente partita A**. La causa principale: nella base `CENTER` **non** era la posizione del comandante all'avvio, ma la **tabella che `ShardUnit:GetPosition` riscrive a ogni chiamata**. Il punto 1 (copia) cambia il gioco. Servono due decisioni (sotto, «Domande»).
