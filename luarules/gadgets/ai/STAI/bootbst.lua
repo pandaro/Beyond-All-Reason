@@ -8,10 +8,10 @@ local CMD_MOVE_STATE = 50
 local MOVESTATE_HOLDPOS = 0]]
 
 function BootBST:Init()
-	DebugEnabled = false
+	self.DebugEnabled = false
 	self.id = self.unit:Internal():ID()
 	self.name = self.unit:Internal():Name()
-	self.mobile = self.ai.armyhst.unitTable[self.name].speed == 0
+	self.mobile = self.ai.armyhst.unitTable[self.name].speed > 0
 	self.mtype = self.ai.armyhst.unitTable[self.name].mtype
 	self.lastInFactoryCheck = self.game:Frame()
 	-- air units don't need to leave the factory
@@ -110,12 +110,12 @@ end
 
 function BootBST:FindMyFactory()
 	local pos = self.ai.tool:UnitPos(self)
+	self.factory = nil
 	for id, lab in pairs(self.ai.labshst.labs) do
-		if self.ai.tool:PositionWithinRect(pos, lab.exitRect) then
+		if lab.behaviour and lab.exitRect and self.ai.tool:PositionWithinRect(pos, lab.exitRect) then
 			self.factory = lab.behaviour
 		end
 	end
-	self.factory = nil
 end
 
 function BootBST:ExitFactory(face)
