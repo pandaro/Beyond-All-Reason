@@ -19,33 +19,49 @@
 
 ## Compito attuale
 
-### S4a: `GridHST`, la geometria
+### S4b: gli strati, e `MapHST` come primo strato
 
-**Impegno: alto.** Nasce `GridHST` (`nuovo-stai.md` punto 5, §5 n. 4). Qui **solo la geometria**: le griglie di oggi restano `[X][Z]`, cambia solo chi fa i conti. **Il gioco non deve cambiare.** Gli strati sono S4b. **Stile**: `nuovo-stai.md` §7.
+**Impegno: alto.** Seconda metà di `GridHST` (`nuovo-stai.md` punto 5). **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7.
 
-**1. File nuovo `STAI/gridhst.lua`**
+**1. Lo strato, in `gridhst.lua`**
 
-- `GridHST = class(Module)`, `Name` `"GridHST"`, `internalName` `"gridhst"`, `Scope` `"team"` (diventa `"global"` con `MapHST` più avanti). In `modules.lua` incluso e messo nella lista **prima di `MapHST`**.
-- `Init` come macro, prima riga `self.DebugEnabled = false`, poi i passi (nomi indicativi, nel tuo stile): `self:basicGridInfo()`, `self:createCells()`.
-- `basicGridInfo`: misure della mappa in elmo prese da `map:MapDimensions()` (come `MapHST:basicMapInfo`) e **`self.gridSize = 256`, l'unico punto in tutto STAI dove sta la misura della cella** (commento a fine riga che lo dice), poi `gridSizeHalf`, `gridSizeDouble`, `gridSideX`, `gridSideZ`, `gridArea` con le stesse formule di oggi.
-- `createCells`: **`self.CELLS[i]`** per tutte le celle, una volta sola, cicli `X` 1..`gridSideX`, dentro `Z` 1..`gridSideZ`; ogni cella `INDEX`, `X`, `Z`, `POS` (`POS` calcolato come oggi in `MapHST:NewCell`: centro della cella, `y` con `GetGroundHeight`), campo per campo.
-- Indice: `i = (X - 1) * gridSideZ + Z`. Funzioni nuove: `GridToIndex(X, Z)`, `PosToIndex(pos)`, `RawPosToIndex(x, z)`; all'indietro si legge `self.CELLS[i].X` / `.Z` (niente funzione).
+- `self.ai.gridhst:NewLayer(resetCell)` restituisce uno strato con:
+  - `CELLS` — `i -> dati della cella` del padrone, creati quando servono;
+  - `LIST` — array con gli indici delle celle vere, in ordine di arrivo;
+  - un segno interno per non mettere due volte lo stesso indice in `LIST`;
+  - `resetCell` — la funzione di azzeramento del padrone (`function(CELL) ... end`), facoltativa.
+- Metodi (decisi dall'utente, nomi compresi):
+  - `layer:Get(i)` — restituisce `CELLS[i]`; se manca la crea (`{}`) e, se c'è `resetCell`, la passa a `resetCell` una volta. **Non segna.**
+  - `layer:Mark(i)` — mette `i` in `LIST` se non c'è già.
+  - `layer:Clear()` — per ogni `i` di `LIST`: `resetCell(CELLS[i])` (se c'è), toglie il segno; poi svuota `LIST` **senza creare una tabella nuova**. Le tabelle delle celle restano e si riusano.
+  - leggere senza creare: `layer.CELLS[i]` (può essere `nil`).
+- Forma: una piccola classe `GridLayer` in `gridhst.lua` con `class()` del framework, oppure tabelle con funzioni; scegli quella più simile al resto di STAI e scrivi perché.
+- In più in `GridHST`: `PosToCell(pos)` e `RawPosToCell(x, z)` → la cella di `self.CELLS` (geometria) o `nil` fuori dalla griglia.
 
-**2. Da `MapHST` passano in `GridHST`**, con lo **stesso nome, stessa firma, stesso corpo, stesso commento**: `PosToGrid`, `RawPosToGrid`, `GridToPos`, `GridToRawPos`, `IsCellInGrid`, `areaCells`, `GetCell`, `getCellsFields`, e `isInMap`, `RawPosIsInMap` (servono a `GridToPos` / `GridToRawPos`; senza di loro `GridHST` dipenderebbe da `MapHST`, che dipende da `GridHST`).
-- `PosToGrid` e `RawPosToGrid` oggi controllano `self.GRID[X][Z]` di `MapHST` solo per un `EchoDebug`: in `GridHST` usa `IsCellInGrid` (stessa condizione: `GRID` è pieno).
-- **Tolti** da `MapHST`: le funzioni sopra, i campi della griglia in `basicMapInfo` (`gridSize` … `gridArea`) e `GridToNodeIndex`. `MapHST` tiene le sue misure in elmo (`elmoMapSizeX`, `elmoMapCenter`, …), usate da altri. Dentro `MapHST` (`createGrid`, `NewCell`, `TopologyFooded`, `SimplifyMetalSpots(self.gridSize * 2)`, `DrawDebug`, `metalScan`, `geoScan`, `MobilityNetworkHere`…) i conti passano a `self.ai.gridhst`. `NewCell` prende `POS` dalla cella di `GridHST` (`self.ai.gridhst.CELLS[i].POS`, stessa tabella) invece di ricalcolarlo.
-- **Chiamanti da aggiornare** (`self.ai.maphst:` / `.` → `self.ai.gridhst:` / `.`), contati dal coordinatore: `attackhst`, `buildingshst`, `commanderbst`, `damagehst`, `labsbst`, `labshst`, `loshst`, `nukebst`, `raidhst`, `scoutbst`, `scouthst`, `targethst`. Ricontrolla con grep: alla fine nessun `maphst` per questi nomi.
-- `DamageHST`: `nodeCostIndex = self.ai.maphst:GridToNodeIndex(X, Z)` → `self.ai.gridhst:GridToIndex(X, Z)` (usato solo nel testo di `Draw`).
+**2. `MapHST.GRID` diventa uno strato per indice**
 
-**3. Test busted** di `GridHST`, se si riesce a caricarla da sola con un `map` finto (o con `shard_null`): andata e ritorno indice ↔ `X`, `Z` su una griglia **non quadrata**; prima e ultima cella; `PosToIndex` sul bordo di una cella; `IsCellInGrid` fuori dai bordi. Mutazioni (per esempio `gridSideX` al posto di `gridSideZ` nella formula). Se non si riesce senza toccare il framework, scrivi perché e non toccarlo.
+- `self.GRID = self.ai.gridhst:NewLayer()` (nome tenuto: è il tuo), senza `resetCell` (è fisso, non si azzera mai). `createGrid` crea con `Get(i)` tutte le celle, **nell'ordine di oggi** (`i` da 1 a `gridArea` è lo stesso ordine di `X` fuori, `Z` dentro). La cella di `MapHST` tiene **solo i suoi dati**: `moveLayers`, `metalSpots`, `geoSpots`, `allSpots`; `X`, `Z`, `POS` si leggono da `self.ai.gridhst.CELLS[i]`. Se `allSpots` della cella non lo legge nessuno, scrivilo nei risultati (non toglierlo qui).
+- Dentro `MapHST` (`gridAnalisy`, `TopologyFooded`, `metalScan`, `geoScan`, `MobilityNetworkHere`, `DrawDebug`) si passa all'indice. `TopologyFooded` resta ricorsivo e uguale nella logica; i vicini si possono calcolare da `X`, `Z` come oggi (i bordi sono più chiari così).
+- `self.topology`: dopo S3 nessuno lo legge più (lo usava solo `GetPathGraph`): toglilo, con le sue scritture in `moveLayerTest` e `TopologyFooded`. Ricontrolla con grep prima.
 
-**4. Prova che il gioco non cambia**: come in S3, `Echo` temporanei **non committati** (le righe `[S3-PROOF]` di S3, più in fondo a `GridHST:Init` `gridSideX`, `gridSideZ`, numero di `CELLS`, somma di tutti gli `INDEX`), partita `c_stai_vs_stai.txt` di 2 minuti col codice di partenza e col codice nuovo: le righe `[S3-PROOF]` identiche (quella di `GridHST` c'è solo nel nuovo; la somma degli `INDEX` deve essere `n·(n+1)/2`). Se cambiano, **fermati**.
+**3. Chi legge `maphst.GRID` solo per `X`, `Z`, `POS` passa alla geometria di `GridHST`**
 
-**Partite**: oltre alla prova, una partita C di 15 minuti (unità e mex di tutte e due le STAI, errori).
+- `attackhst.lua` e `raidhst.lua` `Watchdog`: `GetCell(squad.position, self.ai.maphst.GRID)` → `self.ai.gridhst:PosToCell(squad.position)`; il confronto `X`/`Z` resta com'è.
+- `raidhst.lua` r. 379: stessa cosa (usa `POS`, `X`, `Z`).
+- `buildingshst.lua` r. 856: `self.ai.maphst.GRID[X][Z].POS` → `self.ai.gridhst.CELLS[self.ai.gridhst:GridToIndex(X, Z)].POS`.
+- `loshst.lua` r. 282: `CELL.POS = self.ai.maphst.GRID[X][Z].POS` → dalla geometria.
+- `scouthst.lua` r. 40 `PerimetralCells`: scorre `self.ai.gridhst.CELLS` per indice (stesso ordine) e usa `CELL.X`, `CELL.Z`, `CELL.POS`.
+- Alla fine nessun `maphst.GRID` fuori da `maphst.lua`.
 
-**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (nessun errore nuovo), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
+**4. Test busted** (nel file di S4a): `Get` crea una volta sola e chiama `resetCell` alla creazione; `Mark` due volte → un solo indice in `LIST`; `Clear` chiama `resetCell` solo sulle celle della lista, svuota `LIST`, **la stessa tabella** `LIST` e le stesse tabelle delle celle dopo (`rawequal`); dopo `Clear` una cella si può segnare di nuovo; `PosToCell` fuori dalla griglia → `nil`. Mutazioni.
 
-**Commit**, in inglese: uno per `GridHST` e lo spostamento, uno per i test (se ci sono), uno per i risultati. Righe per file nei risultati.
+**5. Prova che il gioco non cambia**: le stesse righe di S4a (`[S3-PROOF]`), col codice di partenza e col codice nuovo, `c_stai_vs_stai.txt` di 2 minuti: identiche. Se cambiano, **fermati**.
+
+**Partite**: oltre alla prova, una partita C di 15 minuti.
+
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (nessun errore nuovo; per gli avvisi confronta solo i file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
+
+**Commit**, in inglese: uno per lo strato in `GridHST` con i test, uno per `MapHST` e i lettori, uno per i risultati.
 
 ## Risultati
 
