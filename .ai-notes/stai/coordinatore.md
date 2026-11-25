@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, seconda chat del coordinatore del porting (S5, S6, S7 verificati). Per riprendere: leggere questo file, `nuovo-stai.md` (§4 decisioni, §5 ordine, §5b numeri da provare, §7 stile) e i risultati in fondo a `handoff.md`; se l'utente dice «fatto», verificare l'ultimo compito scritto. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting (S5, S6, S7, S8a verificati; **S8b scritto e da verificare**). Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 ordine, §7 stile) e i risultati in `handoff.md`; se l'utente dice «fatto», verificare S8b (`git pull`, risultati, diff a campione, partite contro S8a/S6/S1). Per risparmiare contesto: leggere di `handoff.md` solo «Compito attuale» e l'ultimo risultato, non tutta la storia. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -78,10 +78,11 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S8s | seme fisso: saltato dall'utente (25 novembre 2026) per risparmiare token; le prove «gioco invariato» si fanno nella stessa partita (come S8a) |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — scritto, da eseguire |
 
-**Piano per il 26 novembre 2026** (concordato con l'utente il 25 novembre; S5 già scritto):
+**Piano** (aggiornato alla fine della seconda chat, 25 novembre 2026; il piano del 26 novembre, S5–S8, è fatto salvo la verifica di S8b):
 
-1. S5 — `Tool`: libreria della matematica, modulo di team per gli attrezzi di squadra, via le funzioni mai chiamate; `codice-tolto.md` con l'indice di quello tolto in S3, S4b e S5. Gioco invariato.
-2. S6 — ambiti globali: `ArmyHST`, `GridHST`, `MapHST` `"global"` (l'analisi della mappa una volta per partita). Gioco invariato.
-3. S7 — `collect` alla fine di `StartAIs` (commit «Shard …»), via quella di `MapHST`.
-4. S8 — `LosHST` sopra `PerceptionHandler` e strato `ENEMY` (forse in due: percezione, poi strato e lettori). Il gioco cambia: tre partite A.
-5. Dopo: `DamageHST`, `ScoutHST`, `TRAMPLED` come strati; elezione nuova; difetti del punto 15.
+1. Verificare S8b (percezione, ombre `ghostEnemy`). Se le tre partite A stanno sotto S8a/S6, parlarne con l'utente prima di andare avanti.
+2. Strati negli altri moduli, uno alla volta: `DamageHST` (`DAMAGED`; poi via `areaGridCells` e `getGridCellsFields` di `GridHST`), `ScoutHST`, `TRAMPLED`. Prova nella stessa partita, come S8a.
+3. Ambiti d'alleanza (punti 3 e 4): `LosHST`, `TargetHST`, `DamageHST` `"ally"`, `friendlyTeamID` su `ShardAlly`.
+4. Difetti dei punti 15 e 19 (un commit per difetto, con partite), insieme al codice morto di `AttackHST` (`SquadAttackbackup`, vecchia `SquadAttack` commentata): approvato dall'utente.
+5. Elezione (punto 7): regola nuova se migliore, con partite.
+6. In sospeso: seme fisso (S8s, saltato; il generatore dovrebbe essere dell'AI, `math.random` unsynced è salato); `ShardMemStats` legge `springsettings.cfg`, contro la regola «tutto autocontenuto»: chiedere all'utente se spostarla.
