@@ -34,6 +34,28 @@ Trovato in S24b: `AttackHST:SquadAdvance` azzera `squad.idleCount` (r. 233) **pr
 
 ## Risultati
 
+### S24c (agente locale, 25 novembre 2026)
+
+**Codice (commit `6d07383819`, «STAI: read squad idle count before resetting it»).** `SquadAdvance` azzera `idleCount` dopo `SquadStepComplete` in `attackhst.lua` e `raidhst.lua`; nel ramo `prevent` (che non legge il conteggio) l'azzeramento resta prima del `return`, così il conteggio non si accumula fra un avanzamento e l'altro. Gli altri azzeramenti (`attackhst.lua` r. 402 e `raidhst.lua` r. 461, in `SquadResetTarget`) restano: servono al cambio di bersaglio, non vanno fra lettura e avanzamento.
+
+**Test.** `spec/luarules/gadgets/ai/STAI/attackhst_spec.lua` (nuovo): squadra di 4, 4 `MemberIdle`, avanzamento → passo 2 e `idleCount` 0; 2 idle su 4 → passo 1. In `raidhst_spec.lua`: stesso caso per `RaidHST`. Senza il fix i due casi di avanzamento falliscono (2 failure), con il fix passano. `lx --lua-version 5.1 test`: 2819 successi, 0 failure, 1 pending (già presente). StyLua 2.5.2 pulito sui file toccati; EmmyLua: nessun errore nuovo, nessun avviso sulle righe modificate (le avvertenze in `attackhst.lua` e `raidhst.lua` sono altrove). `run_engine_tests.sh`: RESULT ok. `.emmyrc.json` ripristinato.
+
+**Misura (contatori `Spring.Echo("[IDLE-STEP] …")` nei due rami `elseif`, patch non committata, tolta dopo).** Quattro partite, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, `[AI Loader] error`: 0 in tutte.
+
+| | STAI min. 14: unità | fine (SUMMARY) STAI: unità, fabbriche, mex | avversario fine | relay: messaggi / ordini / rifiutati | passi per idle (`[IDLE-STEP]`) |
+| --- | --- | --- | --- | --- | --- |
+| A1 | 165 | 178, 2, 32 | SimpleAI 58 | 4187 / 14988 / 18 | 0 |
+| A2 | 111 | 123, 2, 17 | SimpleAI 82 | 3076 / 11325 / 19 | 0 |
+| A3 | 177 | 195, 2, 33 | SimpleAI 67 | 3927 / 15837 / 12 | 0 |
+| C | 122 (team 0) | 137, 2, 25 (team 0); 156, 1, 23 (team 1) | STAI team 1 | 4658 / 19790 / 30 | 0 |
+
+**Lettura.** Il passo per idle non è mai scattato: 0 in tutte le partite, con il contatore attivo. Prima del fix era 0 per costruzione (il conteggio veniva azzerato prima della lettura, quindi la condizione era sempre falsa), quindi «prima» e «dopo» coincidono a zero. Il fix è verificato dai test, non dal gioco. Dubbio da chiudere: non ho un controllo positivo che dimostri che `Spring.Echo` arrivi all'infolog dal codice AI; le righe `[AI Loader]` arrivano con lo stesso canale, ma non ho provato il marcatore da solo.
+
+Confronto con i riferimenti: A1 (178 unità, 32 mex) e A3 (195, 33) stanno dentro la fascia di S26 (188–203, 29–38) o poco sotto. **A2 è sotto**: 123 unità e 17 mex a fine partita, contro 188–203 e 29–38 di S26; a metà partita 111 unità contro 167–191. Non è crollata (2 fabbriche, più di 100 unità a fine partita), ma è peggio in una A. Per il compito: scritto, e non ho tentato altro. Nella stessa serie S24b / S1 la varianza fra partite A è già alta (S24b A1 110 unità), quindi A2 può essere varianza del seme come in S25/S26, ma non l'ho dimostrato. La C (137 e 156) è nella norma (S25: 155 e 145).
+
+**Domanda.** Vuoi che l'idle-step resti attivo (il fix è corretto ma non cambia il gioco osservato), o che io indaghi il calo di A2 con una quarta partita A? Non ho fatto nulla di questo senza tua risposta.
+
+
 ### S17 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `factoriesRating` NaN senza spot: da sapere — STAI sotto `shard_null`: spec in verde con 3 casi, il gioco non cambia
 
 **In breve**: fatto, due commit di codice (`5f2637ae50` `boot.lua`, `8b619014e0` lo spec). STAI si carica fuori dall'engine, fa `Init` di global, ally e team, `Update` e un comandante che ordina il primo mex. Test: 2816 successi (2813 + 3), 0 fallimenti; StyLua 2.5.2 pulito sui due file; EmmyLua: lo spec 0 avvisi, `boot.lua` gli stessi 2 di prima (`STAI()` «call-non-callable», lo stesso di `Shard/boot.lua`), `.emmyrc.json` ripristinato; `run_engine_tests.sh` `RESULT: ok`. Lo spec dura 0,02 s.
