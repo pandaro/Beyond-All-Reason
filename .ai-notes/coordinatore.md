@@ -133,6 +133,8 @@ Claude-Session: <link della sessione>
 - Richieste di percorso (`Spring.RequestPath`).
 - «Un solo cervello per alleanza».
 - Banco di prova intensivo ed estensivo.
+- **`collect` dopo gli `Init` (nota dell'utente, 25 novembre 2026, da valutare)**: oggi la `collect` d'avvio sta in `Lifecycle.CatchUpAfterReload` (`lifecycle.lua`), chiamata dall'`Initialize` del gadget: in una partita normale gira **prima** che le AI partano (`StartAIsOnce` al primo frame), quindi nessuna `collect` ripulisce ciò che lasciano gli `Init` dei moduli; resta solo la rete di sicurezza ogni 121 frame. Valutare una `collectgarbage("collect")` alla fine di `StartAIs`, dopo tutti gli `Init`.
+- **`maxInstances` forzabile in prova (richiesta dell'utente, 25 novembre 2026)**: quando il gioco gira da `.sdd` (versione `$VERSION`, prove locali) deve essere possibile alzare `MAX_INSTANCES_PER_AI_TYPE` (`loader/admission.lua`) per gli stress test con tante AI. Nella release resta il limite fisso.
 
 ## 6. Cose imparate (non ripetere gli errori)
 
