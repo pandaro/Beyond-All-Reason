@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12a2 verificati, **S12b da proporre** (decisione aperta: danni dell'alleanza in `DamageHST`). Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Prossimo passo: decisione dell'utente su `DamageHST`, poi scrivere S12b. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12a2 verificati, **S12b scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S12b (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -88,7 +88,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 1. ~~S9 — strati che durano~~: verificato.
 2. ~~S10 — difetti della mappa e della griglia~~: verificato.
 3. ~~S11 — difetti di tattica e codice morto~~: verificato.
-4. ~~S12a, S12a2~~ verificati. S12b (passaggio a `"ally"`, partita B): da proporre.
+4. ~~S12a, S12a2~~ verificati. S12b (passaggio a `"ally"`, partita B): scritto (impegno extra). Verificarlo.
 5. S13 — elezione.
 
 **Cose imparate in questa chat** (per il coordinatore):

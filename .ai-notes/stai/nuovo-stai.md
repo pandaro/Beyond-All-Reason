@@ -69,6 +69,8 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 
 Decisione del 25 novembre 2026 (utente): S8 diviso in **S8a** (strato `ENEMY`, via `OWN`, `ALLY`, `ALLIES` mai riempite e il resto che non serve) e **S8b** (percezione).
 
+Decisione del 25 novembre 2026 (utente, per S12b): in ambito ally **`DamageHST` registra i danni a tutte le unità dell'alleanza**, anche dei giocatori umani alleati (`defender:AllyTeam() == self.ai.allyId`).
+
 Decisioni del 25 novembre 2026 (utente, dopo S12a): **`CENTER` è la media degli edifici propri; senza edifici la posizione attuale del comandante** (sostituisce «com'era» e «posizione del comandante finché non ci sono edifici», date su una descrizione sbagliata del coordinatore: nella base `CENTER` era la tabella viva della posizione del comandante); ciclo numerico in `TargetHST:GetBlobs` (con `pairs` la somma di `metal` dipendeva dalla tabella presa dalla riserva). In S12a2; il gioco cambia, tre partite A.
 
 Decisioni del 25 novembre 2026 (utente, per S12a): `CENTER` e `ownImmobile` in `BuildingsHST`; via `isDamaged` di `DamageHST` e quello che serve solo a lui («togli quello che non serve»); la riserva dei blob di `TargetHST` usa `TablePool` del framework («almeno le abbiamo per qualcosa»); se si perdono tutti gli edifici `CENTER` resta sull'ultimo centro («lascialo com'era»). Trovato dal coordinatore: `friendlyTeamID` è creato vuoto e mai riempito (in S12a si toglie; in S12b va deciso se `DamageHST` conta i danni di tutta l'alleanza).

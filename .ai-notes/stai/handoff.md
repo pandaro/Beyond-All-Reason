@@ -19,26 +19,32 @@
 
 ## Compito attuale
 
-### S12a2: `CENTER` come media degli edifici, ciclo numerico dei blob (completamento di S12a)
+### S12b: `LosHST`, `TargetHST`, `DamageHST` in ambito `"ally"`
 
-**Impegno: medio.** Decisioni dell'utente del 25 novembre 2026, dopo i risultati di S12a: «`CENTER` è la media degli edifici; se non c'è di meglio usiamo il commander»; ciclo numerico in `GetBlobs`. **Il gioco cambia** (`CENTER` non segue più il comandante quando ci sono edifici): **tre partite A**. **Stile**: `nuovo-stai.md` §7. I commit di S12a restano; si lavora sopra.
+**Impegno: extra.** Decisione dell'utente del 25 novembre 2026: `DamageHST` registra i danni a **tutte le unità dell'alleanza**, anche dei giocatori umani alleati. **Stile**: `nuovo-stai.md` §7. Regole del framework: `drafts/README.md`, «Scopes» (un modulo ally vede moduli ally e global, non team; `self.ai` è lo `ShardAlly` con `allyId` e `AIs`; un evento arriva una volta all'oggetto che possiede il modulo).
 
-**1. `CENTER`** (`buildingshst.lua`, `commanderbst.lua`, lettori)
+**0. Partita B di riferimento, prima di toccare il codice** (`b_2stai_vs_2simpleai.txt`, 15 minuti, `SHARD_MEM_STATS=1`, codice `65c0228d`): righe solite per **le due** STAI, più il tempo per frame delle AI se lo script lo dà. Serve per il confronto dopo (una partita sola: è un riferimento di massima, scrivilo).
 
-- Regola: con edifici propri, `CENTER` è la loro media (come `getCenter` oggi, ricalcolata a `UnitCreated`/`UnitDead`). **Senza edifici**, la posizione **attuale** del comandante; se non c'è comandante vivo, l'ultimo `CENTER`.
-- Proposta (scegli tu se trovi di più semplice, e scrivilo): metodo `BuildingsHST:GetCenter()` che i lettori chiamano (`attackhst.lua` r. 327, `raidhst.lua` r. 398 e il punto «BASE» di `VisualDBG`): se ci sono edifici restituisce la media tenuta da `getCenter`; se no chiede la posizione al comandante (`GetPosition` o `GetRawPos`) e la **copia** in `CENTER`, mai la tabella del comandante. Il comandante si registra in `CommanderBST:Init` (per esempio `self.ai.buildingshst.commanderID = self.id`, al posto della copia di oggi); con più comandanti vale l'ultimo registrato, scrivilo nei risultati. Un comandante morto si riconosce dalla posizione `nil` (`GetPosition` restituisce `nil`).
-- Nessuno deve più tenere la tabella di posizione di un'unità dentro `CENTER` (grep).
-- Test busted (sostituiscono quello di S12a): senza edifici `GetCenter` dà la posizione attuale del comandante, e la segue quando si muove, in una tabella che non è la sua; con edifici la media, anche se il comandante si muove; edifici tutti persi → di nuovo il comandante; comandante morto e nessun edificio → l'ultimo `CENTER`. Mutazioni.
+**1. `Scope()`**: `loshst.lua` r. 12, `targethst.lua` r. 14, `damagehst.lua` r. 12 → `"ally"`.
 
-**2. Ciclo numerico in `GetBlobs`** (`targethst.lua` r. 53): `for i, v in pairs(blob.cells)` → `for n = 1, #blob.cells do local v = blob.cells[n]` (commento a fine riga come gli altri «numeric loop keeps the order»). Se anche r. 188 e 200 (`drawDBG`) scorrono `cells`, uguale. Il test dei blob di S12a deve restare verde.
+**2. `DamageHST:UnitDamaged`** r. 21–24: il loader consegna `UnitDamaged` a **ogni** `ShardAlly` (`DeliverToShared`), quindi arrivano i danni di tutte le unità della partita. Al posto di `teamID ~= self.ai.id`: `if defender:AllyTeam() ~= self.ai.allyId then return end` (commento a fine riga: danni di tutta l'alleanza, decisione dell'utente). Via la `local teamID` se resta inutile. Aggiorna `damagehst_spec.lua` (unità di un alleato umano registrata; unità di un'altra alleanza no).
 
-**3. Prova nella stessa partita** (partita C, 15 minuti, non committata) solo per i blob: `GetBlobs` con il ciclo numerico contro la stessa funzione con `pairs`, sulle stesse celle a ogni `Update`. Atteso: blob, `position`, `targetCell`, `units` sempre uguali; `metal` diverso solo nelle ultime cifre (scrivi quante volte e lo scarto massimo). Per `CENTER` niente prova di uguaglianza (cambia per scelta): scrivi solo, in quella partita, quante volte e per quanti frame `CENTER` è stato la posizione del comandante e quante la media degli edifici.
+**3. Controlli sui tre moduli** (scrivi i risultati del grep):
 
-**4. Tre partite A** con il codice finale (righe solite, confronto con S11 e S1). Se vanno sotto i riferimenti, scrivilo e non tentare correzioni.
+- nessun `self.ai.id`, `GetTeamID`, `self.ai.tool`, `self.ai.<modulo team>` (`buildingshst`, `labshst`, `attackhst`, …), `self.ai.<campo> =`;
+- gli eventi che ricevono adesso come ally (`UnitDead`, `UnitCreated` se c'è, eventi di los e radar, `UnitDamaged`, `Update`): un ally riceve `UnitDead` di **tutte** le unità e gli eventi di los e radar della sua alleanza una volta sola; controlla che ogni gestore faccia la cosa giusta (per esempio `cleanEnemy` su unità che non conosce);
+- i lettori di squadra (`AttackHST`, `RaidHST`, `ScoutHST`, `BomberHST`, behaviour, …) raggiungono i tre moduli come prima (`self.ai.loshst` ecc. da un modulo team punta all'istanza dell'alleanza);
+- `game` e `map` globali dentro i tre moduli: valgono quelli dell'oggetto ally (`ShardAI:Prepare`); scrivi se qualcosa dipende dal team (per esempio `game:GetTeamID()` indiretti, `map` per i disegni).
 
-**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato. Prima di `git add -A` o `git commit -a`: skill `submodule-pointer`.
+**4. Prove**
 
-**Commit**, in inglese: uno per `CENTER` (con il test), uno per il ciclo numerico, uno per i risultati.
+- **Partita B** con il codice finale: nei log **una** istanza per alleanza di ciascuno dei tre moduli (righe «adding … module» con `ally <id>`), nessuna riga `[AI Loader] error`; righe solite per le due STAI, confronto con la partita del punto 0. Il gioco in B **cambia per scelta** (la los, i blob e i danni sono comuni alle due STAI): scrivi soltanto se una delle due STAI gioca molto peggio.
+- **Tre partite A** con il codice finale (una STAI sola nell'alleanza: il gioco dovrebbe restare come prima, salvo il seme). Se vanno sotto i riferimenti, scrivilo e non tentare correzioni.
+- Memoria: con due STAI nella stessa alleanza i tre moduli girano una volta sola; scrivi memoria per frame e heap di B prima e dopo.
+
+**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato. Prima di `git add -A` o `git commit -a`: skill `submodule-pointer`. Se serve toccare il framework, **fermati** e scrivilo (commit «Shard …» solo con l'ok dell'utente).
+
+**Commit**, in inglese: uno per `DamageHST` (punto 2, con il test); uno per gli `Scope()` e quello che serve per farli girare; uno per i risultati.
 
 ## Risultati
 
