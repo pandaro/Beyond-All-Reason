@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S25 e S19 scritti e da eseguire** (uno dopo l'altro). Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S25 e S19. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S26 (crollo partita A dopo S25) e S19 scritti**; S19 solo dopo S26. Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S26 (e S19 se eseguito). Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 

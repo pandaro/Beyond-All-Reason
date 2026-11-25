@@ -19,22 +19,20 @@
 
 ## Compito attuale
 
-Due compiti: «esegui s25» → **solo S25**, poi «esegui s19» → **solo S19**. Risultati separati.
+Due compiti: «esegui s26» → **solo S26**; poi, **solo se S26 dice che il crollo non è nostro**, «esegui s19». Risultati separati.
 
-### S25: metodi inesistenti e globali accidentali
+### S26: la partita A di S25 è crollata (1 unità, 0 fabbriche)
 
-**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente (25 novembre 2026). Meccanico. **Stile**: `nuovo-stai.md` §7.
+**Impegno: medium. Modello: Sonnet 5.5.** Indagine; niente correzioni senza dirlo.
 
-1. `self.ai.tool:GiveOrderToUnit` non esiste in `Tool` (S23). `bomberbst.lua` r. 59 (`Deactivate`): → `self.ai.tool:GiveOrder(self.id or self.unit:Internal():ID(), CMD.MOVE, self.homepos, 0, "1-1")` (come `BootBST:ExitFactory` dopo S23; controlla quale id usa il file). `mexupbst.lua` r. 35 e 127 (non caricato): stessa correzione, primo argomento l'id dell'unità.
-2. **Ricerca generale** in `STAI/`: chiamate `self.ai.<modulo>:<Metodo>(` e `self.ai.tool:<Metodo>(` dove `<Metodo>` non è definito nel modulo (né in `Toolbox` per `tool`, che lo avvolge). Uno script in `/tmp` (non committato) va bene. Elenco nei risultati; correggi solo i casi ovvi (nome sbagliato con equivalente chiaro), gli altri elencali e basta.
-3. **Globali accidentali**: assegnazioni a nomi senza `local` dentro funzioni (EmmyLua `undefined-global` / `lowercase-global` sui file di `STAI/`, o `luac -l`/grep `SETGLOBAL` se più facile). Correggi con `local` o `self.` dove è evidente (come `DebugEnabled` in S23); elenca il resto.
-- Test busted solo dove è semplice. **Una** partita A e **una** C; nessuna riga `[AI Loader] error`.
-- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
-- Commit, in inglese: uno per punto, più i risultati.
+1. **Tre partite A** su `HEAD` (righe solite). Se nessuna crolla (fabbriche 0 o unità < 100 a fine partita), scrivi i numeri e fermati: era varianza.
+2. Se ne crolla almeno una: **bisezione** sui commit di codice da S23 in poi (`12095574` `GiveOrderToUnit`, `bbfd7a4b` `RandomAway`, `b3228400` `JOB`; poi, se serve, quelli di S22/S23). Sospetto principale: `bbfd7a4b`. `Tool:RandomAway` prima andava sempre in errore e ora funziona; lo chiamano `labshst.lua:446` (posto della fabbrica: `UnitCanGoHere` su un punto casuale a 300 elmi) e `bomberbst.lua:58`. Controlla le unità: `maphst.mapSize` contro `MapDimensions` (quadrati o elmi? `maxElmosX = mapSize.x * 8`).
+3. In una partita che crolla, `Echo` non committati: cosa succede alla prima fabbrica (`LabsHST`: dove la mette, se `RandomAway` fa scartare tutti i posti), al comandante, alle prime unità.
+4. Risultati: causa, commit colpevole, correzione proposta (o fatta se ovvia e piccola, con test e tre partite A).
 
 ### S19: `gridSize` 128 (prova; §5b)
 
-**Impegno: high. Modello: Opus 5.5.** Scelto dal coordinatore su richiesta dell'utente (25 novembre 2026). Si esegue **dopo S25** («esegui s19»). È una **prova**: si tiene solo se il gioco non peggiora. **Stile**: `nuovo-stai.md` §7.
+**Impegno: high. Modello: Opus 5.5.** Scelto dal coordinatore su richiesta dell'utente (25 novembre 2026). Si esegue **dopo S26**, solo se il crollo non è nostro o è corretto («esegui s19»). È una **prova**: si tiene solo se il gioco non peggiora. **Stile**: `nuovo-stai.md` §7.
 
 **1. Inventario** (nei risultati, tabella): tutto ciò che dipende dalla misura della cella, con il significato in elmi oggi (256) e la proposta a 128:
 - raggi in celle: `getCellsFields(..., 2, ...)` in `commanderbst.lua` r. 25 e `nukebst.lua` r. 74; `areaCells(X, Z, 1, ...)` in `scoutbst.lua` r. 204; `adjacent` di `TargetHST:IsSafeCell` (chiamanti `buildingshst.lua` r. 845, `mexupbst.lua` r. 112: valore di default); il raggio 1 di `TargetHST:Blobbing` (vicini: va bene com'è, scrivilo); ogni altro `range`/`R`/`adjacent` che trovi;
@@ -53,7 +51,7 @@ Due compiti: «esegui s25» → **solo S25**, poi «esegui s19» → **solo S19*
 
 ## Risultati
 
-### S25 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+### S25 (agente locale, 25 novembre 2026) — verificato dal coordinatore; la partita A crollata va in S26. Domande: `GetBestBombardCell` e funzioni matematiche globali restano per ora; `test.lua` da guardare in chiusura — da verificare dal coordinatore
 
 **Punto 1, metodi inesistenti in `Tool`** (commit `1209557466`): `bomberbst.lua:59` (`Deactivate`) e `mexupbst.lua:35` e `:127` usavano `GiveOrderToUnit`, che non esiste. Ora `self.ai.tool:GiveOrder(<id>, …)` con l'id dell'unità (`:ID()`), come le altre chiamate. `mexupbst` non è caricato: la correzione è solo di coerenza.
 
