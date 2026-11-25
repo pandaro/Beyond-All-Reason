@@ -19,6 +19,8 @@
 
 ## Compito attuale
 
+Due compiti: «esegui s24b» → **solo S24b**; poi «esegui s17» → **solo S17**. Risultati separati.
+
 ### S24b: `AttackerBST` solo sensore
 
 **Impegno: medium. Modello: Sonnet 5.5.** Decisione dell'utente (25 novembre 2026): la squadra (`AttackHST`) dà gli ordini, `AttackerBST` è il sensore dell'unità (eventi alla squadra, priorità 0, nessun ordine). **Il gioco cambia** (sotto): tre partite A. **Stile**: `nuovo-stai.md` §7.
@@ -37,6 +39,20 @@ Trovato dal coordinatore: `AttackerBST:OwnerIdle` (r. 66–71) chiama `AttackHST
 5. **Tre partite A** e **una C** (confronto con S26, S24a, S1). Se peggio in più di una A, scrivilo e non tentare altro.
 - Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
 - Commit, in inglese: uno per `AttackerBST` con test, uno per i risultati.
+
+### S17: STAI sotto `shard_null` (punto 12)
+
+**Impegno: high. Modello: Sonnet 5.5.** Approvato dall'utente (25 novembre 2026): ultimo compito prima della chiusura. Si esegue **dopo S24b** («esegui s17»). **Il gioco non cambia.** **Stile**: `nuovo-stai.md` §7.
+
+Obiettivo: uno spec busted che **carica STAI fuori dall'engine** con `shard_null` (come fa `spec/luarules/gadgets/ai/shard_runtime/shard_null_spec.lua` per l'AI d'esempio), esegue `Init` e qualche `Update` senza errori. Serve come rete di sicurezza per i cambi futuri.
+
+1. **`STAI/boot.lua`**: oggi `require("shard_runtime/shard_null/boot")` fuori dall'engine; allinealo a come `shard_null_spec.lua` carica l'AI d'esempio (`SetAIFolder` o equivalente). Il ramo `ShardSpringLua` non cambia.
+2. **Nomi dei file**: controlla che ogni `shard_include` di STAI trovi il file con le stesse maiuscole (in engine VFS non distingue, su Linux `require` sì). Elenca e correggi le differenze (rinomina del file o del nome incluso: il più piccolo).
+3. **Letture dirette dell'engine** (`Spring.*`, `UnitDefs`, `CMD`, `Game`, `VFS` in circa 25 file di STAI): **non** cambiare STAI per questo. Metti i finti necessari **nello spec** (o in un aiuto dello spec): `UnitDefs` minimo con pochi tipi (comandante, costruttore, fabbrica, mex, un combattente), `Spring.*` usate nell'`Init`/`Update` con risposte semplici, `CMD` con le costanti usate. Elenca nei risultati cosa hai dovuto fingere. Se `ArmyHST`/`MapHST` chiedono troppo (tabelle intere di unità, mappa), usa una mappa piccola finta di `shard_null` e scrivi i limiti.
+4. **Spec** `spec/luarules/gadgets/ai/STAI/stai_null_spec.lua`: carica STAI, `Init` di global, ally e team, alcuni `Update`, un `UnitCreated`/`UnitBuilt` del comandante; nessun errore e nessun `Warn` inatteso. Mutazione: un errore voluto in un modulo deve far fallire lo spec.
+5. Se un passo richiede cambi grossi a STAI o al framework, **fermati** e descrivi le opzioni.
+- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; **una** partita A (il gioco non cambia); `.emmyrc.json` ripristinato; skill `submodule-pointer`.
+- Commit, in inglese: uno per `boot.lua` e i nomi, uno per lo spec, uno per i risultati.
 
 ## Risultati
 
