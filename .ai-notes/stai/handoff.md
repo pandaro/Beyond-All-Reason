@@ -32,6 +32,41 @@
 
 ## Risultati
 
+### S25 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+
+**Punto 1, metodi inesistenti in `Tool`** (commit `1209557466`): `bomberbst.lua:59` (`Deactivate`) e `mexupbst.lua:35` e `:127` usavano `GiveOrderToUnit`, che non esiste. Ora `self.ai.tool:GiveOrder(<id>, …)` con l'id dell'unità (`:ID()`), come le altre chiamate. `mexupbst` non è caricato: la correzione è solo di coerenza.
+
+**Punto 2, ricerca generale.** Scanner (non committato, in `scratchpad`): per ogni `self.ai.<modulo>:<Metodo>(` e `self.ai.tool:<Metodo>(` controlla la definizione nel file del modulo. Risultati:
+- **Corretto** (commit `bbfd7a4b4d`): `tool.lua:107`, `Tool:RandomAway`, usava `self.ai.map:MapDimensions()`, che non esiste (crash a ogni chiamata). Ora `self.ai.maphst.mapSize`: `maphst` calcola `elmoMapSizeX = mapSize.x * 8`, lo stesso valore di `maxElmosX`.
+- **Non corretto, da decidere:** `nukebst.lua:41` e `:43` chiamano `self.ai.targethst:GetBestBombardCell(…)`, che non esiste in `targethst.lua`. Non esiste nemmeno nel codice vecchio (`git show 3ad8f3fb^:luarules/gadgets/ai/Shard/targethst.lua`): il metodo non è mai stato portato. Serve una decisione: portarlo, o far restituire a `NukeBST` la cella con la sua logica.
+- **Falsi positivi o codice commentato:** `loshst.lua:85` (`perceptionhandler:OnRadar`) esiste in `shard_runtime/perceptionhandler.lua`; `damagehst.lua:27` e `:39`, `buildingshst.lua:942` e `:945`, `bootbst.lua:147`, `tool.lua:137` sono in commenti.
+
+**Punto 3, globali accidentali.** Controllo con `luac5.1 -l -p` (`SETGLOBAL` per ogni file di `STAI/`):
+- **Corretto** (commit `b322840014`): `JOB` in `buildersbst.lua` `ProgressQueue`, assegnato come globale nel ciclo. Ora `local JOB` prima del `for`. Effetto: la riga di debug `"JOB", JOB` del primo giro stampa `nil` invece del valore residuo di una chiamata precedente. Solo debug.
+- **Lasciati, da decidere:** in `tool.lua` le funzioni matematiche (`random`, `pi`, `halfPi`, `twicePi`, `sin`, `cos`, `abs`, `max`, `min`, `sqrt`, `floor`, `ceil`, `atan2`) sono globali. Non sono globali di Lua 5.1, e 11 file di `STAI/` le usano senza definirle (`max`/`min` in 9 file, `random` in 11, `floor` e `ceil` in 6): con un `local` in `tool.lua` si romperebbero. Cambiarle vuol dire far definire le locali in ogni file che le usa: scelta di stile del porting, non un refuso.
+- **Lasciati, voluti:** i nomi di classe (`BootBST = class(…)`, `GridLayer`, `GraphAStar`, `PathfinderAStar`, `STAI`, …) e `ai` in `boot.lua`. `ai`, `u` e `dump` in `test.lua` sono globali di un file che non compare fra i moduli caricati (`modules.lua`): non ho verificato se il file viene mai incluso.
+
+**Controlli**
+- `luac5.1 -p` sui quattro file: ok.
+- StyLua 2.5.2: il file `HEAD` è già fuori formato, con righe vuote da correggere: il gate guarda solo le righe toccate. Le righe toccate (`bomberbst` 59, `mexupbst` 35/127, `tool` 107, `buildersbst` 453) non compaiono nell'output.
+- EmmyLua 0.24.0 sull'intera `STAI/`: 6193 righe di output, quasi tutte `undefined-global` su `class`, `CMD`, `game` e simili, che il progetto usa senza `---@` (il rumore non è cambiato in modo visibile). `JOB` non compare più fra i globali indefiniti. Non ho fatto un confronto con la base.
+- `lx --lua-version 5.1 test`: **2788 successi, 0 fallimenti, 0 errori**, 1 pending preesistente (`def_invariants_spec.lua:321`). `.emmyrc.json` ripristinato.
+- `run_engine_tests.sh`: `RESULT: ok`, sincronizzato e non sincronizzato 3 ok, 0 falliti, controllo negativo rilevato.
+
+**Partite** (`run_engine_game.sh`, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0 in entrambe):
+
+| Partita | Relay: messaggi / ordini / rifiutati | Righe `[AI Loader] error` | Fine partita |
+| --- | --- | --- | --- |
+| A, STAI vs SimpleAI | 2705 / 6094 / 7 | 0 | STAI: 1 unità, 0 fabbriche (SimpleAI: 96 unità) |
+| C, STAI vs STAI | 5137 / 23354 / 35 | 0 | 155 e 145 unità, 2 fabbriche ciascuna |
+
+Negli infolog delle partite ci sono errori di widget (`gui_pip` `CreateShader`, `gui_sensor_ranges_jammer_preview` `sheetShader`) e di shader: sono dell'engine in headless, non di STAI. La partita A finisce con STAI quasi distrutto: da tenere d'occhio, ma con una sola partita non si può attribuirlo a questo compito. Né `GetBestBombardCell` né il fix di `RandomAway` vengono chiamati in modo visibile nel log.
+
+**Domande per il coordinatore**
+1. `GetBestBombardCell`: portarlo in `targethst` o riscrivere `NukeBST` (righe 41–43)?
+2. Le funzioni matematiche globali di `tool.lua`: lasciarle così per ora, o locali in ogni file che le usa?
+3. `test.lua` è ancora incluso da qualche parte? Se no, i suoi globali si possono togliere.
+
 ### S23 (agente locale, 25 novembre 2026) — verificato dal coordinatore; commit `540d26c853` accettato
 
 **In breve**: `BootBST` ora riconosce la fabbrica e `ExitFactory` gira davvero. Appena girato è emerso un errore **non previsto dal compito**: `ExitFactory` chiamava `self.ai.tool:GiveOrderToUnit`, che in `Tool` non esiste (107 + 99 errori `[AI Loader]` in una partita C). L'ho corretto in un commit a parte (`GiveOrder`, come `SetMoveState`): senza, le uscite cadevano in errore dopo `u:Move`. Tre partite A senza errori del loader.
