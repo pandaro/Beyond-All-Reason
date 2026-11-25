@@ -19,44 +19,22 @@
 
 ## Compito attuale
 
-Due compiti: «esegui s24b» → **solo S24b**; poi «esegui s17» → **solo S17**. Risultati separati.
+### S24c: `idleCount` azzerato prima di essere letto
 
-### S24b: `AttackerBST` solo sensore
+**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente (25 novembre 2026). **Il gioco cambia**: tre partite A. **Stile**: `nuovo-stai.md` §7.
 
-**Impegno: medium. Modello: Sonnet 5.5.** Decisione dell'utente (25 novembre 2026): la squadra (`AttackHST`) dà gli ordini, `AttackerBST` è il sensore dell'unità (eventi alla squadra, priorità 0, nessun ordine). **Il gioco cambia** (sotto): tre partite A. **Stile**: `nuovo-stai.md` §7.
+Trovato in S24b: `AttackHST:SquadAdvance` azzera `squad.idleCount` (r. 233) **prima** di chiamare `SquadStepComplete` (r. 250), che lo legge (r. 190: `idleCount > floor(#members * 0.85)`): la condizione è sempre falsa. Stesso schema in `raidhst.lua` (azzerato r. 248, letto r. 204).
 
-Trovato dal coordinatore: `AttackerBST:OwnerIdle` (r. 66–71) chiama `AttackHST:MemberIdle` **solo se `self.active`**, e `AttackerBST` non è mai attivo (`attacking` mai vero, S13): quindi `squad.idleCount` non sale mai dagli eventi, e la condizione di `attackhst.lua` r. 190 (`idleCount > 85 % dei membri`) non scatta per questa via. Correggerlo cambia il gioco.
-
-1. `attackerbst.lua`:
-   - `Priority` restituisce sempre 0 (commento a fine riga: la squadra dà gli ordini);
-   - via `attacking` (r. 49, 58, 109 e il ramo di `Priority`), `Activate`/`Deactivate` (o vuoti), il ramo di `Update` che chiama `ElectBehaviour` (r. 93–95) e la chiamata in `Free` se resta inutile;
-   - `OwnerIdle` chiama `MemberIdle` **sempre** (la squadra controlla `squad`); `OwnerMoveFailed` come oggi (passa da `OwnerIdle`);
-   - `OwnerDamaged`/`damaged`: grep se qualcuno lo legge; se no lascialo (segnale per il futuro) e scrivilo;
-   - il blocco commentato `IsAttacker` in testa: via (indice).
-2. Grep in `luarules/` e `spec/` per `attacking`, `.active` letti da fuori su un `AttackerBST`.
-3. Test busted: `OwnerIdle` con e senza squadra incrementa `idleCount`; `Priority` 0.
-4. Misura (patch non committata, una partita A): quante volte `MemberIdle` è chiamato e quante volte r. 190 scatta, prima e dopo.
-5. **Tre partite A** e **una C** (confronto con S26, S24a, S1). Se peggio in più di una A, scrivilo e non tentare altro.
-- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
-- Commit, in inglese: uno per `AttackerBST` con test, uno per i risultati.
-
-### S17: STAI sotto `shard_null` (punto 12)
-
-**Impegno: high. Modello: Sonnet 5.5.** Approvato dall'utente (25 novembre 2026): ultimo compito prima della chiusura. Si esegue **dopo S24b** («esegui s17»). **Il gioco non cambia.** **Stile**: `nuovo-stai.md` §7.
-
-Obiettivo: uno spec busted che **carica STAI fuori dall'engine** con `shard_null` (come fa `spec/luarules/gadgets/ai/shard_runtime/shard_null_spec.lua` per l'AI d'esempio), esegue `Init` e qualche `Update` senza errori. Serve come rete di sicurezza per i cambi futuri.
-
-1. **`STAI/boot.lua`**: oggi `require("shard_runtime/shard_null/boot")` fuori dall'engine; allinealo a come `shard_null_spec.lua` carica l'AI d'esempio (`SetAIFolder` o equivalente). Il ramo `ShardSpringLua` non cambia.
-2. **Nomi dei file**: controlla che ogni `shard_include` di STAI trovi il file con le stesse maiuscole (in engine VFS non distingue, su Linux `require` sì). Elenca e correggi le differenze (rinomina del file o del nome incluso: il più piccolo).
-3. **Letture dirette dell'engine** (`Spring.*`, `UnitDefs`, `CMD`, `Game`, `VFS` in circa 25 file di STAI): **non** cambiare STAI per questo. Metti i finti necessari **nello spec** (o in un aiuto dello spec): `UnitDefs` minimo con pochi tipi (comandante, costruttore, fabbrica, mex, un combattente), `Spring.*` usate nell'`Init`/`Update` con risposte semplici, `CMD` con le costanti usate. Elenca nei risultati cosa hai dovuto fingere. Se `ArmyHST`/`MapHST` chiedono troppo (tabelle intere di unità, mappa), usa una mappa piccola finta di `shard_null` e scrivi i limiti.
-4. **Spec** `spec/luarules/gadgets/ai/STAI/stai_null_spec.lua`: carica STAI, `Init` di global, ally e team, alcuni `Update`, un `UnitCreated`/`UnitBuilt` del comandante; nessun errore e nessun `Warn` inatteso. Mutazione: un errore voluto in un modulo deve far fallire lo spec.
-5. Se un passo richiede cambi grossi a STAI o al framework, **fermati** e descrivi le opzioni.
-- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; **una** partita A (il gioco non cambia); `.emmyrc.json` ripristinato; skill `submodule-pointer`.
-- Commit, in inglese: uno per `boot.lua` e i nomi, uno per lo spec, uno per i risultati.
+1. In tutti e due i moduli: l'azzeramento va **dopo** la lettura (o dopo `SquadStepComplete`), così gli `idle` raccolti fra due avanzamenti contano. Controlla gli altri azzeramenti (`attackhst.lua` r. 402, `raidhst.lua` r. 461) e scrivi se servono.
+2. Test busted (sul modello di `attackerbst_spec.lua`): squadra di 4, 4 `MemberIdle`, avanzamento → il passo scatta per idle.
+3. Misura (patch non committata, una partita A): quante volte il passo scatta per idle (r. 190 e r. 204), prima e dopo.
+4. **Tre partite A** e **una C** (confronto con S24b, S26, S1). Se peggio in più di una A, scrivilo e non tentare altro.
+- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test` (compreso `stai_null_spec`), `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
+- Commit, in inglese: uno per il codice con test, uno per i risultati.
 
 ## Risultati
 
-### S17 (agente locale, 25 novembre 2026) — STAI sotto `shard_null`: spec in verde con 3 casi, il gioco non cambia
+### S17 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `factoriesRating` NaN senza spot: da sapere — STAI sotto `shard_null`: spec in verde con 3 casi, il gioco non cambia
 
 **In breve**: fatto, due commit di codice (`5f2637ae50` `boot.lua`, `8b619014e0` lo spec). STAI si carica fuori dall'engine, fa `Init` di global, ally e team, `Update` e un comandante che ordina il primo mex. Test: 2816 successi (2813 + 3), 0 fallimenti; StyLua 2.5.2 pulito sui due file; EmmyLua: lo spec 0 avvisi, `boot.lua` gli stessi 2 di prima (`STAI()` «call-non-callable», lo stesso di `Shard/boot.lua`), `.emmyrc.json` ripristinato; `run_engine_tests.sh` `RESULT: ok`. Lo spec dura 0,02 s.
 

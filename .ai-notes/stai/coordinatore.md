@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, S26 e S19 verificati (`gridSize` resta 256); S24a, S24b verificati; **S17 scritto e da eseguire**; S24c da decidere; poi chiusura (S20, dal 2 dicembre). Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S17. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, S26 e S19 verificati (`gridSize` resta 256); S24a, S24b, S17 verificati; **S24c scritto e da eseguire**; poi chiusura (S20, dal 2 dicembre); poi chiusura (S20, dal 2 dicembre). Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S24c. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -114,9 +114,9 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S25 | metodi inesistenti (`GiveOrderToUnit`) e globali accidentali | low | Haiku 5.5 |
 | ~~S24a~~ | ordine «un comando a molte unità»: fatto | high | Sonnet 5.5 |
 | ~~S24b~~ | `AttackerBST` solo sensore: fatto | medium | Sonnet 5.5 |
-| S24c | `idleCount` azzerato prima di essere letto in `AttackHST`/`RaidHST` (cambio di gioco): da decidere | low | Haiku 5.5 |
+| S24c | `idleCount` azzerato prima di essere letto in `AttackHST`/`RaidHST`: scritto | low | Haiku 5.5 |
 | S22 | `labshst.lua:367` rete `nil`; `bomberhst` `cmdUnitId` con buchi | low | Haiku 5.5 |
-| S17 | STAI sotto `shard_null` (spec busted che carica STAI fuori dall'engine): scritto | high | Sonnet 5.5 |
+| ~~S17~~ | STAI sotto `shard_null`: fatto (`stai_null_spec.lua`) | high | Sonnet 5.5 |
 | ~~S18~~ | `ShardMemStats`: **decisione dell'utente (25 novembre 2026)**: resta per lo sviluppo; in S20 si toglie dal codice distribuito e si scrive un «How to debug» nella guida | — | — |
 | ~~S19~~ | `gridSize` 128: provato, peggio, ritirato | high | Opus 5.5 |
 | S20 | chiusura (con: `ShardMemStats` resta nel codice **disattivato** — commentato o non chiamato, si accende solo a mano — con un commento che dice come; via `springsettings` dagli script; sezione «How to debug» nella guida): guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
