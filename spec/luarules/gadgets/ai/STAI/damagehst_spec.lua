@@ -1,8 +1,10 @@
 ---@diagnostic disable: undefined-field, call-non-callable, inject-field
 
 local TEAM = 0
+local HUMAN_ALLY_TEAM = 3
 local ALLY = 0
 local ENEMY_ALLY = 1
+local THIRD_ALLY = 2
 
 -- Loads the runtime's class, AIBase and Module, then STAI/damagehst.lua, in an environment of their own.
 -- AddBadPosition is replaced by a fake that keeps its arguments.
@@ -19,8 +21,7 @@ local function newDamageHST()
 		chunk()
 	end
 	local damageHST = env.DamageHST()
-	damageHST.ai = {
-		id = TEAM,
+	damageHST.ai = { -- the ShardAlly: allyId, no team of its own
 		allyId = ALLY,
 		armyhst = {
 			unitTable = {
@@ -82,5 +83,16 @@ describe("STAI DamageHST", function()
 
 		assert.same({}, damageHST.ai.loshst.losEnemy)
 		assert.same({ { { x = 100, y = 0, z = 200 }, "veh", 40, 50, 900 } }, damageHST.badPositions)
+	end)
+
+	it("records the hits to a unit of a human ally, not to a unit of another ally team", function()
+		local damageHST = newDamageHST()
+
+		damageHST:UnitDamaged(newUnit(12, "defender", HUMAN_ALLY_TEAM, ALLY), newUnit(32, "turret", 5, ENEMY_ALLY), 40)
+		damageHST:UnitDamaged(newUnit(33, "defender", 5, ENEMY_ALLY), newUnit(34, "turret", 6, THIRD_ALLY), 40)
+
+		assert.equal(22, damageHST.ai.loshst.losEnemy[32])
+		assert.is_nil(damageHST.ai.loshst.losEnemy[34])
+		assert.same({ { { x = 100, y = 0, z = 200 }, "veh", 300, 50, 900 } }, damageHST.badPositions)
 	end)
 end)

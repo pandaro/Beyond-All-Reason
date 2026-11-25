@@ -18,8 +18,7 @@ function DamageHST:Init()
 end
 
 function DamageHST:UnitDamaged(defender, attacker, damage)
-	local teamID = defender:Team()
-	if teamID ~= self.ai.id then
+	if defender:AllyTeam() ~= self.ai.allyId then --the damages of the whole ally team, human allies too: a design choice
 		return
 	end
 	local defenderName = defender:Name()
