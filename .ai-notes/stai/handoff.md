@@ -19,35 +19,42 @@
 
 ## Compito attuale
 
-### S7: una `collect` alla fine di `StartAIs`; via quella di `MapHST`
+### S8a: strato `ENEMY` di `LosHST` in `GridHST`; via `OWN`, `ALLY`, `ALLIES` e il pool
 
-**Impegno: medio.** Decisione dell'utente del 25 novembre 2026 (`nuovo-stai.md` §4 n. 5). **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7 per STAI; per il framework lo stile di `shard_runtime/`.
+**Impegno: alto.** Decisioni dell'utente del 25 novembre 2026: una geometria, tanti strati (`nuovo-stai.md` §3 punto 5); S8 diviso in S8a (strato) e S8b (percezione); «togli quello che non serve» (`OWN`, `ALLY`, `ALLIES` e il resto morto di `LosHST`). **Stile**: `nuovo-stai.md` §7. **La percezione non cambia** (`UnitEnteredLos`, `losEnemy`, `radarEnemy` …: sono di S8b). Il gioco cambia solo per l'ordine fisso delle celle al posto di `pairs`: tre partite A.
 
-**1. Framework** (commit a parte «Shard …», approvato dall'utente)
+**1. `GridLayer`: lettura delle celle vere**
 
-- `shard_runtime/loader/lifecycle.lua`, `StartAIs`: `collectgarbage("collect")` dopo l'ultimo `DropFailed(failed)` (dopo gli `Init` di globali, alleanze e team), prima di `return fresh`, con un commento breve a fine riga che dica perché (pulizia dopo le analisi di avvio delle AI).
-- Controlla chi chiama `StartAIs` (oggi `StartAIsOnce` e `CatchUpAfterReload`) e se una nuova AI aggiunta dopo l'avvio (`AddAI`, cambio di host) la fa rigirare: scrivi quante volte gira in una partita normale (atteso: una).
-- `CatchUpAfterReload` ha già una sua `collect` dopo `StartAIs`: dopo il cambio diventano due di seguito quando la partita è già partita. Toglila **solo** se è chiaramente doppia (la `collect` di `StartAIs` gira sempre prima); se in qualche caso `StartAIs` non viene chiamata (frame 0), lasciala e scrivilo.
+- Oggi «la cella `ENEMY[X][Z]` esiste» vuol dire «è vera in questo giro». Con lo strato la cella resta dopo `Clear`: chi legge deve chiedere se è **segnata**. Aggiungi a `GridLayer` un metodo che restituisce la cella se l'indice è nella lista e `nil` se no (nome proposto: `GridLayer:GetMarked(i)`; `marked` resta interno). Test busted con mutazioni.
+- `GridHST:GetCell`, `areaCells`, `getCellsFields` oggi prendono una griglia `[X][Z]`. `DamageHST.DAMAGED` (`targethst.lua` r. 170) resta `[X][Z]` fino al suo strato: scegli la forma più semplice e leggibile perché le tre funzioni servano lo strato `ENEMY` e, finché c'è, `DAMAGED` (per esempio funzioni sorelle per gli strati, da togliere quando `DAMAGED` diventa uno strato). **Attenzione ai bordi**: con l'indice, `X ± 1` fuori dalla griglia cade su un'altra cella; prima di `GridToIndex` serve `IsCellInGrid` (oggi `grid[x]` `nil` fermava tutto). Vale anche per `TargetHST:Blobbing`, che è ricorsiva e va oltre i bordi.
 
-**2. STAI**: `maphst.lua` r. 38, via `collectgarbage("collect")` alla fine di `MapHST:Init`. Nient'altro. Aggiungila a `codice-tolto.md` (S7).
+**2. `LosHST`**
 
-**2b. `MapHST:DrawDebug`** (scelta del coordinatore, l'utente ha lasciato decidere): sposta `if not self.ai.drawDebug then return end` prima del ciclo `for i = 0, 9 do self.map:EraseAll(i) end`, così sul globale (squadra `nil`) non si cancella niente quando il debug è spento. Nient'altro. Commit a parte.
+- `self.ENEMY = self.ai.gridhst:NewLayer(resetCell)`; `resetCell` è la parte di azzeramento di `setupCell` (campi a zero, `units` e `buildings` svuotati, tabelle riusate). `X`, `Z`, `POS` della cella si scrivono **una volta**, quando la cella nasce (i lettori usano `cell.X`, `cell.Z`, `cell.POS`).
+- `setCellLos`, `setCellRadar`: `IsCellInGrid` come oggi, poi indice, `Get`, `Mark`. Restano con la firma di oggi se serve, senza il parametro `grid` se non serve più (solo `ENEMY`).
+- `Update`: `self.ENEMY:Clear()` al posto di `FreeCellsToPool`.
+- Via: `GetCellFromPool`, `buildPools`, `FreeCellsToPool`, i pool, `OWN`, `ALLY`, `ALLIES`, il ciclo di `OWN` in `Draw`, e i campi di `Init` scritti e mai letti (dalla lettura del coordinatore: `knownEnemies`, `ownMobile`, `allyImmobile`, `allyMobile`; `ownImmobile` lo usa `getCenter`, resta). Ricontrolla ciascuno con grep in tutto STAI. `friendlyTeamID` e la percezione **restano** (S8b). Il blocco commentato di `UnitDamaged` e la funzione vuota: via (la funzione vuota faceva arrivare l'evento a `LosHST` per niente).
 
-**3. Prova che il gioco non cambia**: le righe `[S3-PROOF]` di S6 (codice di partenza e codice nuovo, `c_stai_vs_stai.txt`, 2 minuti): identiche. Se cambiano, **fermati**.
+**3. Lettori** (lista del coordinatore, ricontrolla con grep: `loshst.ENEMY`, `loshst.OWN`, `loshst.ALLY`, `local loshst`)
 
-**4. Misure** (`SHARD_MEM_STATS=1`): prima e dopo, quanto dura la `collect` (una misura con `Spring.GetTimer`/`Spring.DiffTimers` temporanea, non committata, attorno alla `collect` di `MapHST` prima e a quella di `StartAIs` dopo) e l'heap subito dopo; frame in cui gira; memoria per frame e heap dei primi minuti, prima e dopo.
+- `pairs(self.ai.loshst.ENEMY)` → ciclo numerico sulla lista: `targethst.lua` r. 42 e 112, `bomberhst.lua` r. 164, `nukebst.lua` r. 72, `LosHST:Draw`.
+- `ENEMY[X][Z]` come controllo di esistenza → la lettura del punto 1: `attackhst.lua` r. 343–347, 561–562, 612; `raidhst.lua` r. 400, 424; `nukebst.lua` r. 55–56; `scouthst.lua` r. 77; `targethst.lua` r. 56–61 (`Blobbing`).
+- Passaggi a `GetCell`/`areaCells`/`getCellsFields`: `attackhst` r. 268, `raidhst` r. 291, `buildingshst` r. 765, `targethst` r. 140 e 162, `scoutbst` r. 195, `nukebst` r. 74, `commanderbst` r. 25.
+- `OWN`/`ALLY` (mai riempite: i controlli non scattano mai): `attackhst.lua` r. 544 e 596, `scouthst.lua` r. 81 e 83 → via i rami morti, il resto com'è. Scrivi nei risultati cosa hai tolto riga per riga.
 
-**Partite**: una partita C di 15 minuti con il codice finale (righe solite). Basta questa: il gioco non cambia.
+**4. Prova**: il contenuto dello strato non deve cambiare finché la partita non si separa. `Echo` temporanei (non committati), `c_stai_vs_stai.txt`: a ogni `Update` di `LosHST` di un frame multiplo di 300, per team, numero di celle vere e somme di `ENEMY`, `ARMED`, `UNARM`, `unitsCount` (giro in ordine di indice, così non conta l'ordine). Codice di partenza e codice nuovo: righe identiche almeno fino al primo contatto; scrivi da quale frame si separano (se si separano) e perché (l'ordine nei lettori). Se si separano già prima che ci sia un nemico in vista, **fermati**.
 
-**Guida**: non toccare `.ai-notes/drafts/README.md`; la aggiorna il coordinatore.
+**5. Indice**: tutto il tolto in `codice-tolto.md` (S8a).
+
+**Partite**: tre partite A con il codice finale, confronto con i riferimenti dopo T16 e con S6. Se le tre stanno sotto, scrivilo chiaramente.
 
 **Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno «Shard …» per `lifecycle.lua`; uno per la `collect` di `maphst.lua`; uno per `DrawDebug`; uno per l'indice e i risultati.
+**Commit**, in inglese: uno per `GridLayer`/`GridHST` (con il test); uno per `LosHST` e i lettori; uno per il codice morto di `LosHST` (se si separa bene); uno per l'indice e i risultati.
 
 ## Risultati
 
-### S7 (agente locale, 25 novembre 2026)
+### S7 (agente locale, 25 novembre 2026) — verificato dal coordinatore. La guardia `next(fresh) ~= nil` va bene (il coordinatore consiglia di lasciare `GameStart` com'è)
 
 **Cosa ho fatto**
 
