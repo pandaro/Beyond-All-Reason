@@ -9,7 +9,7 @@ function ArmyHST:internalName()
 end
 
 function ArmyHST:Scope()
-	return "team"
+	return "global"
 end
 
 function ArmyHST:Init()

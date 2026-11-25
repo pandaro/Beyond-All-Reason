@@ -11,7 +11,7 @@ function MapHST:internalName()
 end
 
 function MapHST:Scope()
-	return "team"
+	return "global"
 end
 
 function MapHST:Init()

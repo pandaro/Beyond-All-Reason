@@ -9,7 +9,7 @@ function GridHST:internalName()
 end
 
 function GridHST:Scope()
-	return "team"
+	return "global"
 end
 
 function GridHST:Init()
