@@ -365,6 +365,14 @@ end
 
 -- DRAWING FUNCTIONS
 
+-- the team a drawing is filed under: the team of this AI, or of the first team AI in an ally team or global scope
+local function drawTeam(ai)
+	if ai.id then
+		return ai.id
+	end
+	return ai.AIs and ai.AIs[1] and ai.AIs[1].id
+end
+
 function map:DrawRectangle(pos1, pos2, color, label, filled, channel)
 	channel = channel or 1
 	color = color or {}
@@ -377,7 +385,7 @@ function map:DrawRectangle(pos1, pos2, color, label, filled, channel)
 			{ color[1], color[2], color[3], color[4] },
 			label,
 			filled,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -396,7 +404,7 @@ function map:EraseRectangle(pos1, pos2, color, label, filled, channel)
 			{ color[1], color[2], color[3], color[4] },
 			label,
 			filled,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -414,7 +422,7 @@ function map:DrawCircle(pos, radius, color, label, filled, channel)
 			{ color[1], color[2], color[3], color[4] },
 			label,
 			filled,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -432,7 +440,7 @@ function map:EraseCircle(pos, radius, color, label, filled, channel)
 			{ color[1], color[2], color[3], color[4] },
 			label,
 			filled,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -451,7 +459,7 @@ function map:DrawLine(pos1, pos2, color, label, arrow, channel)
 			{ color[1], color[2], color[3], color[4] },
 			label,
 			arrow,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -470,7 +478,7 @@ function map:EraseLine(pos1, pos2, color, label, arrow, channel)
 			{ color[1], color[2], color[3], color[4] },
 			label,
 			arrow,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -486,7 +494,7 @@ function map:DrawPoint(pos, color, label, channel)
 			pos.z,
 			{ color[1], color[2], color[3], color[4] },
 			label,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -502,7 +510,7 @@ function map:ErasePoint(pos, color, label, channel)
 			pos.z,
 			{ color[1], color[2], color[3], color[4] },
 			label,
-			self.ai.game:GetTeamID(),
+			drawTeam(self.ai),
 			channel
 		)
 	end
@@ -512,7 +520,7 @@ end
 function map:EraseAll(channel)
 	channel = channel or 1
 	if Script.LuaUI("ShardDrawClearShapes") then
-		Script.LuaUI.ShardDrawClearShapes(self.ai.game:GetTeamID(), channel)
+		Script.LuaUI.ShardDrawClearShapes(drawTeam(self.ai), channel)
 	end
 	--Script.LuaUI.ShardDrawClearShapes(self.ai.game:GetTeamID(), channel)
 	--SendToUnsynced('ShardDrawClearShapes', self.ai.game:GetTeamID(), channel)
