@@ -161,7 +161,7 @@ function GridHST:GridToRawPos(X, Z)
 	return x, y, z
 end
 
-function GridHST:areaCells(X, Z, R, grid) -- return alist of cells in range R from a cell
+function GridHST:areaCells(X, Z, R, layer) -- return alist of the true cells of layer in range R from a cell
 	if not X or not Z then
 		self:Warn("no grid XZ for areacells")
 	end
@@ -169,37 +169,36 @@ function GridHST:areaCells(X, Z, R, grid) -- return alist of cells in range R fr
 	R = R or 0
 	for x = X - R, X + R, 1 do
 		for z = Z - R, Z + R, 1 do
-			if grid[x] and grid[x][z] then
-				table.insert(AC, grid[x][z])
+			if self:IsCellInGrid(x, z) then --out of the edges the index falls on another cell
+				local CELL = layer:GetMarked(self:GridToIndex(x, z))
+				if CELL then
+					table.insert(AC, CELL)
+				end
 			end
 		end
 	end
 	return AC
 end
 
-function GridHST:GetCell(X, Z, grid) --accept 1one position({t.x,t.y,t.z}) OR 2two XZ grid coordinate; return a CEll if exist
-	local grid = grid
+function GridHST:GetCell(X, Z, layer) --accept 1one position({t.x,t.y,t.z}) OR 2two XZ grid coordinate; return the CELL of layer if true
 	if type(X) == "table" and X.x and X.z then
-		grid = Z
+		layer = Z
 		X, Z = self:PosToGrid(X)
 	end
-	if not grid[X] then
+	if not self:IsCellInGrid(X, Z) then
 		return
 	end
-	if not grid[X][Z] then
-		return
-	end
-	return grid[X][Z]
+	return layer:GetMarked(self:GridToIndex(X, Z))
 end
 
-function GridHST:getCellsFields(p, fields, range, grid) --return the required list of values of a cell/cells
+function GridHST:getCellsFields(p, fields, range, layer) --return the required list of values of the true cells of layer around p
 	if not fields or not p or type(fields) ~= "table" then
-		self:Warn("incomplete or incorrect params for get cells params", p, fields, range, grid)
+		self:Warn("incomplete or incorrect params for get cells params", p, fields, range, layer)
 		return
 	end
 	range = range or 0
 	local X, Z = self:PosToGrid(p)
-	local cells = self:areaCells(X, Z, range, grid)
+	local cells = self:areaCells(X, Z, range, layer)
 	return self:sumCellsFields(cells, fields)
 end
 

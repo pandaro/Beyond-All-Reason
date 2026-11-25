@@ -397,7 +397,7 @@ function RaidHST:SquadsTargetDefense(squad)
 	local maphst = self.ai.maphst
 	local center = loshst.CENTER
 	for index, blob in pairs(self.ai.targethst.MOBILE_BLOBS) do
-		if loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z] then
+		if self.ai.gridhst:GetCell(blob.targetCell.X, blob.targetCell.Z, loshst.ENEMY) then
 			if maphst:UnitCanGoHere(game:GetUnitByID(squad.leader), blob.position) then
 				local dist = tool:distance(blob.position, center)
 				if dist < targetDist then
@@ -421,7 +421,7 @@ function RaidHST:SquadsTargetAttack(squad)
 	local enemyCenter = targethst.enemyCenter
 	for ref, blob in pairs(targethst.IMMOBILE_BLOBS) do
 		if not self:SquadsTargetHandled(blob) then
-			if loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z] then
+			if self.ai.gridhst:GetCell(blob.targetCell.X, blob.targetCell.Z, loshst.ENEMY) then
 				if maphst:UnitCanGoHere(game:GetUnitByID(squad.leader), blob.position) then
 					local dist = tool:distance(blob.position, enemyCenter)
 					if dist > worstDist then

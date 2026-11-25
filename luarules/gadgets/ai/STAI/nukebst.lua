@@ -51,10 +51,7 @@ function NukeBST:Update()
 			self:EchoDebug("got target")
 		end
 	elseif self.stock > 0 and self.gotTarget then
-		if
-			not self.ai.loshst.ENEMY[self.currentTarget.X]
-			or not self.ai.loshst.ENEMY[self.currentTarget.X][self.currentTarget.Z]
-		then
+		if not self.ai.gridhst:GetCell(self.currentTarget.X, self.currentTarget.Z, self.ai.loshst.ENEMY) then
 			self.gotTarget = nil
 			self.currentTarget = nil
 			return
@@ -69,13 +66,13 @@ end
 function NukeBST:GetBestNukeCell()
 	local best
 	local bestValueThreat = 0
-	for X, cells in pairs(self.ai.loshst.ENEMY) do
-		for Z, cell in pairs(cells) do
-			local areaCell = self.ai.gridhst:getCellsFields(cell.POS, { "ENEMY" }, 2, self.ai.loshst.ENEMY)
-			if areaCell and areaCell > bestValueThreat then
-				best = cell
-				bestValueThreat = areaCell
-			end
+	local ENEMY = self.ai.loshst.ENEMY
+	for n = 1, #ENEMY.LIST do --numeric loop keeps the order of the cells
+		local cell = ENEMY.CELLS[ENEMY.LIST[n]]
+		local areaCell = self.ai.gridhst:getCellsFields(cell.POS, { "ENEMY" }, 2, ENEMY)
+		if areaCell and areaCell > bestValueThreat then
+			best = cell
+			bestValueThreat = areaCell
 		end
 	end
 	return best, bestValueThreat

@@ -203,6 +203,31 @@ describe("STAI GridHST", function()
 			assert.is_true(rawequal(CELL, layer.CELLS[7]))
 		end)
 
+		it("reads only the true cells of a layer, and nothing past the edges", function()
+			local layer = grid:NewLayer(resetCell)
+			local function markCell(X, Z, metal)
+				local i = grid:GridToIndex(X, Z)
+				layer:Get(i).metal = metal
+				layer:Mark(i)
+				return layer.CELLS[i]
+			end
+			-- past the edge Z = 4, the index of 1, 5 is the one of 2, 1 and the index of 2, 5 the one of 3, 1
+			local wrapped, wrappedNext = markCell(2, 1, 100), markCell(3, 1, 200)
+			local corner, inside = markCell(1, 4, 1), markCell(2, 3, 2)
+			layer:Get(grid:GridToIndex(2, 4)).metal = 50
+			assert.same({ corner, inside }, grid:areaCells(1, 4, 1, layer))
+			assert.is_true(rawequal(corner, grid:GetCell(1, 4, layer)))
+			assert.is_true(rawequal(wrapped, grid:GetCell({ x = 300, y = 0, z = 100 }, layer)))
+			assert.is_true(rawequal(wrappedNext, grid:GetCell(3, 1, layer)))
+			assert.is_nil(grid:GetCell(1, 5, layer))
+			assert.is_nil(grid:GetCell(2, 4, layer))
+			assert.is_nil(grid:GetCell(0, 2, layer))
+			local value, subValues, cells = grid:getCellsFields({ x = 100, y = 0, z = 1000 }, { "metal" }, 1, layer)
+			assert.equal(3, value)
+			assert.same({ metal = 3 }, subValues)
+			assert.same({ corner, inside }, cells)
+		end)
+
 		it("keeps the layers apart", function()
 			local first, second = grid:NewLayer(), grid:NewLayer()
 			first:Get(1)

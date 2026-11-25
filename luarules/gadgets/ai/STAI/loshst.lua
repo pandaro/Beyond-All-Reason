@@ -24,36 +24,11 @@ function LosHST:Init()
 	self.ALLY = {}
 	self.ALLIES = {}
 	self.OWN = {}
-	self.ENEMY = {}
+	self.ENEMY = self.ai.gridhst:NewLayer(self.resetCell) --the cells with enemies in this round
 	self.ai.friendlyTeamID = {}
-	--self.cellPool = {} -- LIFO pool
-	self:buildPools("poolENEMY")
 	self:buildPools("poolOWN")
 	self:buildPools("poolALLIES")
 
-end
-
--- What is a cell pool?
--- Instead of remaking self.enemy etc cells, why not reuse them?
--- So instead of clearing them on Update, we should just park them into the cell pool
--- Ensure there is no double back-forth ref!
--- If the cell pool is empty, make a new cell
--- Clean a cell when fetching it from the pool
-
-function LosHST:GetCellFromPool(X, Z, grid)
-	local gn = nil
-	if grid == self.ENEMY then
-		gn = "ENEMY"
-	elseif grid == self.OWN then
-		gn = "OWN"
-	elseif grid == self.ALLIES then
-		gn = "ALLIES"
-	end
-	local gridname = "pool" .. gn
-
-	local cell = self[gridname][X][Z]
-	self[gridname][X][Z] = nil
-	return cell
 end
 
 function LosHST:buildPools(GRID)
@@ -80,7 +55,7 @@ function LosHST:FreeCellsToPool(grid)
 end
 
 function LosHST:Update()
-	self:FreeCellsToPool("ENEMY")
+	self.ENEMY:Clear()
 	self:FreeCellsToPool("OWN")
 	self:FreeCellsToPool("ALLY")
 
@@ -93,7 +68,7 @@ function LosHST:Update()
 			self:cleanEnemy(id)
 		else
 			local X, Z = self.ai.gridhst:RawPosToGrid(x, y, z)
-			self:setCellLos(self.ENEMY, unit, X, Z)
+			self:setCellLos(unit, X, Z)
 		end
 	end
 	for id, def in pairs(self.radarEnemy) do
@@ -107,7 +82,7 @@ function LosHST:Update()
 			self:cleanEnemy(id)
 		else
 			local X, Z = self.ai.gridhst:RawPosToGrid(x, y, z)
-			self:setCellRadar(self.ENEMY, unit, X, Z)
+			self:setCellRadar(unit, X, Z)
 		end
 	end
 end
@@ -269,18 +244,24 @@ function LosHST:getCenter()
 	self.CENTER.z = self.CENTER.z / count
 end
 
-function LosHST:setupCell(grid, X, Z) --GAS are 3 layer. Unit of measure is usually metal cost!
+function LosHST:getEnemyCell(X, Z) --the cell X, Z of ENEMY, marked as true for this round
+	local i = self.ai.gridhst:GridToIndex(X, Z)
+	local CELL = self.ENEMY:Get(i)
+	if not CELL.POS then --a new cell: its place on the grid, written once
+		CELL.X = X
+		CELL.Z = Z
+		CELL.POS = self.ai.gridhst.CELLS[i].POS
+	end
+	self.ENEMY:Mark(i)
+	return CELL
+end
+
+function LosHST.resetCell(CELL) --clear an ENEMY cell, its tables are kept. GAS are 3 layer. Unit of measure is usually metal cost!
 	--I = immoble
 	-- M = mobile
 	--G = ground
 	--A = air
 	--S = submerged
-
-	local CELL = self:GetCellFromPool(X, Z, grid)
-	CELL.X = X
-	CELL.Z = Z
-	CELL.POS = self.ai.gridhst.CELLS[self.ai.gridhst:GridToIndex(X, Z)].POS --self.ai.gridhst:GridToPos(X,Z)
-
 	CELL.metal = 0
 	if CELL.units then
 		local units = CELL.units
@@ -350,21 +331,13 @@ function LosHST:setupCell(grid, X, Z) --GAS are 3 layer. Unit of measure is usua
 	CELL.ENEMY = 0 --total amount of metal in cell
 	CELL.ENEMY_BALANCE = 0 -- this is balanced SOLDIERS - TURRETS
 	CELL.SPEED = 0
-	return CELL
 end
 
-function LosHST:setCellRadar(grid, unit, X, Z)
-
-	-- 	if not self.ai.gridhst:GridToPos(X,Z) then
-	-- 		return
-	-- 	end
+function LosHST:setCellRadar(unit, X, Z)
 	if not self.ai.gridhst:IsCellInGrid(X, Z) then
 		return
 	end
-
-	grid[X] = grid[X] or {}
-	grid[X][Z] = grid[X][Z] or self:setupCell(grid, X, Z)
-	local CELL = grid[X][Z]
+	local CELL = self:getEnemyCell(X, Z)
 
 	if CELL.metalMedia == 0 then
 		CELL.metalMedia = 30 + game:Frame() / 90
@@ -424,17 +397,11 @@ function LosHST:setCellRadar(grid, unit, X, Z)
 
 end
 
-function LosHST:setCellLos(grid, unit, X, Z)
-
-	-- 	if not self.ai.gridhst:GridToPos(X,Z) then
-	-- 		return
-	-- 	end
+function LosHST:setCellLos(unit, X, Z)
 	if not self.ai.gridhst:IsCellInGrid(X, Z) then
 		return
 	end
-	grid[X] = grid[X] or {}
-	grid[X][Z] = grid[X][Z] or self:setupCell(grid, X, Z)
-	local CELL = grid[X][Z]
+	local CELL = self:getEnemyCell(X, Z)
 	CELL.unitsCount = CELL.unitsCount + 1
 	CELL.units[unit:ID()] = unit:Name()
 	local name = unit:Name()
@@ -522,7 +489,6 @@ function LosHST:setCellLos(grid, unit, X, Z)
 	CELL.ENEMY = CELL.ARMED + CELL.UNARM --TOTAL VALUE
 	CELL.ENEMY_BALANCE = CELL.ARMED - CELL.UNARM
 	CELL.IM_balance = CELL.MOBILE - CELL.IMMOBILE
-	grid[X][Z] = CELL
 end
 
 function LosHST:Draw()
@@ -555,37 +521,35 @@ function LosHST:Draw()
 	end
 	map:DrawPoint(self.CENTER, { 1, 1, 1, 1 }, "BASE", ch)
 	local cellElmosHalf = self.ai.gridhst.gridSizeHalf
-	for X, cells in pairs(self.ENEMY) do
-		for Z, cell in pairs(cells) do
-			local p = cell.POS
-			--map:DrawCircle(p,cellElmosHalf, colours.balance, cell.ENEMY,false,  4)
-			local pos1, pos2 = api.Position(), api.Position() --z,api.Position(),api.Position(),api.Position()
-			pos1.x, pos1.z = p.x - cellElmosHalf, p.z - cellElmosHalf
-			pos2.x, pos2.z = p.x + cellElmosHalf, p.z + cellElmosHalf
-			pos1.y = Spring.GetGroundHeight(pos1.x, pos1.z)
-			pos2.y = Spring.GetGroundHeight(pos2.x, pos2.z)
-			self:EchoDebug("drawing", pos1.x, pos1.z, pos2.x, pos2.z)
-			if cell.ENEMY_BALANCE > 0 then
-				map:DrawRectangle(pos1, pos2, colours.balance, cell.ENEMY_BALANCE, false, ch)
-			else
-				map:DrawRectangle(pos1, pos2, colours.unbalance, cell.ENEMY_BALANCE, false, ch)
-			end
-			posG = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
-			posS = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
-			posB = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
-			posA = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
-
-			if cell.G > 0 then
-				map:DrawCircle(posG, cellElmosHalf / 2, colours.g, cell.G, true, ch)
-			end
-			if cell.A > 0 then
-				map:DrawCircle(posA, cellElmosHalf / 2, colours.a, cell.A, true, ch)
-			end
-			if cell.S > 0 then
-				map:DrawCircle(posS, cellElmosHalf / 2, colours.s, cell.S, true, ch)
-			end
+	for n = 1, #self.ENEMY.LIST do --numeric loop keeps the order of the cells
+		local cell = self.ENEMY.CELLS[self.ENEMY.LIST[n]]
+		local p = cell.POS
+		--map:DrawCircle(p,cellElmosHalf, colours.balance, cell.ENEMY,false,  4)
+		local pos1, pos2 = api.Position(), api.Position() --z,api.Position(),api.Position(),api.Position()
+		pos1.x, pos1.z = p.x - cellElmosHalf, p.z - cellElmosHalf
+		pos2.x, pos2.z = p.x + cellElmosHalf, p.z + cellElmosHalf
+		pos1.y = Spring.GetGroundHeight(pos1.x, pos1.z)
+		pos2.y = Spring.GetGroundHeight(pos2.x, pos2.z)
+		self:EchoDebug("drawing", pos1.x, pos1.z, pos2.x, pos2.z)
+		if cell.ENEMY_BALANCE > 0 then
+			map:DrawRectangle(pos1, pos2, colours.balance, cell.ENEMY_BALANCE, false, ch)
+		else
+			map:DrawRectangle(pos1, pos2, colours.unbalance, cell.ENEMY_BALANCE, false, ch)
 		end
+		posG = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
+		posS = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
+		posB = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
+		posA = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
 
+		if cell.G > 0 then
+			map:DrawCircle(posG, cellElmosHalf / 2, colours.g, cell.G, true, ch)
+		end
+		if cell.A > 0 then
+			map:DrawCircle(posA, cellElmosHalf / 2, colours.a, cell.A, true, ch)
+		end
+		if cell.S > 0 then
+			map:DrawCircle(posS, cellElmosHalf / 2, colours.s, cell.S, true, ch)
+		end
 	end
 	for X, cells in pairs(self.OWN) do
 		for Z, cell in pairs(cells) do

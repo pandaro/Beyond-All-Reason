@@ -340,12 +340,9 @@ function AttackHST:SquadsTargetAttack(squad)
 	local dist
 	self:EchoDebug("search a offensive target for squad ", squad.squadID)
 	for ref, blob in pairs(self.ai.targethst.IMMOBILE_BLOBS) do
-		if self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z] then
-			if
-				not self:SquadsTargetHandled(self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z])
-				or squad.squadID
-					== not self:SquadsTargetHandled(self.ai.loshst.ENEMY[blob.targetCell.X][blob.targetCell.Z])
-			then
+		local CELL = self.ai.gridhst:GetCell(blob.targetCell.X, blob.targetCell.Z, self.ai.loshst.ENEMY)
+		if CELL then
+			if not self:SquadsTargetHandled(CELL) or squad.squadID == not self:SquadsTargetHandled(CELL) then
 				local mclass = self.ai.armyhst.unitTable[game:GetUnitByID(squad.leader):Name()].mclass
 				local path = map:PathTest(
 					mclass,
@@ -558,8 +555,7 @@ function AttackHST:SquadAttackbackup(squad)
 		return true
 	end
 	if
-		self.ai.loshst.ENEMY[squad.target.X]
-		and self.ai.loshst.ENEMY[squad.target.X][squad.target.Z]
+		self.ai.gridhst:GetCell(squad.target.X, squad.target.Z, self.ai.loshst.ENEMY)
 		and self.ai.tool:distance(squad.position, squad.target.POS) < 256
 	then
 		self:EchoDebug("squad", squad.squadID, "are near to offensive target, do attack")

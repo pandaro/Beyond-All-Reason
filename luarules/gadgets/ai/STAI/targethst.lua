@@ -39,12 +39,12 @@ function TargetHST:GetBlobs(_blobs_, param) --reset all the old blobs
 	self.ai.tool:ResetTable(self[_blobs_])
 	--end
 	local blobref
-	for X, cells in pairs(self.ai.loshst.ENEMY) do --find all the bew blobs
-		for Z, cell in pairs(cells) do
-			blobref = X .. ":" .. Z
-			if not self.blobchecked[blobref] then
-				self:Blobbing(self.ai.loshst.ENEMY, param, X, Z, _blobs_, blobref)
-			end
+	local ENEMY = self.ai.loshst.ENEMY
+	for n = 1, #ENEMY.LIST do --find all the bew blobs, numeric loop keeps the order of the cells
+		local CELL = ENEMY.CELLS[ENEMY.LIST[n]]
+		blobref = CELL.X .. ":" .. CELL.Z
+		if not self.blobchecked[blobref] then
+			self:Blobbing(ENEMY, param, CELL.X, CELL.Z, _blobs_, blobref)
 		end
 	end
 	for i, v in pairs(self.blobchecked) do --clean all the cell/blobs checked
@@ -52,13 +52,13 @@ function TargetHST:GetBlobs(_blobs_, param) --reset all the old blobs
 	end
 	for ref, blob in pairs(self[_blobs_]) do -- fill the blobs with data
 		for i, v in pairs(blob.cells) do
-
-			for id, name in pairs(self.ai.loshst.ENEMY[v.X][v.Z].units) do
+			local CELL = self.ai.gridhst:GetCell(v.X, v.Z, ENEMY)
+			for id, name in pairs(CELL.units) do
 				blob.units[id] = name
 			end
-			blob.position.x = blob.position.x + self.ai.loshst.ENEMY[v.X][v.Z].POS.x
-			blob.position.z = blob.position.z + self.ai.loshst.ENEMY[v.X][v.Z].POS.z
-			blob.metal = blob.metal + self.ai.loshst.ENEMY[v.X][v.Z].metal
+			blob.position.x = blob.position.x + CELL.POS.x
+			blob.position.z = blob.position.z + CELL.POS.z
+			blob.metal = blob.metal + CELL.metal
 		end
 		blob.position.x = blob.position.x / #blob.cells
 		blob.position.z = blob.position.z / #blob.cells
@@ -68,10 +68,10 @@ function TargetHST:GetBlobs(_blobs_, param) --reset all the old blobs
 	self:EchoDebug("selfblob", _blobs_, self[_blobs_])
 end
 
-function TargetHST:Blobbing(grid, param, x, z, _blobs_, blobref) --rolling on the cell to extrapolate blob of param
+function TargetHST:Blobbing(layer, param, x, z, _blobs_, blobref) --rolling on the cell to extrapolate blob of param
 	self.blobchecked[x .. ":" .. z] = true
-
-	if grid[x] and grid[x][z] and grid[x][z][param] and grid[x][z][param] > 0 then
+	local CELL = self.ai.gridhst:GetCell(x, z, layer) --nil out of the edges, the recursion goes beyond them
+	if CELL and CELL[param] and CELL[param] > 0 then
 		if not self[_blobs_][blobref] then
 			self[_blobs_][blobref] = self.ai.tool:RezTable()
 			self[_blobs_][blobref].position = self.ai.tool:RezTable()
@@ -90,7 +90,7 @@ function TargetHST:Blobbing(grid, param, x, z, _blobs_, blobref) --rolling on th
 		for X = -1, 1, 1 do
 			for Z = -1, 1, 1 do
 				if not self.blobchecked[x + X .. ":" .. z + Z] then
-					self:Blobbing(grid, param, x + X, z + Z, _blobs_, blobref)
+					self:Blobbing(layer, param, x + X, z + Z, _blobs_, blobref)
 				end
 			end
 		end
@@ -109,17 +109,17 @@ function TargetHST:EnemiesCellsAnalisy() --TODO:--MOVE TO TACTICALHST!!!
 	self.enemyCenter.y = 0
 	self.enemyCenter.z = 0
 
-	for X, cells in pairs(self.ai.loshst.ENEMY) do
-		for Z, cell in pairs(cells) do
-			self.enemyCenter.x = self.enemyCenter.x + cell.POS.x
-			self.enemyCenter.y = self.enemyCenter.y + cell.POS.y
-			self.enemyCenter.z = self.enemyCenter.z + cell.POS.z
-			self.cellCount = self.cellCount + 1
-			if cell.base then
-				self.enemyBasePosition.x = self.enemyBasePosition.x + cell.POS.x
-				self.enemyBasePosition.z = self.enemyBasePosition.z + cell.POS.z
-				self.enemybasecount = self.enemybasecount + 1
-			end
+	local ENEMY = self.ai.loshst.ENEMY
+	for n = 1, #ENEMY.LIST do --numeric loop keeps the order of the cells
+		local cell = ENEMY.CELLS[ENEMY.LIST[n]]
+		self.enemyCenter.x = self.enemyCenter.x + cell.POS.x
+		self.enemyCenter.y = self.enemyCenter.y + cell.POS.y
+		self.enemyCenter.z = self.enemyCenter.z + cell.POS.z
+		self.cellCount = self.cellCount + 1
+		if cell.base then
+			self.enemyBasePosition.x = self.enemyBasePosition.x + cell.POS.x
+			self.enemyBasePosition.z = self.enemyBasePosition.z + cell.POS.z
+			self.enemybasecount = self.enemybasecount + 1
 		end
 	end
 	if self.cellCount > 0 then

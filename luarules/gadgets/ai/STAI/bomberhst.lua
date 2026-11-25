@@ -161,21 +161,21 @@ function BomberHST:GetTarget(squad)
 	self:EchoDebug("squad ", squad.squadID, "get new target")
 	local bestCell = nil
 	local bestValue = 0
-	for X, cells in pairs(self.ai.loshst.ENEMY) do
-		for Z, cell in pairs(cells) do
-			if squad.layer == "S" then
-				if cell.POS.y < 5 then
-					if cell.BUILDINGS > bestValue then
-						bestValue = cell.BUILDINGS
-						bestCell = cell
-					end
+	local ENEMY = self.ai.loshst.ENEMY
+	for n = 1, #ENEMY.LIST do --numeric loop keeps the order of the cells
+		local cell = ENEMY.CELLS[ENEMY.LIST[n]]
+		if squad.layer == "S" then
+			if cell.POS.y < 5 then
+				if cell.BUILDINGS > bestValue then
+					bestValue = cell.BUILDINGS
+					bestCell = cell
 				end
-			else
-				if cell.POS.y > -5 then
-					if cell.BUILDINGS > bestValue then
-						bestValue = cell.BUILDINGS
-						bestCell = cell
-					end
+			end
+		else
+			if cell.POS.y > -5 then
+				if cell.BUILDINGS > bestValue then
+					bestValue = cell.BUILDINGS
+					bestCell = cell
 				end
 			end
 		end
