@@ -46,7 +46,7 @@
 
 ## Risultati
 
-### T17 (agente locale, 25 novembre 2026)
+### T17 (agente locale, 25 novembre 2026) — verificato dal coordinatore (`ShardTimers` è un globale del gadget: scostamento accettato, serve a `shardai.lua` e `unit.lua`)
 
 **Commit**: `b204166b0a` (tempi), `f5745cb437` (`ShardMemStats` da codice), `202eddbf18` (guida e strumenti).
 
