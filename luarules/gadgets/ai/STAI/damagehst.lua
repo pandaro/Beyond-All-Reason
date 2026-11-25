@@ -53,10 +53,7 @@ end
 function DamageHST:AddBadPosition(position, mtype, attackerThreat, defenderThreat, duration)
 	duration = duration or 1800
 	local X, Z = self.ai.gridhst:PosToGrid(position)
-	--local gas = self.ai.tool:WhatHurtsUnit(nil, mtype, position)
 	local f = self.game:Frame()
-	--for groundAirSubmerged, yes in pairs(gas) do
-	--	if yes then
 	local newRecord = {
 		X = X,
 		Z = Z,
@@ -79,8 +76,6 @@ function DamageHST:AddBadPosition(position, mtype, attackerThreat, defenderThrea
 		self.DAMAGED[X][Z].defenderThreat = self.DAMAGED[X][Z].defenderThreat + newRecord.defenderThreat
 
 	end
-	--end
-	--end
 end
 
 function DamageHST:UpdateBadPositions()
