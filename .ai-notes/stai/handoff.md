@@ -65,7 +65,7 @@
 
 ## Risultati
 
-### S4b (agente locale, 25 novembre 2026)
+### S4b (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Cosa ho fatto**
 
