@@ -350,6 +350,29 @@ describe("STAI BuildingsHST placement", function()
 		assert.is_true(farthest < 1000)
 	end)
 
+	it("does not ask for the units around a point inside a dontBuildRect", function()
+		local buildingsHST, world = newPlacingWorld()
+		buildingsHST:DontBuildRectangle(900, 900, 1100, 1100)
+
+		local check =
+			buildingsHST:CheckBuildPos({ x = 1000, y = LAND, z = 1000 }, newUnitType("armwin", 1), world.builder)
+
+		assert.is_nil(check)
+		assert.equal(0, world.cylinders)
+		assert.equal(0, world.tests)
+	end)
+
+	it("tests the build order before asking for a path", function()
+		local buildingsHST, world = newPlacingWorld()
+
+		local check =
+			buildingsHST:CheckBuildPos({ x = 1000, y = LAND, z = 1000 }, newUnitType("armwin", 1), world.builder)
+
+		assert.is_nil(check)
+		assert.equal(1, world.tests)
+		assert.equal(0, world.paths)
+	end)
+
 	it("tries every support unit once, from the nearest", function()
 		local buildingsHST, world = newPlacingWorld()
 		world.teamUnits[11] = { 101, 102 }

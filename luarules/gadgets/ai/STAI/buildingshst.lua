@@ -23,6 +23,8 @@ function BuildingsHST:Init()
 	self.allyMex = {}
 	self.trampledCells = {} --positions of the most trampled cells, TasksHST holds this table
 	self.ownImmobile = {} --the own buildings, their mean position is CENTER
+	self.rectOutsets = {} --the outsets of every unit name in CalculateRect, false for none
+	self.checkRect = {} --the rectangle of the point that CheckBuildPos checks
 	self:DontBuildOnMetalOrGeoSpots()
 
 	-- Shared rectangle helper so we can test pure logic without spinning up AI.
@@ -209,19 +211,12 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 			checkpos.x = x
 			checkpos.y = y
 			checkpos.z = z
-			local check = self:CheckBuildPos(checkpos, unittype, builder)
+			local check, px, py, pz = self:CheckBuildPos(checkpos, unittype, builder)
 			if check then
-				local buildable, px, py, pz = self:CanBuildHere(unittype, x, y, z)
-				if buildable then
-					checkpos.x = px
-					checkpos.y = py
-					checkpos.z = pz
-					return checkpos
-				else
-					if self.DebugEnabled then
-						self:EchoDebug("not buildable here", unitName, x, y, z, px, py, pz)
-					end
-				end
+				checkpos.x = px
+				checkpos.y = py
+				checkpos.z = pz
+				return checkpos
 			end
 		end
 	end
@@ -261,74 +256,66 @@ function BuildingsHST:CanBuildHere(unittype, x, y, z) -- returns boolean
 	return buildable, newX, newY, newZ
 end
 
-function BuildingsHST:CheckBuildPos(
-	pos,
-	unitTypeToBuild,
-	builder --[[, originalPosition]]
-) --TODO clean this
+function BuildingsHST:CheckBuildPos(pos, unitTypeToBuild, builder) --true and the build position; cheapest checks first
 	if not pos then
 		return
 	end
-	if not self:depthFits(unitTypeToBuild:Name(), pos.y) then
+	local unitName = unitTypeToBuild:Name()
+	if not self:depthFits(unitName, pos.y) then
 		self:EchoDebug("blocked by the water depth")
 		return
 	end
 	if not self.ai.gridhst:isInMap(pos) then
 		return
 	end
+	local rect = self.checkRect
+	rect.position = pos
+	rect.unitName = unitName
+	rect.x1, rect.z1, rect.x2, rect.z2 = nil, nil, nil, nil
+	self:CalculateRect(rect)
+	-- don't build where you shouldn't (metal spots, geo spots, factory lanes)
+	for i, dont in pairs(self.dontBuildRects) do
+		if self.ai.tool:RectsOverlap(rect, dont) then
+			self:EchoDebug("blocked by a dontBuildRect")
+			return
+		end
+	end
+	-- don't build on top of current build orders
+	for i, plan in pairs(self.builders) do
+		if self.ai.tool:RectsOverlap(rect, plan) then
+			self:EchoDebug("blocked by a plan")
+			return
+		end
+	end
+	-- is it too far away from an amphibious constructor?
+	if not self:LandWaterFilter(pos, unitTypeToBuild, builder) then
+		self:EchoDebug("blocked by a land/water filter")
+		return
+	end
 	-- sanity check: is it REALLY possible to build here?
 	local range = self:GetBuildSpacing(unitTypeToBuild)
 	local neighbours = game:getUnitsInCylinder(pos, range) --security distance between buildings prevent units stuck --TODO refine and TEST
 	for idx, unitID in pairs(neighbours) do
-		local unitName = self.game:GetUnitByID(unitID):Name()
-		local mobile = self.ai.armyhst.unitTable[unitName].speed > 0
-		if not mobile and unitTypeToBuild:Name() ~= unitName then
+		local neighbourName = self.game:GetUnitByID(unitID):Name()
+		local mobile = self.ai.armyhst.unitTable[neighbourName].speed > 0
+		if not mobile and unitName ~= neighbourName then
 			self:EchoDebug("blocked by a building")
-			return nil
+			return
 		end
 	end
-
-	local rect
-	if pos ~= nil then
-		rect = { position = pos, unitName = unitTypeToBuild:Name() }
-		self:CalculateRect(rect)
-	end
-
-	-- don't build where you shouldn't (metal spots, geo spots, factory lanes)
-	if pos ~= nil then
-		for i, dont in pairs(self.dontBuildRects) do
-			if self.ai.tool:RectsOverlap(rect, dont) then
-				pos = nil
-				self:EchoDebug("blocked by a dontBuildRect")
-				return nil
-			end
+	local buildable, px, py, pz = self:CanBuildHere(unitTypeToBuild, pos.x, pos.y, pos.z)
+	if not buildable then
+		if self.DebugEnabled then
+			self:EchoDebug("not buildable here", unitName, pos.x, pos.y, pos.z, px, py, pz)
 		end
-	end
-	-- don't build on top of current build orders
-	if pos ~= nil then
-		for i, plan in pairs(self.builders) do
-			if self.ai.tool:RectsOverlap(rect, plan) then
-				self:EchoDebug("blocked by a plan")
-				return nil
-			end
-		end
-	end
-	-- is it too far away from an amphibious constructor?
-	if pos ~= nil then
-		local lw = self:LandWaterFilter(pos, unitTypeToBuild, builder)
-		if not lw then
-			self:EchoDebug("blocked by a land/water filter")
-			return nil
-		end
+		return
 	end
 	-- don't build where the builder can't go
-	if pos ~= nil then
-		if not self.ai.maphst:UnitCanGoHere(builder, pos) then
-			self:EchoDebug("blocked by unitCanGoHere")
-			return nil
-		end
+	if not self.ai.maphst:UnitCanGoHere(builder, pos) then
+		self:EchoDebug("blocked by unitCanGoHere")
+		return
 	end
-	return true
+	return true, px, py, pz
 end
 
 function BuildingsHST:searchPosNearCategories(utype, builder, minDist, maxDist, categories, neighbours, number)
@@ -655,11 +642,15 @@ end
 function BuildingsHST:CalculateRect(rect)
 	local unitName = rect.unitName
 	local unitTable = self.ai.armyhst.unitTable
-	local outsets = self.factoryRect.getOutsets(unitName, unitTable, self.ai.armyhst.factoryExitSides)
+	local outsets = self.rectOutsets[unitName]
+	if outsets == nil then
+		outsets = self.factoryRect.getOutsets(unitName, unitTable, self.ai.armyhst.factoryExitSides) or false
+		self.rectOutsets[unitName] = outsets
+	end
 
 	-- Known exit side -> factory lane handling
 	if
-		outsets == nil
+		not outsets
 		and self.ai.armyhst.factoryExitSides[unitName] ~= nil
 		and self.ai.armyhst.factoryExitSides[unitName] ~= 0
 	then
