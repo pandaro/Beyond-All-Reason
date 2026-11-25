@@ -18,31 +18,27 @@
 
 ## Compito attuale
 
-### T17: tempi di moduli e behaviour nell'infolog; `ShardMemStats` acceso da codice
+### T18: memoria nella riga `[Shard timer]`
 
-**Impegno: medio.** L'utente vede picchi gravi in partita e vuole sapere chi li fa. Si lavora su `shard/fase1`; il port su `stai/porting` lo decide poi il coordinatore.
+**Impegno: basso.** Branch di lavoro: **`shardST1`** (unione di `shard/fase1` e `stai/porting`; push `git -c push.negotiate=true push origin shardST1`).
+
+**Perché.** Un utente ha mandato questa riga da una partita lunga (74 minuti, heap 80 MB, picco per frame 4,9 MB): `module=UnitHandler behaviour=BuildersBST call=Update ms=1553.5`. Non si capisce se il secondo e mezzo è un calcolo pesante di STAI o il garbage collector che parte dentro quella chiamata.
 
 **Lavoro**
 
-1. **Misura dei tempi** in un file nuovo, `loader/timers.lua`, nel lato unsynced:
-   - un interruttore **nel codice**, come al punto 3 (niente springsettings), oggi **acceso**, e la soglia `SPIKE_MS = 10`, tutti e due in costanti in cima al file;
-   - le misure stanno **solo** dove i moduli e i behaviour vengono chiamati, cioè nei punti già segnati (commentati) in `shardai.lua` (`ShardAI:Update` e `ShardAI:ScheduledUpdate` per i moduli, i gestori degli eventi) e in `unit.lua` (behaviour). `delivery.lua` e `scheduler.lua` chiamano solo questi metodi: **non** si toccano. `timers.lua` offre due funzioni piccole (inizio e fine) usate in quei punti; niente misure sparse altrove;
-   - oltre la soglia, **una riga** con `Spring.Echo` (infolog e terminale), facile da leggere con uno script, per esempio:
-     `[Shard timer] frame=1234 ai=STAI team=1 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4`
-     (`behaviour=-` per i moduli; per i behaviour anche il nome del modulo che li tiene, se c'è). Se non riesci ad avere tutti i campi, scrivi quali mancano e perché;
-   - a fine partita un riepilogo per nome (chiamate, min, max, media, somma, quante oltre la soglia), una riga per nome;
-   - la risoluzione: in S7 `Spring.DiffTimers` dava millesimi interi; in S19 `Spring.GetTimerMicros` nel contesto dei moduli restituiva un userdata. Trova un modo per avere almeno decimi di ms (per esempio un argomento di `DiffTimers`, o i timer presi nel loader e non dentro l'ambiente dei moduli) e scrivi quale hai usato.
-2. **Il passaggio al widget resta**: non togliere `game:StartTimer`/`game:StopTimer` in `spring_lua/game.lua`, né il codice dei timer in `luaui/Widgets/shard_help_draw.lua`, né le righe commentate in `shardai.lua`/`unit.lua` (servono se un giorno si vuole il grafico).
-3. **`ShardMemStats` da codice** (decisione dell'utente): in `memstats.lua` niente più `Spring.GetConfigInt("ShardMemStats")` né rilettura ogni minuto; una costante in cima al file, oggi **accesa**. Stesso schema dell'interruttore del punto 1. Aggiorna gli strumenti in `.ai-notes/tools/` che usano `SHARD_MEM_STATS` e la guida (`.ai-notes/drafts/README.md`: una sezione «How to debug» con i due interruttori, la soglia e il formato della riga).
-4. **Niente controllo del costo della misura** (decisione dell'utente): basta che funzioni.
+1. In `loader/timers.lua`, in `BeginModule`/`BeginBehaviour` si legge la memoria in uso (`collectgarbage("count")`, KB) insieme al tempo, in `EndModule`/`EndBehaviour` di nuovo. Niente tabelle nuove nel percorso: le letture si tengono nelle stesse variabili locali del tempo.
+2. La riga sopra soglia riceve un campo `kb=<fine - inizio>` (con segno, un decimale), subito dopo `ms=`: `... call=Update ms=1553.5 kb=-48210.3`. Un valore molto negativo = è passato il garbage collector durante la chiamata; positivo e grande = la chiamata alloca molto.
+3. Il riepilogo a fine partita non cambia.
+4. Guida («How to debug», `.ai-notes/drafts/README.md`): aggiorna il formato della riga e spiega in due righe come si legge `kb`.
+5. Se la lettura di `collectgarbage("count")` rallenta in modo visibile, dillo e non toglierla.
 
-**Test busted**: una chiamata sopra soglia scrive una riga con i campi giusti, una sotto no; il riepilogo conta bene; con l'interruttore spento nessuna misura. Mutazioni.
+**Test busted**: la riga contiene `kb=` con il segno giusto (memoria che scende e che sale; usa una `collectgarbage` finta); sotto soglia nessuna riga. Mutazione: `kb` con segno invertito, `kb` letto solo all'inizio.
 
-**Partite**: una partita A (STAI) di 15 minuti: riporta le righe `[Shard timer]` (quante, i nomi più frequenti, i 10 picchi più alti) e il riepilogo. Nessuna riga `[AI Loader] error`.
+**Partita**: una partita A di 15 minuti; riporta le righe `[Shard timer]` che compaiono (se ce ne sono) con il nuovo campo. Nessuna riga `[AI Loader] error`.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno per i tempi, uno per `ShardMemStats`, uno per guida e strumenti.
+**Commit**, in inglese: uno per il codice, uno per la guida.
 
 ## Risultati
 
