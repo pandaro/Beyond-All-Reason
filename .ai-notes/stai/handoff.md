@@ -47,7 +47,7 @@
 
 ## Risultati
 
-### S8b (agente locale, 25 novembre 2026)
+### S8b (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **In breve**: `PerceptionHandler` del runtime è in `modules.lua` (una istanza per alleanza, riceve ogni evento prima di `LosHST`: 0 eccezioni su 457 eventi per team); un'unità mobile che esce dalla los restando nel radar diventa un'**ombra** (`ghostEnemy`) e si segna in `ENEMY` come unità di tipo noto. Nelle partite: 71–233 ombre per partita, al massimo 1–12 insieme, **nessuna ombra appesa**, nessun avviso «più di un insieme». Le tre partite A **non stanno sotto** i riferimenti.
 

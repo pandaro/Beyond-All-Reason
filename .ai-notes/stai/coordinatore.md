@@ -76,7 +76,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S7 | `collect` alla fine di `StartAIs` (commit «Shard …»), via quella di `MapHST`; `DrawDebug` controlla `drawDebug` prima di `EraseAll`; gioco invariato — verificato (righe `[S3-PROOF]` identiche; `collect` 13 ms una volta all'avvio, con guardia `next(fresh)`) |
 | S8a | strato `ENEMY` di `LosHST` in `GridHST`, `GridLayer:GetMarked`; via `OWN`, `ALLY`, `ALLIES`, pool e campi morti; il gioco cambia solo per l'ordine: tre partite A — verificato (prova nella stessa partita: 0 differenze cella per cella; tre partite A sopra S6: 178–202 unità, 34–38 mex; picco di memoria 218 KB) |
 | S8s | seme fisso: saltato dall'utente (25 novembre 2026) per risparmiare token; le prove «gioco invariato» si fanno nella stessa partita (come S8a) |
-| S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — scritto, da eseguire |
+| S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
 **Piano** (aggiornato alla fine della seconda chat, 25 novembre 2026; il piano del 26 novembre, S5–S8, è fatto salvo la verifica di S8b):
 
