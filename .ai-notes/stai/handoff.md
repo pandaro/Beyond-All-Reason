@@ -48,6 +48,51 @@ Due compiti. L'utente dice «esegui s22»: fai **solo S22**, fermati, «fatto».
 
 ## Risultati
 
+### S23 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+
+**In breve**: `BootBST` ora riconosce la fabbrica e `ExitFactory` gira davvero. Appena girato è emerso un errore **non previsto dal compito**: `ExitFactory` chiamava `self.ai.tool:GiveOrderToUnit`, che in `Tool` non esiste (107 + 99 errori `[AI Loader]` in una partita C). L'ho corretto in un commit a parte (`GiveOrder`, come `SetMoveState`): senza, le uscite cadevano in errore dopo `u:Move`. Tre partite A senza errori del loader.
+
+**Commit**
+- `6d760961b2` «STAI: BootBST finds its factory and is mobile for mobile units» (`bootbst.lua`, `bootbst_spec.lua` nuovo): `self.DebugEnabled`, `mobile = speed > 0`, `self.factory = nil` prima del ciclo, controlli su `lab.behaviour` e `lab.exitRect` (esistono: `labsbst.lua` r. 35, 67–72).
+- `540d26c853` «STAI: BootBST orders the exit move with Tool:GiveOrder» (una riga). **Fuori dal compito**, da confermare.
+- `315e57fae8` «STAI: ReclaimBST priority is 0» (`Priority` restituisce 0, commento a fine riga). «Nell'indice»: `nuovo-stai.md` non lo tocco, lo aggiorna il coordinatore.
+- Più il commit di questi risultati.
+
+**Cosa fa `ExitFactory` ora**: per un'unità mobile che si trova nel `exitRect` di una fabbrica (Init o controllo ogni 300 frame): `Priority` 120, `Activate` → `ExitFactory`: sceglie il lato da `GetFacing` della posizione della fabbrica, calcola un punto a 200 elmi, lo limita ai bordi della mappa, `u:Move(out)` più un ordine MOVE (via `GiveOrder`, un'unità, `"1-1"`), poi `lastOrderFrame` e `lastExitSide`. Se dopo 12 frame l'unità è ancora attiva e dentro il rettangolo, `Update` richiama `ExitFactory` con il lato di `GetFacing` della posizione dell'unità (altro lato o lo stesso). Quando l'unità esce dal rettangolo: `factory = nil`, rielezione.
+- Aree dell'ordine MOVE: una volta per unità e per tentativo; 335 chiamate per 221 attivazioni (112 unità con più di un tentativo, 109 con uno solo).
+
+**Test busted** (`bootbst_spec.lua`, 4 casi): `mobile` per unità e edificio; `FindMyFactory` dentro l'`exitRect` (`Priority` 120) e fuori (0, anche dopo essere stata dentro); lab senza `behaviour` o `exitRect` scartata. Sul vecchio `bootbst.lua` due test falliscono (`mobile`, fabbrica trovata).
+
+**Misura, partita C** (patch non committata con `Spring.Echo`, tolta): 
+
+| | prima | dopo (con `GiveOrder`) |
+| --- | --- | --- |
+| attivazioni di `BootBST` | 0 | 221 |
+| `ExitFactory` | 0 | 335 |
+| unità uscite dal rettangolo | — (mai dentro per `BootBST`) | 221 (tutte) |
+| uscite dopo più di 300 frame | non misurabile (`factory` mai assegnata) | 43 (max 2236, media 232) |
+| errori `[AI Loader]` | 0 | 0 (con `GiveOrderToUnit`: 206 attivazioni, 206 errori) |
+
+Fine C dopo: team 0 149 unità, 1 fabbrica, 26 mex; team 1 137, 2, 19.
+
+**Tre partite A** (15 minuti, `SHARD_MEM_STATS=1`, uscita 0, righe `[AI Loader] error`: 0):
+
+| | min. 10 / 13 / 14: unità | fine (SUMMARY): unità, fabbriche, mex | relay: ordini / rifiutati | `Shard memory record` |
+| --- | --- | --- | --- | --- |
+| A1 | 87 / 155 / 177 | 199, 2, 37 | 17005 / 16 | 16259 |
+| A2 | 94 / 151 / 159 | 178, 2, 36 | 14042 / 10 | 15393 |
+| A3 | 90 / 135 / 137 | 154, 2, 22 | 14415 / 1 | 15631 |
+
+Riferimenti: S21 min. 13 147–194, fine 161–217, 29–36 mex; S1 fine 141–186, 23–35 mex. Una sola partita (A3) un poco bassa (22 mex, 154 unità): non peggio in più di una, nessun'altra correzione tentata.
+
+**Controlli**: `lx --lua-version 5.1 test` 2788 successi, 0 fallimenti, 1 in sospeso (già prima). StyLua pulito sui tre file. `emmylua_check`: nessun errore nei file toccati (solo avvisi, `self.factory may be nil` in `ExitFactory` era già lì; non ho fatto il confronto con la base). `run_engine_tests.sh`: `RESULT: ok`. `.emmyrc.json` ripristinato.
+
+**Da sapere**: `GiveOrderToUnit` è chiamato anche da `mexupbst.lua` (r. 35, 127; non caricato) e `bomberbst.lua` r. 59 (`Deactivate`, ordini verso casa): stesso errore latente, non toccati.
+
+**Domande**
+1. Va bene il commit `540d26c853` (fuori dal compito)? Senza, `BootBST` dà errore a ogni uscita.
+2. `bomberbst.lua:59` e `mexupbst.lua`: compito a parte?
+
 ### S22 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
 
 **In breve**: regola nuova d'elezione (`STAI.legacyElection = false`), `CleanerBST:Priority` a `0`, `labshst.lua` non più indicizza una rete `nil` (il caso di S21 è ora coperto da test), `bomberhst` con contatore. Tre commit di codice più questo. Una partita A e una C, nessuna riga `[AI Loader] error`.
