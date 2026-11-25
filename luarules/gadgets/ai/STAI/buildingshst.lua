@@ -82,21 +82,33 @@ function BuildingsHST:LandWaterFilter(pos, unitTypeToBuild, builder)
 	local waterBuildOrder = self.ai.armyhst.unitTable[unitName].needsWater
 	-- if this is a movement from land to water or water to land, check the self.ai.tool:distance
 	if water then
-		self:EchoDebug(builderName .. " is in water")
+		if self.DebugEnabled then
+			self:EchoDebug(builderName .. " is in water")
+		end
 	else
-		self:EchoDebug(builderName .. " is on land")
+		if self.DebugEnabled then
+			self:EchoDebug(builderName .. " is on land")
+		end
 	end
 	if waterBuildOrder then
-		self:EchoDebug(unitName .. " would be in water")
+		if self.DebugEnabled then
+			self:EchoDebug(unitName .. " would be in water")
+		end
 	else
-		self:EchoDebug(unitName .. " would be on land")
+		if self.DebugEnabled then
+			self:EchoDebug(unitName .. " would be on land")
+		end
 
 	end
 	if (water and not waterBuildOrder) or (not water and waterBuildOrder) then
-		self:EchoDebug("builder would traverse the shore to build " .. unitName)
+		if self.DebugEnabled then
+			self:EchoDebug("builder would traverse the shore to build " .. unitName)
+		end
 		local dist = self.ai.tool:distance(pos, builderPos)
 		if dist > 250 then
-			self:EchoDebug("build too far away from shore to build " .. unitName)
+			if self.DebugEnabled then
+				self:EchoDebug("build too far away from shore to build " .. unitName)
+			end
 			return false
 		else
 			return true
@@ -218,7 +230,9 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 					checkpos.z = pz
 					return checkpos
 				else
-					self:EchoDebug("not buildable here", unittype:Name(), x, y, z, px, py, pz)
+					if self.DebugEnabled then
+						self:EchoDebug("not buildable here", unittype:Name(), x, y, z, px, py, pz)
+					end
 				end
 			end
 		end
@@ -229,7 +243,9 @@ function BuildingsHST:CanBuildHere(unittype, x, y, z) -- returns boolean
 	local newX, newY, newZ = Spring.Pos2BuildPos(unittype:ID(), x, y, z)
 	local buildable = Spring.TestBuildOrder(unittype:ID(), newX, newY, newZ, 1) --TODO check if it really necessary
 
-	self:EchoDebug("canbuildhere", unittype:Name(), newX, newY, newZ, buildable)
+	if self.DebugEnabled then
+		self:EchoDebug("canbuildhere", unittype:Name(), newX, newY, newZ, buildable)
+	end
 	if buildable == 0 then
 		buildable = false
 	end
@@ -346,7 +362,9 @@ end
 
 function BuildingsHST:searchPosInList(utype, builder, minDist, maxDist, list, neighbours, number)
 
-	self:EchoDebug("search pos in list for", utype:Name())
+	if self.DebugEnabled then
+		self:EchoDebug("search pos in list for", utype:Name())
+	end
 	local maxDist = maxDist or 390
 	local d = math.huge
 	local p
@@ -359,7 +377,9 @@ function BuildingsHST:searchPosInList(utype, builder, minDist, maxDist, list, ne
 		if not neighbours or not self:unitsNearCheck(pos.x, pos.y, pos.z, maxDist, number, neighbours) then
 			tmpPos = self:FindClosestBuildSite(utype, pos.x, pos.y, pos.z, minDist, maxDist, builder, tmpPos)
 			if tmpPos and tmpPos.x then
-				self:EchoDebug("found Position in list at: ", tmpPos.x, tmpPos.z, "for", utype:Name())
+				if self.DebugEnabled then
+					self:EchoDebug("found Position in list at: ", tmpPos.x, tmpPos.z, "for", utype:Name())
+				end
 				return tmpPos
 
 			end
@@ -378,7 +398,9 @@ function BuildingsHST:BuildNearNano(builder, utype, minDist, maxDist)
 		-- 		local p = self:ClosestBuildSpot(builder, nanoPos, utype, 10, nil, nil, maxDist)
 		local p = self:FindClosestBuildSite(utype, bx, by, bz, nil, maxDist, builder)
 		if p then
-			self:EchoDebug("found Position for near nano hotspot at: " .. p.x .. " " .. p.z)
+			if self.DebugEnabled then
+				self:EchoDebug("found Position for near nano hotspot at: " .. p.x .. " " .. p.z)
+			end
 		end
 	end
 end
@@ -564,7 +586,9 @@ function BuildingsHST:GetMyProject(builderID)
 end
 
 function BuildingsHST:NewPlan(unitName, position, builderID, builderName)
-	self:EchoDebug(builderName, " plans to build ", unitName .. " at ", position.x, position.z)
+	if self.DebugEnabled then
+		self:EchoDebug(builderName, " plans to build ", unitName .. " at ", position.x, position.z)
+	end
 	local plan = { unitName = unitName, position = position, builderID = builderID, builderName = builderName }
 	self:CalculateRect(plan)
 	self.builders[builderID] = plan
@@ -907,7 +931,9 @@ function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i c
 
 		end
 	end
-	self:EchoDebug(counter, "mobility commander evalutated:", "most trampled", ttt.trampled, "average", average)
+	if self.DebugEnabled then
+		self:EchoDebug(counter, "mobility commander evalutated:", "most trampled", ttt.trampled, "average", average)
+	end
 end
 
 --[[

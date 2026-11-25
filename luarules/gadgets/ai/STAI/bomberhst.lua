@@ -119,7 +119,9 @@ function BomberHST:SquadMass(squad)
 end
 
 function BomberHST:SquadsTargetUpdate(squad)
-	self:EchoDebug("targetUpdate", squad.lock, squad.targetUnit, self:SquadTargetExist(squad))
+	if self.DebugEnabled then
+		self:EchoDebug("targetUpdate", squad.lock, squad.targetUnit, self:SquadTargetExist(squad))
+	end
 	if squad.lock and (not squad.targetUnit or not self:SquadTargetExist(squad)) then
 		self:GetTarget(squad)
 	end
@@ -146,7 +148,12 @@ function BomberHST:IsBombing(squad)
 end
 
 function BomberHST:SquadsPerformBombing(squad)
-	self:EchoDebug("SquadsPerformBombing", squad.lock and self:SquadTargetExist(squad) and not self:IsBombing(squad))
+	if self.DebugEnabled then
+		self:EchoDebug(
+			"SquadsPerformBombing",
+			squad.lock and self:SquadTargetExist(squad) and not self:IsBombing(squad)
+		)
+	end
 	if squad.lock and self:SquadTargetExist(squad) and not self:IsBombing(squad) then
 		squad.cmdUnitId = self.ai.tool:ResetTable(squad.cmdUnitId)
 		for index, member in pairs(squad.members) do

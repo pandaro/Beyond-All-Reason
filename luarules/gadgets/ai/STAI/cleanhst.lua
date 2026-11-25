@@ -21,7 +21,9 @@ end
 function CleanHST:UnitDead(unit)
 
 	if self.dirt[unit:ID()] then
-		self:EchoDebug(self.dirt[unit:ID()], "removed this unit", unit:ID())
+		if self.DebugEnabled then
+			self:EchoDebug(self.dirt[unit:ID()], "removed this unit", unit:ID())
+		end
 		local executer = self.game:GetUnitByID(self.dirt[unit:ID()])
 		local x, y, z = executer:GetRawPos()
 

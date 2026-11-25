@@ -16,7 +16,9 @@ end
 
 function MapHST:Init()
 	local rules_param_mex_count = Spring.GetGameRulesParam("mex_count")
-	self:EchoDebug("games rules param mex_count:", rules_param_mex_count)
+	if self.DebugEnabled then
+		self:EchoDebug("games rules param mex_count:", rules_param_mex_count)
+	end
 
 	self.DebugEnabled = false
 	self:EchoDebug("MapHST START")
@@ -58,7 +60,9 @@ function MapHST:basicMapInfo() --capture and set foundamental map info
 		"self.elmoMapMaxCenterDistance",
 		self.elmoMapMaxCenterDistance
 	)
-	self:EchoDebug(Toolbox:gcd(self.elmoMapSizeX, self.elmoMapSizeZ))
+	if self.DebugEnabled then
+		self:EchoDebug(Toolbox:gcd(self.elmoMapSizeX, self.elmoMapSizeZ))
+	end
 	self.elmoArea = self.elmoMapSizeX * self.elmoMapSizeZ
 	self:EchoDebug("ElmoX", self.elmoMapSizeX, "ElmoZ", self.elmoMapSizeZ, "ElmoArea", self.elmoArea)
 end
@@ -164,17 +168,19 @@ function MapHST:LayerScan() --a most approfondite analisy of the layers
 			else
 				network.ratioGeos = #network.geos / #self.GEOS
 			end
-			self:EchoDebug(
-				layer,
-				"Network :",
-				index,
-				network.area,
-				#network.metals,
-				#network.geos,
-				network.ratioArea,
-				network.ratioMetals,
-				network.ratioGeos
-			)
+			if self.DebugEnabled then
+				self:EchoDebug(
+					layer,
+					"Network :",
+					index,
+					network.area,
+					#network.metals,
+					#network.geos,
+					network.ratioArea,
+					network.ratioMetals,
+					network.ratioGeos
+				)
+			end
 			main[layer].area = main[layer].area + network.area
 			main[layer].metals = main[layer].metals + #network.metals
 			main[layer].geos = main[layer].geos + #network.geos
@@ -235,7 +241,9 @@ function MapHST:hotSpotter()
 	for i, v in pairs(self.GEOS) do
 		table.insert(spots, v)
 	end
-	self:EchoDebug("limit", tostring(limit))
+	if self.DebugEnabled then
+		self:EchoDebug("limit", tostring(limit))
+	end
 	for index1, pos1 in pairs(spots) do
 		if spots[index1] then
 			mirrorspots[index1] = {}
@@ -393,7 +401,9 @@ function MapHST:UnitCanGoHere(unit, position, maxDistance)
 	maxDistance = maxDistance or 128
 	local ux, uy, uz = unit:GetRawPos()
 	if Toolbox:RawDistance(ux, uy, uz, position.x, position.y, position.z) < 32 then
-		self:EchoDebug(unit:Name(), "ask for a short pathtest: pass")
+		if self.DebugEnabled then
+			self:EchoDebug(unit:Name(), "ask for a short pathtest: pass")
+		end
 		return 32
 	end
 	local pathtest = map:TestPath(
@@ -408,7 +418,9 @@ function MapHST:UnitCanGoHere(unit, position, maxDistance)
 		unit:Name()
 	)
 	if pathtest and pathtest < maxDistance then
-		self:EchoDebug(unit:Name(), "ask for a pathtest: pass")
+		if self.DebugEnabled then
+			self:EchoDebug(unit:Name(), "ask for a pathtest: pass")
+		end
 		return pathtest
 	end
 end

@@ -154,21 +154,23 @@ function LabsHST:Update()
 	self.ECONOMY = math.floor(math.min(M.income / 10, E.income / 100))
 	self.needT2 = ((M.income > 20 or self.X100M > 0.2) and E.income > 800 and self.T1LAB)
 	self.needT3 = ((M.income > 50 or self.X100M > 0.4) and E.income > 4000 and self.T2LAB)
-	self:EchoDebug(
-		"ECO",
-		self.ECONOMY,
-		" M",
-		math.floor(M.income / 10),
-		"E",
-		math.floor(E.income / 100),
-		"X100M",
-		self.X100M,
-		"lab",
-		self.T1LAB,
-		self.T2LAB,
-		M.income > 20,
-		E.income > 800
-	)
+	if self.DebugEnabled then
+		self:EchoDebug(
+			"ECO",
+			self.ECONOMY,
+			" M",
+			math.floor(M.income / 10),
+			"E",
+			math.floor(E.income / 100),
+			"X100M",
+			self.X100M,
+			"lab",
+			self.T1LAB,
+			self.T2LAB,
+			M.income > 20,
+			E.income > 800
+		)
+	end
 
 	self.ai.buildingshst:VisualDBG() --here cause buildingshst have no update
 end
@@ -220,7 +222,9 @@ function LabsHST:LabsLevels()
 end
 
 function LabsHST:PrePositionFilter()
-	self:EchoDebug("pre positional filtering...")
+	if self.DebugEnabled then
+		self:EchoDebug("pre positional filtering...")
+	end
 	local factoriesPreCleaned = {}
 	for rank, factoryName in pairs(self.factoryRating) do
 		local buildMe = true
@@ -264,33 +268,47 @@ function LabsHST:PrePositionFilter()
 		end
 
 		if buildMe and mtype == "air" and not self.T2LAB then
-			self:EchoDebug(factoryName .. " dont build air before advanced ")
+			if self.DebugEnabled then
+				self:EchoDebug(factoryName .. " dont build air before advanced ")
+			end
 			buildMe = false
 		end
 		if self.needT2 and not self.T2LAB and not T2 then
-			self:EchoDebug(factoryName .. " not advanced when i need it")
+			if self.DebugEnabled then
+				self:EchoDebug(factoryName .. " not advanced when i need it")
+			end
 			buildMe = false
 		end
 		if buildMe and self.needT3 and not self.T3LAB and not T3 then
-			self:EchoDebug(factoryName .. " not Experimental when i need it")
+			if self.DebugEnabled then
+				self:EchoDebug(factoryName .. " not Experimental when i need it")
+			end
 			buildMe = false
 		end
 		if buildMe and not self.needT2 and T2 then
 
-			self:EchoDebug(factoryName .. " Advanced when i dont need it", buildMe, self.needT2, T2)
+			if self.DebugEnabled then
+				self:EchoDebug(factoryName .. " Advanced when i dont need it", buildMe, self.needT2, T2)
+			end
 			buildMe = false
 		end
 		if buildMe and not self.needT3 and T3 then
-			self:EchoDebug(factoryName .. " Experimental when i dont need it")
+			if self.DebugEnabled then
+				self:EchoDebug(factoryName .. " Experimental when i dont need it")
+			end
 			buildMe = false
 		end
 		if buildMe and mtype == "air" and utn.needsWater and self:GetLabListParam("mtype", "air") then
-			self:EchoDebug(factoryName .. " dont build seaplane if i have normal planes")
+			if self.DebugEnabled then
+				self:EchoDebug(factoryName .. " dont build seaplane if i have normal planes")
+			end
 			buildMe = false
 		end
 		if buildMe then
 			table.insert(factoriesPreCleaned, factoryName)
-			self:EchoDebug("rank ", #factoriesPreCleaned, factoryName, " in factoryPreCleaned")
+			if self.DebugEnabled then
+				self:EchoDebug("rank ", #factoriesPreCleaned, factoryName, " in factoryPreCleaned")
+			end
 		end
 	end
 	return factoriesPreCleaned
@@ -347,11 +365,15 @@ function LabsHST:PostPositionalFilter(p, factoryName)
 	for i, mtype in pairs(self.ai.armyhst.factoryMobilities[factoryName]) do
 		local network = self.ai.maphst:MobilityNetworkHere(mtype, p)
 		if (self.ai.maphst.networks[mtype][network].area / self.ai.gridhst.gridArea) < 0.05 then --5% of the maphst
-			self:EchoDebug("area to small to build lab: ", factoryName)
+			if self.DebugEnabled then
+				self:EchoDebug("area to small to build lab: ", factoryName)
+			end
 			return
 		end
 		if #self.ai.maphst.networks[mtype][network].metals / #self.ai.maphst.METALS < 0.05 then --5% of the metals
-			self:EchoDebug("not enough spots to build lab: ", factoryName)
+			if self.DebugEnabled then
+				self:EchoDebug("not enough spots to build lab: ", factoryName)
+			end
 			return
 		end
 	end

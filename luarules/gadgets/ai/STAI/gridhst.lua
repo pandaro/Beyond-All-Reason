@@ -30,7 +30,9 @@ function GridHST:basicGridInfo() --capture the map size and set the grid geometr
 	self.gridSideX = self.elmoMapSizeX / self.gridSize
 	self.gridSideZ = self.elmoMapSizeZ / self.gridSize
 	self.gridArea = self.gridSideX * self.gridSideZ
-	self:EchoDebug("grid size: " .. self.gridSize .. "grid area", self.gridArea, self.gridSideX, self.gridSideZ)
+	if self.DebugEnabled then
+		self:EchoDebug("grid size: " .. self.gridSize .. "grid area", self.gridArea, self.gridSideX, self.gridSideZ)
+	end
 end
 
 function GridHST:createCells() --the cells of the grid, one for every index
@@ -97,7 +99,9 @@ end
 
 function GridHST:RawPosIsInMap(x, y, z)
 	if (x <= 0) or (x > self.elmoMapSizeX) or (z <= 0) or (z > self.elmoMapSizeZ) then
-		self:EchoDebug("bad position: " .. x .. ", " .. z)
+		if self.DebugEnabled then
+			self:EchoDebug("bad position: " .. x .. ", " .. z)
+		end
 		return nil
 	else
 		return x, y, z
@@ -106,7 +110,9 @@ end
 
 function GridHST:isInMap(pos)
 	if (pos.x <= 0) or (pos.x > self.elmoMapSizeX) or (pos.z <= 0) or (pos.z > self.elmoMapSizeZ) then
-		self:EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)
+		if self.DebugEnabled then
+			self:EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)
+		end
 		return nil
 	else
 		return pos

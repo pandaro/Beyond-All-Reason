@@ -63,7 +63,9 @@ end
 function RaidHST:DraftAttackSquads()
 	local f = self.game:Frame()
 	for mtype, soldiers in pairs(self.recruits) do
-		self:EchoDebug("soldiers", #soldiers)
+		if self.DebugEnabled then
+			self:EchoDebug("soldiers", #soldiers)
+		end
 		for index, soldier in pairs(soldiers) do
 			if soldier and soldier.unit and not soldier.squad then
 				for idx, squad in pairs(self.squads) do
@@ -78,14 +80,16 @@ function RaidHST:DraftAttackSquads()
 							or (squad.mass > 15000)
 						then
 							squad.lock = true
-							self:EchoDebug(
-								"squad",
-								squad.squadID,
-								"full",
-								squad.mass > self.squadMassLimit,
-								#squad.members > self.countLimit,
-								squad.mass > 15000
-							)
+							if self.DebugEnabled then
+								self:EchoDebug(
+									"squad",
+									squad.squadID,
+									"full",
+									squad.mass > self.squadMassLimit,
+									#squad.members > self.countLimit,
+									squad.mass > 15000
+								)
+							end
 							self.countLimit = math.min(20, self.countLimit + self.ai.labshst.ECONOMY)
 						end
 					end
@@ -124,7 +128,9 @@ function RaidHST:DraftAttackSquads()
 end
 
 function RaidHST:SquadCheck(squad)
-	self:EchoDebug("integrity", squad.squadID, #squad.members)
+	if self.DebugEnabled then
+		self:EchoDebug("integrity", squad.squadID, #squad.members)
+	end
 	local check = nil
 	local x, y, z = 0, 0, 0
 	local mass = 0
@@ -218,7 +224,9 @@ function RaidHST:SquadFindPath(squad, target)
 	end
 
 	if path then
-		self:EchoDebug("got path of", #path, "nodes ")
+		if self.DebugEnabled then
+			self:EchoDebug("got path of", #path, "nodes ")
+		end
 		local step = 1
 		return path, step
 	end
@@ -226,7 +234,9 @@ function RaidHST:SquadFindPath(squad, target)
 end
 
 function RaidHST:SquadAdvance(squad)
-	self:EchoDebug("advance squad:", squad.squadID)
+	if self.DebugEnabled then
+		self:EchoDebug("advance squad:", squad.squadID)
+	end
 	if game:Frame() < squad.lastAdvance + 30 then
 		return
 	end
@@ -273,7 +283,9 @@ function RaidHST:SquadAdvance(squad)
 		return
 	end
 	self:SquadStepComplete(squad)
-	self:EchoDebug("advance #members", #squad.members, "path lenght", #squad.path)
+	if self.DebugEnabled then
+		self:EchoDebug("advance #members", #squad.members, "path lenght", #squad.path)
+	end
 
 	for i, member in pairs(squad.members) do
 		squad.cmdUnitId[i] = member.unit:Internal():ID()
