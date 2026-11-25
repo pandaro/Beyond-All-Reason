@@ -245,9 +245,9 @@ function RaidHST:SquadAdvance(squad)
 		return
 	end
 	squad.lastAdvance = game:Frame()
-	squad.idleCount = 0
 	squad.cmdUnitId = self.ai.tool:ResetTable(squad.cmdUnitId)
 	if type(squad.role) == "number" and game:GetUnitByID(squad.role):GetPosition() then
+		squad.idleCount = 0
 		self:EchoDebug(squad.squadID, "prevent", squad.role)
 		local preventThreat = nil
 		local targetPos = game:GetUnitByID(squad.role):GetPosition()
@@ -287,6 +287,7 @@ function RaidHST:SquadAdvance(squad)
 		return
 	end
 	self:SquadStepComplete(squad)
+	squad.idleCount = 0
 	if self.DebugEnabled then
 		self:EchoDebug("advance #members", #squad.members, "path lenght", #squad.path)
 	end

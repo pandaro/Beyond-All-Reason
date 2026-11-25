@@ -99,4 +99,42 @@ describe("STAI RaidHST", function()
 		assert.same({ 102, 103 }, raid.orders[1].ids)
 		assert.equal(2, #raid.orders[1].ids)
 	end)
+
+	it("advances a squad whose members went idle since the last advance", function()
+		local game = {
+			Frame = function()
+				return 1000
+			end,
+		}
+		local raid = newRaidHST(game)
+		raid.ai.tool.RawDistance = function()
+			return 1000
+		end
+		local squad = {
+			squadID = 1,
+			role = "offense",
+			target = { X = 1, Z = 1 },
+			path = { { x = 100, z = 100 }, { x = 200, z = 200 }, { x = 300, z = 300 } },
+			step = 1,
+			position = { x = 0, z = 0 },
+			lastAdvance = 0,
+			idleCount = 0,
+			cmdUnitId = {},
+			members = {
+				newMember(101),
+				newMember(102),
+				newMember(103),
+				newMember(104),
+			},
+		}
+		for _ = 1, 4 do
+			raid:MemberIdle({ squad = squad }, squad)
+		end
+		assert.equal(4, squad.idleCount)
+
+		raid:SquadAdvance(squad)
+
+		assert.equal(2, squad.step)
+		assert.equal(0, squad.idleCount)
+	end)
 end)

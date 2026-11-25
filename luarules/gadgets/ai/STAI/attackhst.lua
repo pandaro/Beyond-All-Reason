@@ -230,9 +230,9 @@ function AttackHST:SquadAdvance(squad)
 		self:EchoDebug("advance squad:", squad.squadID)
 	end
 	squad.lastAdvance = game:Frame()
-	squad.idleCount = 0
 	squad.cmdUnitId = self.ai.tool:ResetTable(squad.cmdUnitId)
 	if squad.role == "prevent" then
+		squad.idleCount = 0
 		local n = 0
 		for _, member in pairs(squad.members) do
 			n = n + 1
@@ -248,6 +248,7 @@ function AttackHST:SquadAdvance(squad)
 		return
 	end
 	self:SquadStepComplete(squad)
+	squad.idleCount = 0
 	if self.DebugEnabled then
 		self:EchoDebug("advance #members", #squad.members, "remaining step", #squad.path)
 	end
