@@ -228,11 +228,11 @@ function BuildersBST:specialFilter(cat, param, name)
 	elseif cat == "_tide_" then
 		check = map:TidalStrength() >= 10
 	elseif cat == "_aa1_" then
-		check = self.ai.needAntiAir
+		check = self.ai.loshst.needAntiAir
 	elseif cat == "_flak_" then
-		check = self.ai.needAntiAir
+		check = self.ai.loshst.needAntiAir
 	elseif cat == "_aabomb_" then
-		check = self.ai.needAntiAir
+		check = self.ai.loshst.needAntiAir
 	end
 	if check then
 		self:EchoDebug("special filter pass", cat, name)

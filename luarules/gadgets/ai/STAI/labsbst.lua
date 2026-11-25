@@ -222,7 +222,7 @@ function LabsBST:getSoldier()
 end
 
 function LabsBST:specialFilters(soldier, param, utype)
-	if param.category == "antiairs" and not self.ai.needAntiAir then
+	if param.category == "antiairs" and not self.ai.loshst.needAntiAir then
 		return nil, nil
 	end
 	if param.special and type(param.special) == "function" then

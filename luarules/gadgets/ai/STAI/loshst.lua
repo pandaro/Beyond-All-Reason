@@ -17,6 +17,7 @@ function LosHST:Init()
 	self.losEnemy = {}
 	self.radarEnemy = {}
 	self.ghostEnemy = {} --mobile units seen in los and still on radar since: their type is known
+	self.needAntiAir = false --an enemy air unit was seen in los
 	self.ENEMY = self.ai.gridhst:NewLayer(self.resetCell) --the cells with enemies in this round
 	self.ai.friendlyTeamID = {}
 end
@@ -139,7 +140,7 @@ function LosHST:setPosLayer2(unitName, x, y, z)
 	local ut = self.ai.armyhst.unitTable[unitName]
 	local floating = false
 	if ut.mtype == "air" then
-		self.ai.needAntiAir = true --TODO need to move from here
+		self.needAntiAir = true
 		return 1
 	end
 	if (ut.mtype == "sub" or ut.mtype == "amp") and y < -5 then
