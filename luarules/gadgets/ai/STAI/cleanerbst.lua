@@ -34,7 +34,9 @@ function CleanerBST:OwnerBuilt()
 end
 
 function CleanerBST:OwnerIdle()
-	self:EchoDebug("nano idle:", self.id)
+	if self.DebugEnabled then
+		self:EchoDebug("nano idle:", self.id)
+	end
 	self:reset()
 	if self.unit:Internal():CurrentCommand() ~= CMD.PATROL then
 		self:Patroling()
@@ -52,7 +54,9 @@ end
 function CleanerBST:Priority() end
 
 function CleanerBST:Clean(targetId)
-	self:EchoDebug("clean:", targetId)
+	if self.DebugEnabled then
+		self:EchoDebug("clean:", targetId)
+	end
 	if self.unit:Internal():CurrentCommand() ~= CMD.RECLAIM then
 		self.ai.tool:GiveOrder(self.unit:Internal():ID(), CMD.RECLAIM, targetId, 0, "1-1")
 	end

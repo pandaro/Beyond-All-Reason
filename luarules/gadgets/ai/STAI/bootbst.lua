@@ -63,7 +63,9 @@ function BootBST:Update()
 			self.lastInFactoryCheck = f
 			self:FindMyFactory()
 			if self.factory then
-				self:EchoDebug(self.name .. " is in a factory")
+				if self.DebugEnabled then
+					self:EchoDebug(self.name .. " is in a factory")
+				end
 				self.unit:ElectBehaviour()
 			end
 		end
@@ -71,7 +73,9 @@ function BootBST:Update()
 end
 
 function BootBST:Activate()
-	self:EchoDebug("activated on " .. self.name)
+	if self.DebugEnabled then
+		self:EchoDebug("activated on " .. self.name)
+	end
 	self.active = true
 	if self.repairedBy then
 		self:SetMoveState()
@@ -81,7 +85,9 @@ function BootBST:Activate()
 end
 
 function BootBST:Deactivate()
-	self:EchoDebug("deactivated on " .. self.name)
+	if self.DebugEnabled then
+		self:EchoDebug("deactivated on " .. self.name)
+	end
 	self.active = false
 end
 
@@ -115,7 +121,9 @@ end
 function BootBST:ExitFactory(face)
 	local pos = self.factory.position
 	face = face or self.ai.buildingshst:GetFacing(pos)
-	self:EchoDebug(self.name .. " exiting " .. face)
+	if self.DebugEnabled then
+		self:EchoDebug(self.name .. " exiting " .. face)
+	end
 	local outX, outZ
 	if face == 0 then
 		outX = 0

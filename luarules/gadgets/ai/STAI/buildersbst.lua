@@ -23,7 +23,9 @@ function BuildersBST:Init()
 	end
 	self.role = self.ai.buildingshst:SetRole(self.id)
 	self.queue = self.ai.taskshst.roles[self.role]
-	self:EchoDebug(" initializing...")
+	if self.DebugEnabled then
+		self:EchoDebug(" initializing...")
+	end
 	self.unit:ElectBehaviour()
 end
 
@@ -109,15 +111,17 @@ function BuildersBST:Update()
 	end
 
 	if not self.sketch and not self.builder and self.failOut and self.assistant then
-		self:EchoDebug(
-			self.name,
-			"failout",
-			self.role,
-			self.failOut,
-			self.assistant,
-			game:GetUnitByID(self.assistant):GetPosition(),
-			game:GetUnitByID(self.assistant):Name()
-		)
+		if self.DebugEnabled then
+			self:EchoDebug(
+				self.name,
+				"failout",
+				self.role,
+				self.failOut,
+				self.assistant,
+				game:GetUnitByID(self.assistant):GetPosition(),
+				game:GetUnitByID(self.assistant):Name()
+			)
+		end
 
 		if f > self.failOut + 600 then --waiting frame before check again queue
 			self:EchoDebug(self.name, "failout reset")
@@ -140,7 +144,9 @@ function BuildersBST:Update()
 			self.ai.cleanhst.cleanableByID[self.id] = nil
 		else
 
-			self:EchoDebug("still trapped : clean", self.name, self.role, self.firstValidPos)
+			if self.DebugEnabled then
+				self:EchoDebug("still trapped : clean", self.name, self.role, self.firstValidPos)
+			end
 			if not self.ai.cleanhst.cleanableByID[self.id] and not self.ai.armyhst.commanderList[self.name] then
 				self.ai.cleanhst.cleanableByID[self.id] = self.id
 			end
@@ -178,7 +184,15 @@ function BuildersBST:Update()
 end
 
 function BuildersBST:CategoryEconFilter(cat, param, name)
-	self:EchoDebug(cat, name, self.role, self.ai.taskshst.roles[self.role][self.idx]:economy(), " (before econ filter)")
+	if self.DebugEnabled then
+		self:EchoDebug(
+			cat,
+			name,
+			self.role,
+			self.ai.taskshst.roles[self.role][self.idx]:economy(),
+			" (before econ filter)"
+		)
+	end
 	if not name or not param then
 		self:EchoDebug("ecofilter stop", name, cat, param)
 		return
@@ -191,7 +205,9 @@ function BuildersBST:CategoryEconFilter(cat, param, name)
 end
 
 function BuildersBST:specialFilter(cat, param, name)
-	self:EchoDebug(cat, name, self.role, " (before special filter)")
+	if self.DebugEnabled then
+		self:EchoDebug(cat, name, self.role, " (before special filter)")
+	end
 	if not name then
 		return
 	end
@@ -301,9 +317,13 @@ function BuildersBST:findPlace(utype, value, cat, loc)
 			if reclaimEnemyMex then
 				value = { "ReclaimEnemyMex", reclaimEnemyMex }
 			else
-				self:EchoDebug("extractor spot: " .. POS.x .. ", " .. POS.z)
+				if self.DebugEnabled then
+					self:EchoDebug("extractor spot: " .. POS.x .. ", " .. POS.z)
+				end
 				if uw then
-					self:EchoDebug("underwater extractor " .. uw:Name())
+					if self.DebugEnabled then
+						self:EchoDebug("underwater extractor " .. uw:Name())
+					end
 					utype = uw
 					value = uw:Name()
 				end
@@ -360,10 +380,14 @@ function BuildersBST:findPlace(utype, value, cat, loc)
 		end
 	end
 	if POS then
-		self:EchoDebug("found pos for .. ", value)
+		if self.DebugEnabled then
+			self:EchoDebug("found pos for .. ", value)
+		end
 		return utype, value, POS
 	else
-		self:EchoDebug("pos not found for .. ", value)
+		if self.DebugEnabled then
+			self:EchoDebug("pos not found for .. ", value)
+		end
 	end
 end
 
@@ -412,7 +436,9 @@ function BuildersBST:getOrder(builder, params)
 end
 
 function BuildersBST:ProgressQueue()
-	self:EchoDebug(self.name, " progress queue", self.role, self.idx, #self.queue)
+	if self.DebugEnabled then
+		self:EchoDebug(self.name, " progress queue", self.role, self.idx, #self.queue)
+	end
 
 	if self.isCommander then
 		self.role = self.ai.buildingshst:SetRole(self.id)
@@ -434,7 +460,9 @@ function BuildersBST:ProgressQueue()
 
 		self:EchoDebug("jobName", jobName)
 		if JOB and jobName then
-			self:EchoDebug(self.name, " filtering:", jobName)
+			if self.DebugEnabled then
+				self:EchoDebug(self.name, " filtering:", jobName)
+			end
 			local success = false
 			if JOB.special and jobName then
 				jobName = self:specialFilter(JOB.category, JOB.special, jobName)
@@ -455,7 +483,9 @@ function BuildersBST:ProgressQueue()
 			end
 			if jobName and utype and not p then
 				utype, jobName, p = self:findPlace(utype, jobName, JOB.category, JOB.location)
-				self:EchoDebug("find pos for:", jobName, "p", p)
+				if self.DebugEnabled then
+					self:EchoDebug("find pos for:", jobName, "p", p)
+				end
 			end
 			if jobName and not utype then
 				self:Warn(
@@ -468,7 +498,9 @@ function BuildersBST:ProgressQueue()
 				return
 			end
 			if not self.unit:Internal():CanBuild(utype) then
-				self:EchoDebug("WARNING: bad taskque: ", self.name, " cannot build ", jobName)
+				if self.DebugEnabled then
+					self:EchoDebug("WARNING: bad taskque: ", self.name, " cannot build ", jobName)
+				end
 				return
 			end
 			if utype and p then
@@ -485,7 +517,9 @@ function BuildersBST:ProgressQueue()
 				self.fails = 0
 				self.failOut = nil
 				self.assistant = false
-				self:EchoDebug(self.name, " successful build command for ", utype:Name())
+				if self.DebugEnabled then
+					self:EchoDebug(self.name, " successful build command for ", utype:Name())
+				end
 				return true
 			else
 				self.fails = self.fails + 1

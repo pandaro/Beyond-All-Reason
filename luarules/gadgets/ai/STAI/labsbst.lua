@@ -244,7 +244,9 @@ function LabsBST:getSoldierFromCategory(category) --we will take care about only
 end
 
 function LabsBST:ecoCheck(category, param, name, test)
-	self:EchoDebug(category, name, " (before eco check)")
+	if self.DebugEnabled then
+		self:EchoDebug(category, name, " (before eco check)")
+	end
 	if not name or not param then
 		self:EchoDebug("ecofilter stop", name, category, param)
 		return

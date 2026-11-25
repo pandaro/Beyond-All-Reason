@@ -13,13 +13,17 @@ function MexUpBST:Init()
 	self.lastFrame = self.game:Frame()
 	self.name = self.unit:Internal():Name()
 	self.id = self.unit:Internal():ID()
-	self:EchoDebug("MexUpBST: added to unit " .. self.name)
+	if self.DebugEnabled then
+		self:EchoDebug("MexUpBST: added to unit " .. self.name)
+	end
 end
 
 function MexUpBST:OwnerIdle()
 	if self:IsActive() then
 		local builder = self.unit:Internal()
-		self:EchoDebug("MexUpBST: unit " .. self.name .. " is idle")
+		if self.DebugEnabled then
+			self:EchoDebug("MexUpBST: unit " .. self.name .. " is idle")
+		end
 		-- maybe we've just finished a moho?
 		if self.mohoStarted then
 			self.mohoStarted = false
@@ -33,10 +37,14 @@ function MexUpBST:OwnerIdle()
 			self.active = true
 			self.mohoStarted = true
 			self.mexPos = nil
-			self:EchoDebug("MexUpBST: unit " .. self.name .. " starts building a Moho")
+			if self.DebugEnabled then
+				self:EchoDebug("MexUpBST: unit " .. self.name .. " starts building a Moho")
+			end
 		end
 		if not self.mohoStarted and (self.mexPos == nil) then
-			self:EchoDebug("MexUpBST: unit " .. self.name .. " restarts mex upgrade routine")
+			if self.DebugEnabled then
+				self:EchoDebug("MexUpBST: unit " .. self.name .. " restarts mex upgrade routine")
+			end
 			self:StartUpgradeProcess()
 		end
 	end
@@ -54,7 +62,9 @@ function MexUpBST:Update()
 end
 
 function MexUpBST:Activate()
-	self:EchoDebug("MexUpBST: active on unit " .. self.name)
+	if self.DebugEnabled then
+		self:EchoDebug("MexUpBST: active on unit " .. self.name)
+	end
 	self:StartUpgradeProcess()
 end
 
@@ -119,5 +129,7 @@ function MexUpBST:StartUpgradeProcess()
 		self.upType = upType
 	end
 	self.active = true
-	self:EchoDebug("MexUpBST: unit " .. self.name .. " goes to reclaim a mex")
+	if self.DebugEnabled then
+		self:EchoDebug("MexUpBST: unit " .. self.name .. " goes to reclaim a mex")
+	end
 end

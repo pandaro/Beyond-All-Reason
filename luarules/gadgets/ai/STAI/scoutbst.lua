@@ -36,7 +36,9 @@ function ScoutBST:Update()
 	self.position.x, self.position.y, self.position.z = self.unit:Internal():GetRawPos()
 	local X, Z = self.ai.gridhst:PosToGrid(self.position)
 	self.ai.scouthst:Scouted(X, Z)
-	self:EchoDebug("scout", self.id, "scoutCell", X, Z, game:Frame())
+	if self.DebugEnabled then
+		self:EchoDebug("scout", self.id, "scoutCell", X, Z, game:Frame())
+	end
 	local _, _, _, _, buildProgress, relativeHealth = self.unit:Internal():GetHealtsParams()
 	if relativeHealth < 0.90 and buildProgress == 1 and not self.attacking then
 		self:Evading()
@@ -53,12 +55,16 @@ function ScoutBST:Update()
 		return
 	end
 	if not self.target and not self.attacking and not self.avoiding then
-		self:EchoDebug("no scout target for:", self.id)
+		if self.DebugEnabled then
+			self:EchoDebug("no scout target for:", self.id)
+		end
 		self.target = self.ai.scouthst:ClosestSpot2(self)
 	end
 	if self.target then
 		local X, Z = self.ai.gridhst:PosToGrid(self.target)
-		self:EchoDebug(self.id, "target:", self.target, X, Z)
+		if self.DebugEnabled then
+			self:EchoDebug(self.id, "target:", self.target, X, Z)
+		end
 		if not self.ai.scouthst:TargetAvailable(X, Z, self.id) then
 			self.target = nil
 			return
@@ -75,11 +81,15 @@ function ScoutBST:Priority()
 end
 
 function ScoutBST:Activate()
-	self:EchoDebug("activated on " .. self.name)
+	if self.DebugEnabled then
+		self:EchoDebug("activated on " .. self.name)
+	end
 end
 
 function ScoutBST:Deactivate()
-	self:EchoDebug("deactivated on " .. self.name)
+	if self.DebugEnabled then
+		self:EchoDebug("deactivated on " .. self.name)
+	end
 	self.target = nil
 	self.evading = nil
 	self.attacking = nil
