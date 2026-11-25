@@ -97,7 +97,7 @@ function Toolbox:tableConcat(tables)
 	local T = {}
 	for index, t in pairs(tables) do
 		for k, value in pairs(t) do
-			table.insert(T, -1, value) --WARNING: position -1 keeps the last two values out of the array part and reverses the order
+			table.insert(T, value)
 		end
 	end
 	return T
