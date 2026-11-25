@@ -26,7 +26,7 @@ function MapHST:Init()
 	self:createGrid()
 	self.METALS = map:GetMetalSpots()
 	self.GEOS = map:GetGeoSpots()
-	self.METALS = self:SimplifyMetalSpots(self.ai.gridhst.gridSize * 2) -- is a random choice, can be 1 or 9999999999
+	self.METALS = self:SimplifyMetalSpots(512) --elmos, one spot per square of this side; a random choice, can be 1 or 9999999999
 	self.allSpots = Toolbox:tableConcat({ self.METALS, self.GEOS })
 	self.hotSpots = {}
 	self:hotSpotter()
