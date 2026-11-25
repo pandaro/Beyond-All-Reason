@@ -19,44 +19,38 @@
 
 ## Compito attuale
 
-### S11: difetti di tattica e codice morto (punto 19)
+### S12a: preparazione degli ambiti d'alleanza (gioco invariato)
 
-**Impegno: medio.** Approvato dall'utente il 25 novembre 2026, con le sue scelte: via `NearbyVulnerable`, via `GetPathModifierFunc`, `CENTER` resta la posizione del comandante finché non ci sono edifici. **Un commit e un test busted (con mutazioni) per difetto**; tre partite A per il gruppo, con il codice finale. **Stile**: `nuovo-stai.md` §7.
+**Impegno: alto.** Approvato dall'utente il 25 novembre 2026, con le sue scelte: via `isDamaged` (e quello che serve solo a lui); `TablePool` del framework per i blob; `CENTER` resta sull'ultimo centro se si perdono tutti gli edifici. Scopo: `LosHST`, `TargetHST`, `DamageHST` non devono più usare cose di squadra (`self.ai.id`, `game:GetTeamID()`, moduli `"team"` come `Tool`, campi scritti su `self.ai`), così in S12b diventano `"ally"` cambiando solo `Scope()`. **Restano `"team"` in questo compito.** **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7. Regola del framework (`drafts/README.md`, «Scopes»): un modulo ally vede moduli ally e global, non team; `self.ai` è lo `ShardAlly` (`allyId`, `AIs`).
 
-**1. `CELL.base` di `ENEMY` mai azzerato** (`loshst.lua`)
+**1. `CENTER` e `ownImmobile` passano in `BuildingsHST`** (team)
 
-- `setCellLos` (r. 359 circa) scrive `CELL.base = unit.name` per le fabbriche; `LosHST.resetCell` non lo azzera: una cella che ha visto una fabbrica resta «base» anche quando la cella si riusa per altri nemici. Lo legge `TargetHST` (r. 119, `enemyBasePosition`). **Il gioco cambia.**
-- In `resetCell`: `CELL.base = nil`, con i campi vicini e un commento a fine riga.
-- Test in `loshst_spec.lua`: cella con fabbrica, `Clear`, cella riusata senza fabbrica → `base` nil.
+- Da `LosHST`: `ownImmobile` (`Init` r. 20, `UnitDead` r. 116–117, `UnitCreated` r. 120–124) e `getCenter` (nella forma di S11) → `BuildingsHST` (`Init`, `UnitCreated`, `UnitDead`, che ci sono già). `LosHST:UnitCreated` sparisce se resta vuota.
+- `CommanderBST:Init` r. 13: oggi `self.ai.loshst.CENTER = self.position` (la stessa tabella). Diventa `self.ai.buildingshst.CENTER`, **una tabella sua** con `x`, `y`, `z` copiati (decisione dell'utente: posizione del comandante finché non ci sono edifici).
+- Lettori: `attackhst.lua` r. 327, `raidhst.lua` r. 398 → `self.ai.buildingshst.CENTER`. `LosHST:Draw` r. 461 (punto «BASE») → nel disegno di `BuildingsHST` (r. 699) o via; scrivilo.
+- Senza edifici `getCenter` esce senza toccare `CENTER` (come in S11): se si perdono tutti gli edifici resta sull'ultimo centro (decisione dell'utente: com'era).
 
-**2. `LosHST:getCenter` divide per zero** (`loshst.lua` r. 164–183)
+**2. `needAntiAir`** — `LosHST:setPosLayer2` r. 152 scrive `self.ai.needAntiAir` (in ally sarebbe lo `ShardAlly`). Diventa un campo di `LosHST` (`self.needAntiAir`, inizializzato in `Init`); lettori `buildersbst.lua` r. 231–235 e `labsbst.lua` r. 225 → `self.ai.loshst.needAntiAir`.
 
-- Senza edifici propri (`ownImmobile` vuoto) `CENTER` diventa NaN (lo leggono `AttackHST:SquadsTargetPrevent2` e `RaidHST`). Correzione (decisione dell'utente): somme in locali; con `count == 0` uscita senza toccare `CENTER`, che all'inizio è la posizione del comandante (`CommanderBST:Init`); con `count > 0` `CENTER` come oggi. Da sapere, non da fare qui: se più tardi si perdono tutti gli edifici, `CENTER` resta sull'ultimo centro; e `CommanderBST:Init` assegna a `CENTER` la stessa tabella di `self.position` (`getCenter` poi scrive dentro la posizione del comandante, che oggi nessuno rilegge). Tutte e due passano in S12a con `CENTER`.
-- Test: `ownImmobile` vuoto → `CENTER` uguale a prima, nessun NaN.
+**3. `friendlyTeamID`** — scritto vuoto da `LosHST:Init` r. 22 e mai riempito; letto solo da `DamageHST:UnitDamaged` r. 23 (sempre falso). Via tutti e due; la condizione diventa `teamID ~= self.ai.id` (stesso effetto di `game:GetTeamID()` oggi). In S12b questa riga è il punto da decidere (danni dei soli propri o di tutta l'alleanza). Nell'indice.
 
-**3. `DamageHST:UnitDamaged`: `defId` del difensore e `attackerut` nil** (`damagehst.lua` r. 34–49)
+**4. Via `isDamaged` di `DamageHST`** (decisione dell'utente: togliere quello che non serve) — lo legge solo `VisualDBG` (r. 140). Via il campo (`Init` r. 17, `UnitDamaged` r. 28), `UpdateDamagedUnits` (e la chiamata in `Update`), `DamageHST:UnitDead` se resta vuota, la parte di `VisualDBG` che lo disegna. Prima di togliere, grep in tutto `luarules/` e `spec/`; nell'indice.
 
-- r. 41: `losEnemy[attacker:ID()] = defenderUt.defId` → `attackerut.defId`.
-- r. 36: `attackerut.metalCost` è letto prima di `if attackerut`: con un attaccante fuori da `unitTable` va in errore. Spostare il controllo prima della lettura (`attackerut and attackerut.metalCost or damage or 100`, o uscita anticipata: scegli il più leggibile), senza cambiare il resto.
-- Test: attaccante edificio → `losEnemy` ha il `defId` dell'attaccante; attaccante sconosciuto → nessun errore, `AddBadPosition` chiamata come oggi.
+**5. `TargetHST` senza `self.ai.tool`**
 
-**4. Globali in `LosHST:Draw`** (`loshst.lua` r. 476–479): `posG`, `posS`, `posB`, `posA` → `local`. Solo disegno; niente test (controllo con EmmyLua).
+- `COLOURS` (`targethst.lua` r. 159, `damagehst.lua` r. 139): la tabella dei colori passa in `Toolbox` (`Toolbox.COLOURS`); `Tool.COLOURS` resta come riferimento alla stessa tabella per gli altri lettori.
+- `RezTable`/`ResetTable` dei blob (r. 37, 74–84): `TablePool` del framework (`shard_include("tablepool")`, `TablePool.New()` in `Init`, `Get`/`Release`; decisione dell'utente). Il ritorno dei blob deve rendere **anche le tabelle dentro** (`position`, `cells` e le sue `cellCoord`, `units`, `targetCell`), come faceva `KillTable`.
+- Dopo: nei tre file nessun `self.ai.tool`, `self.ai.id`, `game:GetTeamID()`, `self.ai.<campo>` scritto (grep nei risultati). `self.ai.drawDebug` letto da `LosHST`, `TargetHST`, `DamageHST`: scrivi se c'è su `ShardAlly`; se no, segnalalo (non toccare il framework).
 
-**5. Codice morto** (nell'indice `codice-tolto.md`):
-- `AttackHST:SquadAttackbackup` (r. 532, mai chiamata) e la vecchia `SquadAttack` commentata in fondo a `attackhst.lua` (blocco `--[[` da r. 564);
-- `TargetHST:NearbyVulnerable` (mai chiamata; leggeva `armed`/`unarm` al posto di `ARMED`/`UNARM`);
-- `TargetHST:GetPathModifierFunc`, `pathModifierFuncs`, `pathModParam` (mai chiamata; i due campi stanno in `TargetHST:Init` r. 20–21).
-Grep in tutto `luarules/` e `spec/` prima di togliere.
+**6. Prova**: test busted per `getCenter` in `BuildingsHST` (senza edifici = posizione del comandante, non la stessa tabella di `CommanderBST.position`; con edifici = media) e per il ritorno dei blob alla riserva. Prova nella stessa partita (partita C, 15 minuti, `Echo` non committati): a ogni `Update` di `TargetHST` i blob nuovi contro quelli calcolati con il codice della base (numero, `metal`, `position`, `targetCell`, insiemi di `units`, confronto per `blobref`); a ogni `getCenter` il `CENTER` nuovo contro quello della base. Atteso 0 differenze; se ce ne sono, **fermati**. Poi **una** partita A.
 
-**Partite**: tre partite A con il codice finale (confronto con S10, S9, S8b, S1). Se una partita va sotto i riferimenti, scrivilo e non tentare correzioni.
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati con la base), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
-
-**Commit**, in inglese: uno per ciascun punto 1–4 (con il suo test); uno per il codice morto; uno per l'indice e i risultati.
+**Commit**, in inglese: uno per punto (1–5); uno per l'indice e i risultati.
 
 ## Risultati
 
-### S11 (agente locale, 25 novembre 2026)
+### S11 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il `git commit -a` del punto 4 senza la skill `submodule-pointer` è controllato (solo `loshst.lua`): la prossima volta passare dalla skill
 
 **In breve**: i quattro difetti corretti (un commit ciascuno, un test per i punti 1–3, ogni test nuovo fallisce sul codice di base) e il codice morto tolto in un commit, con l'indice aggiornato. Le tre partite A, con il codice finale, stanno tutte dentro i riferimenti di S1 e vicino a S8b; nessun errore del loader.
 

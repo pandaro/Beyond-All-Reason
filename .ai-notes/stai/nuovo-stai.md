@@ -69,6 +69,8 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 
 Decisione del 25 novembre 2026 (utente): S8 diviso in **S8a** (strato `ENEMY`, via `OWN`, `ALLY`, `ALLIES` mai riempite e il resto che non serve) e **S8b** (percezione).
 
+Decisioni del 25 novembre 2026 (utente, per S12a): `CENTER` e `ownImmobile` in `BuildingsHST`; via `isDamaged` di `DamageHST` e quello che serve solo a lui («togli quello che non serve»); la riserva dei blob di `TargetHST` usa `TablePool` del framework («almeno le abbiamo per qualcosa»); se si perdono tutti gli edifici `CENTER` resta sull'ultimo centro («lascialo com'era»). Trovato dal coordinatore: `friendlyTeamID` è creato vuoto e mai riempito (in S12a si toglie; in S12b va deciso se `DamageHST` conta i danni di tutta l'alleanza).
+
 Decisioni del 25 novembre 2026 (utente, dopo S10): via `TargetHST:NearbyVulnerable` e `TargetHST:GetPathModifierFunc` (codice morto, in S11); `CENTER` di `LosHST` è la posizione del comandante finché non ci sono edifici.
 
 Decisioni del 25 novembre 2026 (utente, dopo S8b), sui consigli del coordinatore:
@@ -94,7 +96,7 @@ Piano del 25 novembre 2026, dopo S8b (proposto dal coordinatore, approvato dall'
 
 - **S9** (verificato) strati che durano: `GridLayer:Unmark`, `DAMAGED` (`DamageHST`) e `SCOUTED` (`ScoutHST`, scritto solo dal padrone); via `areaGridCells`/`getGridCellsFields`. Gioco invariato, prova nella stessa partita.
 - **S10** (verificato) difetti della mappa e della griglia (punto 15): `metalScan`/`geoScan` (`return` su cella mancante), `SimplifyMetalSpots`, `RawPosIsInMap`, `unarmAI = unarmAM + M` (e `SI`, `GI`) in `setCellLos`/`setCellRadar`; via `ArmyHST.UWMetalSpotCheckUnit`. Tre partite A.
-- **S11** difetti di tattica (punto 19): `CELL.base` mai azzerato, `NearbyVulnerable` (chiavi `ARMED`/`UNARM`), `getCenter` NaN, globali in `LosHST:Draw`, `defId` del difensore in `DamageHST`; via `SquadAttackbackup` e la vecchia `SquadAttack` commentata di `AttackHST`. Tre partite A.
+- **S11** (verificato) difetti di tattica (punto 19): `CELL.base` mai azzerato, `NearbyVulnerable` (chiavi `ARMED`/`UNARM`), `getCenter` NaN, globali in `LosHST:Draw`, `defId` del difensore in `DamageHST`; via `SquadAttackbackup` e la vecchia `SquadAttack` commentata di `AttackHST`. Tre partite A.
 - **S12a** preparazione degli ambiti d'alleanza (gioco invariato): fuori da `LosHST`, `TargetHST`, `DamageHST` le cose di squadra — `CENTER` (scritto anche da `CommanderBST`, che gli assegna la stessa tabella di `self.position`; decisione del 25 novembre 2026 (utente): posizione del comandante finché non ci sono edifici) e `ownImmobile`, `self.ai.id`, `needAntiAir` in `LosHST`; `self.ai.tool` (8 volte in `TargetHST`, `RezTable`: `Toolbox` o `TablePool`); `isDamaged` di `DamageHST` (lo usa solo il debug). **S12b** `LosHST`, `TargetHST`, `DamageHST` `"ally"`, `friendlyTeamID` su `ShardAlly`; prova con una partita B (due STAI nella stessa alleanza). Impegno extra.
 - **S13** elezione (punto 7): prima `BootBST` (priorità zero), `CleanerBST` (priorità vuota), i behaviour che agiscono in `Activate`; poi partite con `legacyElection = false` contro quelle di oggi.
 - Dopo, da ordinare: `EchoDebug` costoso (punto 11), ordini grandi (punto 10), `shard_null` (punto 12), `gridSize` 128 (§5b), `ShardMemStats` autocontenuto.
