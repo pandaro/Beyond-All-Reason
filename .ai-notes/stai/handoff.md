@@ -53,8 +53,8 @@
 
 **Commit**
 
-- `606b509498` «STAI: load the runtime's PerceptionHandler in the ally scope»: `shard_include("perceptionhandler")` (dopo `tool`) e `PerceptionHandler` nella lista subito dopo `MapHST` (prima i globali, poi l'alleanza, poi i team). Il `shard_include` di STAI ricade sul runtime (`shard_generate_include_func(RUNTIME_PATH, AI_PATH .. aiName, env)`), quindi niente file in `STAI/`.
-- `ec4da06c64` «STAI LosHST: keep a mobile unit that leaves the los on radar as a ghost»: `loshst.lua` e il test nuovo `loshst_spec.lua`.
+- `c8f47e8677` «STAI: load the runtime's PerceptionHandler in the ally scope»: `shard_include("perceptionhandler")` (dopo `tool`) e `PerceptionHandler` nella lista subito dopo `MapHST` (prima i globali, poi l'alleanza, poi i team). Il `shard_include` di STAI ricade sul runtime (`shard_generate_include_func(RUNTIME_PATH, AI_PATH .. aiName, env)`), quindi niente file in `STAI/`.
+- `9d87d53c19` «STAI LosHST: keep a mobile unit that leaves the los on radar as a ghost»: `loshst.lua` e il test nuovo `loshst_spec.lua`.
 - Un commit per questi risultati.
 
 **1. Una istanza, eventi prima di `LosHST`**
@@ -104,7 +104,7 @@
 - «keeps a mobile unit that leaves the los while on radar as a ghost of its type»; «forgets a mobile unit that leaves the los off radar»; «moves a ghost back to the los when it enters the los again»; «forgets a ghost when it leaves the radar, or dies» (`UnitLeftRadar` e `cleanEnemy`); «keeps a building that leaves the los in the los, on radar or not»; «marks a ghost in the cell of its radar position as a unit of known type» (`Update` con `setCellLos`/`setCellRadar` registrati; c'è anche un'unità di un'altra alleanza, che resta fuori).
 - Mutazioni, ognuna fa fallire almeno un test: `loshst.lua` della base (1 fallito, 5 in errore: anche il test degli edifici, che legge `ghostEnemy`); ombra mai fatta (2); ombra sempre, senza `OnRadar` (1); `UnitEnteredLos` che lascia l'ombra (1); `UnitLeftRadar` che la lascia (1); `cleanEnemy` che la lascia (1); ombra segnata con `setCellRadar` (1). Col codice giusto 2757 successi, 0 falliti.
 
-**Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice `ec4da06c64` più la patch di misura, uscita 0 tutte e tre)
+**Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice `9d87d53c19` più la patch di misura, uscita 0 tutte e tre)
 
 | | partita 1 | partita 2 | partita 3 | S8a | S6 | S1 (intervallo) |
 | --- | --- | --- | --- | --- | --- | --- |
