@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della prima chat del coordinatore del porting. Per riprendere: leggere questo file, `nuovo-stai.md` (§4 decisioni, §5 ordine, §5b numeri da provare, §7 stile) e i risultati in fondo a `handoff.md`; se l'utente dice «fatto», verificare S5. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -70,8 +70,9 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S3 | pulizia di `MapHST`: codice morto, `ClosestFreeMex` e `trampled` in `BuildingsHST`; gioco invariato (prova con le stesse righe prima e dopo) — verificato (`maphst.lua` da 1184 a 623 righe) |
 | S4a | `GridHST`: geometria (misura della cella in un solo punto, 256), `CELLS` per indice, funzioni di griglia spostate da `MapHST`; gioco invariato — verificato (test busted, 12 mutazioni; `maphst.lua` 488 righe) |
 | S4b | strati (`NewLayer(resetCell)`, `Get`, `Mark`, `Clear`), `MapHST.GRID` come primo strato per indice, lettori di `X`/`Z`/`POS` sulla geometria; gioco invariato — verificato (classe `GridLayer`, 16 mutazioni; `topology` tolto) |
+| S5 | `Tool`: libreria `Toolbox` (matematica senza stato), modulo di team per il resto, via 16 funzioni mai chiamate; `MapHST` usa già `Toolbox`; indice `codice-tolto.md` — scritto, da eseguire |
 
-**Piano proposto per il 26 novembre 2026** (da confermare con l'utente; nessun compito scritto):
+**Piano per il 26 novembre 2026** (concordato con l'utente il 25 novembre; S5 già scritto):
 
 1. S5 — `Tool`: libreria della matematica, modulo di team per gli attrezzi di squadra, via le funzioni mai chiamate; `codice-tolto.md` con l'indice di quello tolto in S3, S4b e S5. Gioco invariato.
 2. S6 — ambiti globali: `ArmyHST`, `GridHST`, `MapHST` `"global"` (l'analisi della mappa una volta per partita). Gioco invariato.

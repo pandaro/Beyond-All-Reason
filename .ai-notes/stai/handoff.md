@@ -19,49 +19,32 @@
 
 ## Compito attuale
 
-### S4b: gli strati, e `MapHST` come primo strato
+### S5: `Tool` diviso in libreria e modulo di team; indice del codice tolto
 
-**Impegno: alto.** Seconda metà di `GridHST` (`nuovo-stai.md` punto 5). **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7.
+**Impegno: alto.** Decisioni dell'utente del 25 novembre 2026 (`nuovo-stai.md` §4 n. 6 e 8). Serve a S6: `MapHST` diventerà `"global"` e non potrà più usare un modulo di team. **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7.
 
-**1. Lo strato, in `gridhst.lua`**
+**1. La libreria: file nuovo `STAI/toolbox.lua`, tabella `Toolbox`** (nome proposto dal coordinatore; l'utente può cambiarlo)
 
-- `self.ai.gridhst:NewLayer(resetCell)` restituisce uno strato con:
-  - `CELLS` — `i -> dati della cella` del padrone, creati quando servono;
-  - `LIST` — array con gli indici delle celle vere, in ordine di arrivo;
-  - un segno interno per non mettere due volte lo stesso indice in `LIST`;
-  - `resetCell` — la funzione di azzeramento del padrone (`function(CELL) ... end`), facoltativa.
-- Metodi (decisi dall'utente, nomi compresi):
-  - `layer:Get(i)` — restituisce `CELLS[i]`; se manca la crea (`{}`) e, se c'è `resetCell`, la passa a `resetCell` una volta. **Non segna.**
-  - `layer:Mark(i)` — mette `i` in `LIST` se non c'è già.
-  - `layer:Clear()` — per ogni `i` di `LIST`: `resetCell(CELLS[i])` (se c'è), toglie il segno; poi svuota `LIST` **senza creare una tabella nuova**. Le tabelle delle celle restano e si riusano.
-  - leggere senza creare: `layer.CELLS[i]` (può essere `nil`).
-- Forma: una piccola classe `GridLayer` in `gridhst.lua` con `class()` del framework, oppure tabelle con funzioni; scegli quella più simile al resto di STAI e scrivi perché.
-- In più in `GridHST`: `PosToCell(pos)` e `RawPosToCell(x, z)` → la cella di `self.CELLS` (geometria) o `nil` fuori dalla griglia.
+- Ci vanno le funzioni di `tool.lua` che **non hanno stato e non toccano il gioco**: niente `self.<campo>`, niente `self.ai`, `self.game`, `game`, `map`, `Spring`. Dalla lettura del coordinatore: `RawDistance`, `DISTANCE`, `distance`, `AngleAdd`, `AngleAtoB`, `PositionWithinRect`, `RectsOverlap`, `pairsByKeys`, `tableSorting`, `sortByDistance`, `listHasValue`, `gcd`, `tableConcat`, `TableToString`, `StringToTable` (ricontrolla ognuna con questa regola).
+- Restano in `Tool` (modulo `"team"`): quelle con stato o che toccano il gioco — `RezTable`, `KillTable`, `ResetTable` (pool per team), `GiveOrder`, `RandomAway`, `RandomAway2`, `getTeamUnitsByClass`, `countFinished`, `countMyUnit`, `mtypedLvCount`, `UnitPos`, `HorizontalLine`, `Plot4`, e ogni altra che non passa la regola.
+- Le funzioni della libreria si scrivono con i due punti come oggi (`function Toolbox:distance(POS1, POS2)`): stesso corpo, stesso commento. Al posto di `self:altraFunzione` dentro la libreria resta `self:` (il `self` è `Toolbox`).
+- **I chiamanti di oggi non cambiano**: `self.ai.tool:distance(...)` deve continuare a funzionare. `Tool` prende le funzioni della libreria senza copiarne il codice (per esempio riferimenti assegnati una volta, o `__index`): scegli la forma più semplice e leggibile, e controlla che una funzione della libreria chiamata come `self.ai.tool:distance` non usi niente di `Tool`.
+- **Solo `MapHST`** passa già alla libreria: `self.ai.tool:RawDistance` / `distance` / `gcd` / `tableConcat` (8 chiamate) → `Toolbox:…`. Dopo, `maphst.lua` non deve avere `self.ai.tool`.
+- Come si condivide fra ambiti: controlla come `shard_include` carica i file di STAI (ambiente dell'AI, una volta per tipo o per istanza) e scrivi nei risultati se `Toolbox` è una sola tabella per tutte le STAI. Deve esserlo, o almeno non avere stato: per questo la regola sopra.
 
-**2. `MapHST.GRID` diventa uno strato per indice**
+**2. Via le funzioni di `Tool` mai chiamate**: `StoreOrder`, `SerializeOrder`, `DeserializeOrder`, `TableToStringBackup`, `sumPos`, `MiddleOfTwo`, `ApplyVector`, `AnglePosPos`, `CheckRect`, `sortByValue`, `reverseSortByValue`, `listHasKey`, `dictHasKey`, `WhatHurtsUnit`, `FillCircle`, `SimplifyPath`. Ricontrolla con grep in tutto il repository (anche `local tool = self.ai.tool` e chiamate interne con `self:`) prima di togliere ciascuna. Se una è usata, lasciala e scrivilo.
 
-- `self.GRID = self.ai.gridhst:NewLayer()` (nome tenuto: è il tuo), senza `resetCell` (è fisso, non si azzera mai). `createGrid` crea con `Get(i)` tutte le celle, **nell'ordine di oggi** (`i` da 1 a `gridArea` è lo stesso ordine di `X` fuori, `Z` dentro). La cella di `MapHST` tiene **solo i suoi dati**: `moveLayers`, `metalSpots`, `geoSpots`, `allSpots`; `X`, `Z`, `POS` si leggono da `self.ai.gridhst.CELLS[i]`. Se `allSpots` della cella non lo legge nessuno, scrivilo nei risultati (non toglierlo qui).
-- Dentro `MapHST` (`gridAnalisy`, `TopologyFooded`, `metalScan`, `geoScan`, `MobilityNetworkHere`, `DrawDebug`) si passa all'indice. `TopologyFooded` resta ricorsivo e uguale nella logica; i vicini si possono calcolare da `X`, `Z` come oggi (i bordi sono più chiari così).
-- `self.topology`: dopo S3 nessuno lo legge più (lo usava solo `GetPathGraph`): toglilo, con le sue scritture in `moveLayerTest` e `TopologyFooded`. Ricontrolla con grep prima.
+**3. Indice del codice tolto: `.ai-notes/stai/codice-tolto.md`** (decisione dell'utente: si toglie, si tiene l'indice). Una tabella: nome, file d'origine, commit che l'ha tolto, una riga su cosa faceva. Dentro: quello tolto in S2 (`schedulerHST.lua`), S3 (`maphst.lua` e righe commentate di `attackhst`, `raidhst`, `damagehst`), S4a (`GridToNodeIndex`), S4b (`topology`) e S5. In testa come si riprende: `git show <commit>^:<file>`. Commit con `git add -f`.
 
-**3. Chi legge `maphst.GRID` solo per `X`, `Z`, `POS` passa alla geometria di `GridHST`**
+**4. Prova che il gioco non cambia**: le stesse righe `[S3-PROOF]` di S4b col codice di partenza e col nuovo (`c_stai_vs_stai.txt`, 2 minuti): identiche. Se cambiano, **fermati**.
 
-- `attackhst.lua` e `raidhst.lua` `Watchdog`: `GetCell(squad.position, self.ai.maphst.GRID)` → `self.ai.gridhst:PosToCell(squad.position)`; il confronto `X`/`Z` resta com'è.
-- `raidhst.lua` r. 379: stessa cosa (usa `POS`, `X`, `Z`).
-- `buildingshst.lua` r. 856: `self.ai.maphst.GRID[X][Z].POS` → `self.ai.gridhst.CELLS[self.ai.gridhst:GridToIndex(X, Z)].POS`.
-- `loshst.lua` r. 282: `CELL.POS = self.ai.maphst.GRID[X][Z].POS` → dalla geometria.
-- `scouthst.lua` r. 40 `PerimetralCells`: scorre `self.ai.gridhst.CELLS` per indice (stesso ordine) e usa `CELL.X`, `CELL.Z`, `CELL.POS`.
-- Alla fine nessun `maphst.GRID` fuori da `maphst.lua`.
-
-**4. Test busted** (nel file di S4a): `Get` crea una volta sola e chiama `resetCell` alla creazione; `Mark` due volte → un solo indice in `LIST`; `Clear` chiama `resetCell` solo sulle celle della lista, svuota `LIST`, **la stessa tabella** `LIST` e le stesse tabelle delle celle dopo (`rawequal`); dopo `Clear` una cella si può segnare di nuovo; `PosToCell` fuori dalla griglia → `nil`. Mutazioni.
-
-**5. Prova che il gioco non cambia**: le stesse righe di S4a (`[S3-PROOF]`), col codice di partenza e col codice nuovo, `c_stai_vs_stai.txt` di 2 minuti: identiche. Se cambiano, **fermati**.
+**Test**: se `Toolbox` si carica da solo come `GridHST` nel suo test, un test busted di poche funzioni (`distance`, `RawDistance`, `gcd`, `tableConcat`, `sortByDistance`) con mutazioni; altrimenti scrivi perché.
 
 **Partite**: oltre alla prova, una partita C di 15 minuti.
 
-**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (nessun errore nuovo; per gli avvisi confronta solo i file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno per lo strato in `GridHST` con i test, uno per `MapHST` e i lettori, uno per i risultati.
+**Commit**, in inglese: uno per la libreria e `MapHST`, uno per le funzioni tolte, uno per l'indice e i risultati.
 
 ## Risultati
 
