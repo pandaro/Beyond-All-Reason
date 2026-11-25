@@ -43,6 +43,7 @@ Messaggio d'avvio per la chat:
 - **Le decisioni aperte** (`nuovo-stai.md` §4) le prende l'utente: il coordinatore presenta le opzioni in modo semplice, con un consiglio motivato, e aspetta.
 - **La griglia** (punto 5) non si tocca prima di averne parlato con l'utente. Decisa il 25 novembre 2026: una geometria (`GridHST`), tanti strati.
 - **Stile di STAI** (`nuovo-stai.md` §7): ogni compito lo richiama; il codice nuovo o spostato deve sembrare scritto dall'utente.
+- **Niente opzioni in `springsettings.cfg`** (utente, 25 novembre 2026): il framework e le AI devono essere autocontenuti.
 - Una decisione cambiata si scrive come «Decisione del <data> (utente)» accanto al testo vecchio, che resta come storia.
 
 ## 4. Dove sta ogni cosa
@@ -74,7 +75,8 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S6 | `ArmyHST`, `GridHST`, `MapHST` `"global"` (gioco invariato); commento di `outbox.lua` (commit «Shard …»); `tableConcat` corretta (il gioco cambia: tre partite A) — verificato (righe `[S3-PROOF]` uguali e una volta sola, `global`; tre partite A dentro i riferimenti: 155–178 unità, 26–33 mex) |
 | S7 | `collect` alla fine di `StartAIs` (commit «Shard …»), via quella di `MapHST`; `DrawDebug` controlla `drawDebug` prima di `EraseAll`; gioco invariato — verificato (righe `[S3-PROOF]` identiche; `collect` 13 ms una volta all'avvio, con guardia `next(fresh)`) |
 | S8a | strato `ENEMY` di `LosHST` in `GridHST`, `GridLayer:GetMarked`; via `OWN`, `ALLY`, `ALLIES`, pool e campi morti; il gioco cambia solo per l'ordine: tre partite A — verificato (prova nella stessa partita: 0 differenze cella per cella; tre partite A sopra S6: 178–202 unità, 34–38 mex; picco di memoria 218 KB) |
-| S8b | percezione: `LosHST` sopra `PerceptionHandler` (memoria come un giocatore); tre partite A — da scrivere |
+| S8s | seme fisso: saltato dall'utente (25 novembre 2026) per risparmiare token; le prove «gioco invariato» si fanno nella stessa partita (come S8a) |
+| S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — scritto, da eseguire |
 
 **Piano per il 26 novembre 2026** (concordato con l'utente il 25 novembre; S5 già scritto):
 

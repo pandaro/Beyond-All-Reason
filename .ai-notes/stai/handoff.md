@@ -19,38 +19,31 @@
 
 ## Compito attuale
 
-### S8a: strato `ENEMY` di `LosHST` in `GridHST`; via `OWN`, `ALLY`, `ALLIES` e il pool
+### S8b: percezione, `LosHST` sopra `PerceptionHandler`
 
-**Impegno: alto.** Decisioni dell'utente del 25 novembre 2026: una geometria, tanti strati (`nuovo-stai.md` §3 punto 5); S8 diviso in S8a (strato) e S8b (percezione); «togli quello che non serve» (`OWN`, `ALLY`, `ALLIES` e il resto morto di `LosHST`). **Stile**: `nuovo-stai.md` §7. **La percezione non cambia** (`UnitEnteredLos`, `losEnemy`, `radarEnemy` …: sono di S8b). Il gioco cambia solo per l'ordine fisso delle celle al posto di `pairs`: tre partite A.
+**Impegno: alto.** Decisioni dell'utente del 25 novembre 2026 (`nuovo-stai.md` §4 n. 2): **STAI non bara**; `PerceptionHandler` dà i fatti dell'engine (los, radar), `LosHST` tiene la memoria come un giocatore. L'utente ha anche approvato le funzioni tolte in più in S8a (`viewPos`, `posInLos`, `setPosLayer`, righe commentate, `getCenter` doppio). **Il gioco cambia.** **Stile**: `nuovo-stai.md` §7. Restano fuori: ambiti d'alleanza (`LosHST` resta `"team"`, `friendlyTeamID` com'è), `UnitDead` che sa sempre chi muore, la `DamageHST` r. 41 (chi spara si vede: resta).
 
-**1. `GridLayer`: lettura delle celle vere**
+**1. `PerceptionHandler` in STAI**: `shard_include("perceptionhandler")` e `PerceptionHandler` in `modules.lua` (il file del runtime, ambito `"ally"`), come fa `Shard/modules.lua`. Controlla nei log che ci sia una sola istanza per alleanza e che riceva gli eventi **prima** di `LosHST` (ordine global → ally → team).
 
-- Oggi «la cella `ENEMY[X][Z]` esiste» vuol dire «è vera in questo giro». Con lo strato la cella resta dopo `Clear`: chi legge deve chiedere se è **segnata**. Aggiungi a `GridLayer` un metodo che restituisce la cella se l'indice è nella lista e `nil` se no (nome proposto: `GridLayer:GetMarked(i)`; `marked` resta interno). Test busted con mutazioni.
-- `GridHST:GetCell`, `areaCells`, `getCellsFields` oggi prendono una griglia `[X][Z]`. `DamageHST.DAMAGED` (`targethst.lua` r. 170) resta `[X][Z]` fino al suo strato: scegli la forma più semplice e leggibile perché le tre funzioni servano lo strato `ENEMY` e, finché c'è, `DAMAGED` (per esempio funzioni sorelle per gli strati, da togliere quando `DAMAGED` diventa uno strato). **Attenzione ai bordi**: con l'indice, `X ± 1` fuori dalla griglia cade su un'altra cella; prima di `GridToIndex` serve `IsCellInGrid` (oggi `grid[x]` `nil` fermava tutto). Vale anche per `TargetHST:Blobbing`, che è ricorsiva e va oltre i bordi.
+**2. La memoria di `LosHST`: le «ombre»**
 
-**2. `LosHST`**
+- Oggi un'unità **mobile** che esce dalla los ma resta nel radar sparisce (`UnitLeftLos` la toglie da `losEnemy` e nessun `UnitEnteredRadar` arriva, perché il radar non si è mai interrotto). Nel gioco il giocatore la vede come icona radar del tipo già visto.
+- Nuovo insieme `self.ghostEnemy` (`[unitID] = unitDefID`; nome proposto, «ombra»): in `UnitLeftLos` di un'unità mobile, se `self.ai.perceptionhandler:OnRadar(unitID)`, l'unità va in `ghostEnemy` invece di sparire. Esce da `ghostEnemy` con `UnitEnteredLos` (torna in `losEnemy`), `UnitLeftRadar`, `cleanEnemy`.
+- In `Update` le ombre si segnano nello strato `ENEMY` come le unità in los (tipo noto: `setCellLos`), alla posizione che dà l'engine come oggi per il radar. Il `Warn` «in los and in radar» vale anche per le ombre (un'unità in un solo insieme alla volta).
+- Edifici e unità in radar mai viste: come oggi.
+- Lettori di `losEnemy` fuori da `LosHST` (`scoutbst.lua` r. 135, `damagehst.lua` r. 41–42): controlla se devono vedere anche le ombre e scrivi cosa hai deciso.
 
-- `self.ENEMY = self.ai.gridhst:NewLayer(resetCell)`; `resetCell` è la parte di azzeramento di `setupCell` (campi a zero, `units` e `buildings` svuotati, tabelle riusate). `X`, `Z`, `POS` della cella si scrivono **una volta**, quando la cella nasce (i lettori usano `cell.X`, `cell.Z`, `cell.POS`).
-- `setCellLos`, `setCellRadar`: `IsCellInGrid` come oggi, poi indice, `Get`, `Mark`. Restano con la firma di oggi se serve, senza il parametro `grid` se non serve più (solo `ENEMY`).
-- `Update`: `self.ENEMY:Clear()` al posto di `FreeCellsToPool`.
-- Via: `GetCellFromPool`, `buildPools`, `FreeCellsToPool`, i pool, `OWN`, `ALLY`, `ALLIES`, il ciclo di `OWN` in `Draw`, e i campi di `Init` scritti e mai letti (dalla lettura del coordinatore: `knownEnemies`, `ownMobile`, `allyImmobile`, `allyMobile`; `ownImmobile` lo usa `getCenter`, resta). Ricontrolla ciascuno con grep in tutto STAI. `friendlyTeamID` e la percezione **restano** (S8b). Il blocco commentato di `UnitDamaged` e la funzione vuota: via (la funzione vuota faceva arrivare l'evento a `LosHST` per niente).
+**3. Coerenza con l'engine**: dove `LosHST` decide «in los»/«in radar», usa `PerceptionHandler` (`Sees`, `OnRadar`) invece di dedurlo da solo, se rende il codice più semplice; se no lascia gli eventi come sono e scrivi perché. Nessuna lettura diretta nuova di `Spring.*` per sapere cosa si vede.
 
-**3. Lettori** (lista del coordinatore, ricontrolla con grep: `loshst.ENEMY`, `loshst.OWN`, `loshst.ALLY`, `local loshst`)
+**4. Misure**: `Echo` temporanei (non committati) ogni 300 frame, per team: unità in `losEnemy`, `radarEnemy`, `ghostEnemy`; celle vere di `ENEMY`. Scrivi quante ombre ci sono di solito e se qualcuna resta appesa (ombra di un'unità che non è più nel radar).
 
-- `pairs(self.ai.loshst.ENEMY)` → ciclo numerico sulla lista: `targethst.lua` r. 42 e 112, `bomberhst.lua` r. 164, `nukebst.lua` r. 72, `LosHST:Draw`.
-- `ENEMY[X][Z]` come controllo di esistenza → la lettura del punto 1: `attackhst.lua` r. 343–347, 561–562, 612; `raidhst.lua` r. 400, 424; `nukebst.lua` r. 55–56; `scouthst.lua` r. 77; `targethst.lua` r. 56–61 (`Blobbing`).
-- Passaggi a `GetCell`/`areaCells`/`getCellsFields`: `attackhst` r. 268, `raidhst` r. 291, `buildingshst` r. 765, `targethst` r. 140 e 162, `scoutbst` r. 195, `nukebst` r. 74, `commanderbst` r. 25.
-- `OWN`/`ALLY` (mai riempite: i controlli non scattano mai): `attackhst.lua` r. 544 e 596, `scouthst.lua` r. 81 e 83 → via i rami morti, il resto com'è. Scrivi nei risultati cosa hai tolto riga per riga.
+**Test**: se `LosHST` si carica come `MapHST` nel suo test, test busted degli eventi con un `PerceptionHandler` finto (mobile esce dalla los in radar → ombra; fuori dal radar → niente; rientra in los → `losEnemy`; edificio → resta in `losEnemy`), con mutazioni; altrimenti scrivi perché.
 
-**4. Prova**: il contenuto dello strato non deve cambiare finché la partita non si separa. `Echo` temporanei (non committati), `c_stai_vs_stai.txt`: a ogni `Update` di `LosHST` di un frame multiplo di 300, per team, numero di celle vere e somme di `ENEMY`, `ARMED`, `UNARM`, `unitsCount` (giro in ordine di indice, così non conta l'ordine). Codice di partenza e codice nuovo: righe identiche almeno fino al primo contatto; scrivi da quale frame si separano (se si separano) e perché (l'ordine nei lettori). Se si separano già prima che ci sia un nemico in vista, **fermati**.
-
-**5. Indice**: tutto il tolto in `codice-tolto.md` (S8a).
-
-**Partite**: tre partite A con il codice finale, confronto con i riferimenti dopo T16 e con S6. Se le tre stanno sotto, scrivilo chiaramente.
+**Partite**: tre partite A, confronto con S8a, S6 e i riferimenti dopo T16. Se le tre stanno sotto, scrivilo chiaramente.
 
 **Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno per `GridLayer`/`GridHST` (con il test); uno per `LosHST` e i lettori; uno per il codice morto di `LosHST` (se si separa bene); uno per l'indice e i risultati.
+**Commit**, in inglese: uno per `PerceptionHandler` in `modules.lua`; uno per le ombre (con il test); uno per i risultati.
 
 ## Risultati
 
