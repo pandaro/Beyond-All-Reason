@@ -156,9 +156,10 @@ function BomberHST:SquadsPerformBombing(squad)
 	end
 	if squad.lock and self:SquadTargetExist(squad) and not self:IsBombing(squad) then
 		squad.cmdUnitId = self.ai.tool:ResetTable(squad.cmdUnitId)
+		local n = 0
 		for index, member in pairs(squad.members) do
-			squad.cmdUnitId[index] = member.unit:Internal():ID()
-
+			n = n + 1
+			squad.cmdUnitId[n] = member.unit:Internal():ID()
 		end
 		self.ai.tool:GiveOrder(squad.cmdUnitId, CMD.ATTACK, squad.targetUnit, 0, "1-2")
 	end
