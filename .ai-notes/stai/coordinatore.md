@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S9 verificati, **S10 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S10 (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S10 verificati, **S11 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S11 (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -77,13 +77,14 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S8a | strato `ENEMY` di `LosHST` in `GridHST`, `GridLayer:GetMarked`; via `OWN`, `ALLY`, `ALLIES`, pool e campi morti; il gioco cambia solo per l'ordine: tre partite A — verificato (prova nella stessa partita: 0 differenze cella per cella; tre partite A sopra S6: 178–202 unità, 34–38 mex; picco di memoria 218 KB) |
 | S8s | seme fisso: saltato dall'utente (25 novembre 2026) per risparmiare token; le prove «gioco invariato» si fanno nella stessa partita (come S8a) |
 | S9 | strati che durano: `GridLayer:Unmark`, `DAMAGED` (`DamageHST`), `SCOUTED` (`ScoutHST:Scouted`, scrive solo il padrone); via `areaGridCells`/`getGridCellsFields` — verificato (prova nella stessa partita: 0 differenze; `POS` di `DAMAGED` resta da `GridToPos` perché il terreno cambia; una partita A: 161 unità, 32 mex) |
+| S10 | difetti della mappa e della griglia: `unarm?I`, `metalScan`/`geoScan`, `SimplifyMetalSpots` (`elmoMapSizeZ`), `RawPosIsInMap`, via `UWMetalSpotCheckUnit` — verificato (gioco invariato su Comet Catcher; tre partite A 132–175 unità, 19–32 mex: varianza del seme) |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
 **Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §5, «Piano del 25 novembre 2026, dopo S8b»):
 
 1. ~~S9 — strati che durano~~: verificato.
-2. S10 — difetti della mappa e della griglia: scritto (impegno medio). Verificarlo.
-3. S11 — difetti di tattica e codice morto di `AttackHST`: tre partite A per il gruppo.
+2. ~~S10 — difetti della mappa e della griglia~~: verificato.
+3. S11 — difetti di tattica e codice morto: scritto (impegno medio). Verificarlo.
 4. S12a/S12b — ambiti d'alleanza (prima la preparazione a gioco invariato, poi il passaggio, partita B).
 5. S13 — elezione.
 

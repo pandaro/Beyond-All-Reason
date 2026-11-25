@@ -19,42 +19,44 @@
 
 ## Compito attuale
 
-### S10: difetti della mappa e della griglia (punto 15)
+### S11: difetti di tattica e codice morto (punto 19)
 
-**Impegno: medio.** Approvato dall'utente il 25 novembre 2026. **Un commit e un test busted (con mutazioni) per difetto**; tre partite A per il gruppo, con il codice finale. **Stile**: `nuovo-stai.md` §7 (commenti brevi a fine riga, in inglese; niente rinomine).
+**Impegno: medio.** Approvato dall'utente il 25 novembre 2026, con le sue scelte: via `NearbyVulnerable`, via `GetPathModifierFunc`, `CENTER` resta la posizione del comandante finché non ci sono edifici. **Un commit e un test busted (con mutazioni) per difetto**; tre partite A per il gruppo, con il codice finale. **Stile**: `nuovo-stai.md` §7.
 
-**1. `LosHST`: l'immobile disarmato copia il mobile** (`loshst.lua`)
+**1. `CELL.base` di `ENEMY` mai azzerato** (`loshst.lua`)
 
-- `setCellRadar` r. 313–315 e `setCellLos` r. 401, 403, 405 (circa): `CELL.unarmAI = CELL.unarmAM + M` (e `SI`, `GI`) → `CELL.unarmAI = CELL.unarmAI + M` (e `SI`, `GI`), come fanno già `armedAI`/`armedSI`/`armedGI`.
-- Oggi `unarmA`, `unarmS`, `unarmG`, e quindi `A`, `S`, `G` e i `*_balance`, contano il mobile due volte e perdono gli edifici disarmati accumulati: **il gioco cambia** (è l'unica correzione di S10 che lo cambia su Comet Catcher). Prima di correggere, scrivi nei risultati chi legge questi campi (grep sui nomi e sulle stringhe dei campi passati a `getCellsFields`/`sumCellsFields`).
-- Test in `loshst_spec.lua`: due edifici disarmati nella stessa cella (con e senza un mobile disarmato prima) → `unarmAI`/`SI`/`GI` è la somma dei due, `unarmAM` invariato.
+- `setCellLos` (r. 359 circa) scrive `CELL.base = unit.name` per le fabbriche; `LosHST.resetCell` non lo azzera: una cella che ha visto una fabbrica resta «base» anche quando la cella si riusa per altri nemici. Lo legge `TargetHST` (r. 119, `enemyBasePosition`). **Il gioco cambia.**
+- In `resetCell`: `CELL.base = nil`, con i campi vicini e un commento a fine riga.
+- Test in `loshst_spec.lua`: cella con fabbrica, `Clear`, cella riusata senza fabbrica → `base` nil.
 
-**2. `MapHST:metalScan` e `geoScan`: `return` su uno spot senza cella** (`maphst.lua` r. 294–325)
+**2. `LosHST:getCenter` divide per zero** (`loshst.lua` r. 164–183)
 
-- Su `not index` il `return` ferma tutta la scansione: gli spot dopo restano fuori dalle celle e dalle reti. Va saltato **solo** quello spot (`EchoDebug` come oggi, poi il ciclo continua: in Lua 5.1 niente `goto`, quindi `if index then ... end`, o il corpo in una funzione piccola; scegli il più leggibile).
-- Test in `maphst_spec.lua`: uno spot fuori mappa **in mezzo** alla lista; quelli dopo finiscono nelle celle e nelle reti.
+- Senza edifici propri (`ownImmobile` vuoto) `CENTER` diventa NaN (lo leggono `AttackHST:SquadsTargetPrevent2` e `RaidHST`). Correzione (decisione dell'utente): somme in locali; con `count == 0` uscita senza toccare `CENTER`, che all'inizio è la posizione del comandante (`CommanderBST:Init`); con `count > 0` `CENTER` come oggi. Da sapere, non da fare qui: se più tardi si perdono tutti gli edifici, `CENTER` resta sull'ultimo centro; e `CommanderBST:Init` assegna a `CENTER` la stessa tabella di `self.position` (`getCenter` poi scrive dentro la posizione del comandante, che oggi nessuno rilegge). Tutte e due passano in S12a con `CENTER`.
+- Test: `ownImmobile` vuoto → `CENTER` uguale a prima, nessun NaN.
 
-**3. `MapHST:SimplifyMetalSpots`: `z` fino a `elmoMapSizeX`** (`maphst.lua` r. 273–292)
+**3. `DamageHST:UnitDamaged`: `defId` del difensore e `attackerut` nil** (`damagehst.lua` r. 34–49)
 
-- Il ciclo su `z` va fino a `self.elmoMapSizeZ - number`. Su mappe non quadrate oggi taglia (o eccede) un lato.
-- Nota: il `table.remove` dentro `pairs` **non** è un difetto (c'è `break` subito dopo): lascialo, aggiungi solo un commento a fine riga se ti sembra utile.
-- La funzione lavora solo con più di 1024 spot: su Comet Catcher non entra in gioco. Test con una mappa finta non quadrata e più di 1024 spot (spot anche oltre `elmoMapSizeX` sul lato `z`).
+- r. 41: `losEnemy[attacker:ID()] = defenderUt.defId` → `attackerut.defId`.
+- r. 36: `attackerut.metalCost` è letto prima di `if attackerut`: con un attaccante fuori da `unitTable` va in errore. Spostare il controllo prima della lettura (`attackerut and attackerut.metalCost or damage or 100`, o uscita anticipata: scegli il più leggibile), senza cambiare il resto.
+- Test: attaccante edificio → `losEnemy` ha il `defId` dell'attaccante; attaccante sconosciuto → nessun errore, `AddBadPosition` chiamata come oggi.
 
-**4. `GridHST:RawPosIsInMap`: `pos` inesistente nel debug** (`gridhst.lua` r. 98–105)
+**4. Globali in `LosHST:Draw`** (`loshst.lua` r. 476–479): `posG`, `posS`, `posB`, `posA` → `local`. Solo disegno; niente test (controllo con EmmyLua).
 
-- `EchoDebug("bad position: " .. pos.x .. ", " .. pos.z)` → con `x`, `z`. Oggi con `DebugEnabled = true` va in errore. Test in `gridhst_spec.lua` con il debug acceso e una posizione fuori mappa.
+**5. Codice morto** (nell'indice `codice-tolto.md`):
+- `AttackHST:SquadAttackbackup` (r. 532, mai chiamata) e la vecchia `SquadAttack` commentata in fondo a `attackhst.lua` (blocco `--[[` da r. 564);
+- `TargetHST:NearbyVulnerable` (mai chiamata; leggeva `armed`/`unarm` al posto di `ARMED`/`UNARM`);
+- `TargetHST:GetPathModifierFunc`, `pathModifierFuncs`, `pathModParam` (mai chiamata; i due campi stanno in `TargetHST:Init` r. 20–21).
+Grep in tutto `luarules/` e `spec/` prima di togliere.
 
-**5. Via `ArmyHST.UWMetalSpotCheckUnit`** (`armyhst.lua` r. 838, con il commento sopra): nessuno lo usa (controlla con grep in tutto `luarules/` e `spec/`). Nell'indice `codice-tolto.md`.
-
-**Partite**: tre partite A con il codice finale (righe solite, confronto con S8b, S9 e S1). Se una partita va sotto i riferimenti (unità o mex sotto S1), scrivilo e non tentare correzioni: decide l'utente.
+**Partite**: tre partite A con il codice finale (confronto con S10, S9, S8b, S1). Se una partita va sotto i riferimenti, scrivilo e non tentare correzioni.
 
 **Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati con la base), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno per ciascun punto 1–5 (con il suo test); uno per l'indice e i risultati.
+**Commit**, in inglese: uno per ciascun punto 1–4 (con il suo test); uno per il codice morto; uno per l'indice e i risultati.
 
 ## Risultati
 
-### S10 (agente locale, 25 novembre 2026)
+### S10 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il gioco non cambia su Comet Catcher (nessun lettore di `unarm*` fuori da `LosHST`, 0 spot senza cella, `SimplifyMetalSpots` non entra): le partite 1 e 3 sotto S1 sono varianza del seme
 
 **In breve**: i cinque difetti corretti, un commit e un test per ciascuno (il punto 5 è una riga tolta, senza test); ogni test nuovo fallisce sul codice di base. **Il gioco non cambia su Comet Catcher, nemmeno per il punto 1**: fuori da `LosHST` nessuno legge `unarm*`, `A`/`S`/`G` o `*_balance` (solo `LosHST:Draw`, con `drawDebug`). Delle tre partite A, **la 1 va sotto S1** (19 mex e 1 fabbrica al minuto 14) e **la 3 va sotto S1 per unità ai minuti 13–14** e ha 35 ordini rifiutati: non ho tentato correzioni; visto che il codice gioca come in S9, lo attribuisco al seme, ma decide l'utente.
 

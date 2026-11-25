@@ -69,6 +69,8 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 
 Decisione del 25 novembre 2026 (utente): S8 diviso in **S8a** (strato `ENEMY`, via `OWN`, `ALLY`, `ALLIES` mai riempite e il resto che non serve) e **S8b** (percezione).
 
+Decisioni del 25 novembre 2026 (utente, dopo S10): via `TargetHST:NearbyVulnerable` e `TargetHST:GetPathModifierFunc` (codice morto, in S11); `CENTER` di `LosHST` è la posizione del comandante finché non ci sono edifici.
+
 Decisioni del 25 novembre 2026 (utente, dopo S8b), sui consigli del coordinatore:
 - **`GridLayer:Unmark(i)`** per gli strati che durano (`DAMAGED`, `SCOUTED`): una cella esce dalla lista tenendo l'ordine delle altre.
 - **`TRAMPLED` resta com'è** (lo legge solo `UnitMexMoveTest`, una volta all'avvio; fuori serve solo `trampledCells`): niente strato.
@@ -91,9 +93,9 @@ Un compito per riga, come per il framework; l'impegno si decide compito per comp
 Piano del 25 novembre 2026, dopo S8b (proposto dal coordinatore, approvato dall'utente):
 
 - **S9** (verificato) strati che durano: `GridLayer:Unmark`, `DAMAGED` (`DamageHST`) e `SCOUTED` (`ScoutHST`, scritto solo dal padrone); via `areaGridCells`/`getGridCellsFields`. Gioco invariato, prova nella stessa partita.
-- **S10** difetti della mappa e della griglia (punto 15): `metalScan`/`geoScan` (`return` su cella mancante), `SimplifyMetalSpots`, `RawPosIsInMap`, `unarmAI = unarmAM + M` (e `SI`, `GI`) in `setCellLos`/`setCellRadar`; via `ArmyHST.UWMetalSpotCheckUnit`. Tre partite A.
+- **S10** (verificato) difetti della mappa e della griglia (punto 15): `metalScan`/`geoScan` (`return` su cella mancante), `SimplifyMetalSpots`, `RawPosIsInMap`, `unarmAI = unarmAM + M` (e `SI`, `GI`) in `setCellLos`/`setCellRadar`; via `ArmyHST.UWMetalSpotCheckUnit`. Tre partite A.
 - **S11** difetti di tattica (punto 19): `CELL.base` mai azzerato, `NearbyVulnerable` (chiavi `ARMED`/`UNARM`), `getCenter` NaN, globali in `LosHST:Draw`, `defId` del difensore in `DamageHST`; via `SquadAttackbackup` e la vecchia `SquadAttack` commentata di `AttackHST`. Tre partite A.
-- **S12a** preparazione degli ambiti d'alleanza (gioco invariato): fuori da `LosHST`, `TargetHST`, `DamageHST` le cose di squadra — `CENTER` (scritto anche da `CommanderBST`) e `ownImmobile`, `self.ai.id`, `needAntiAir` in `LosHST`; `self.ai.tool` (8 volte in `TargetHST`, `RezTable`: `Toolbox` o `TablePool`); `isDamaged` di `DamageHST` (lo usa solo il debug). **S12b** `LosHST`, `TargetHST`, `DamageHST` `"ally"`, `friendlyTeamID` su `ShardAlly`; prova con una partita B (due STAI nella stessa alleanza). Impegno extra.
+- **S12a** preparazione degli ambiti d'alleanza (gioco invariato): fuori da `LosHST`, `TargetHST`, `DamageHST` le cose di squadra — `CENTER` (scritto anche da `CommanderBST`, che gli assegna la stessa tabella di `self.position`; decisione del 25 novembre 2026 (utente): posizione del comandante finché non ci sono edifici) e `ownImmobile`, `self.ai.id`, `needAntiAir` in `LosHST`; `self.ai.tool` (8 volte in `TargetHST`, `RezTable`: `Toolbox` o `TablePool`); `isDamaged` di `DamageHST` (lo usa solo il debug). **S12b** `LosHST`, `TargetHST`, `DamageHST` `"ally"`, `friendlyTeamID` su `ShardAlly`; prova con una partita B (due STAI nella stessa alleanza). Impegno extra.
 - **S13** elezione (punto 7): prima `BootBST` (priorità zero), `CleanerBST` (priorità vuota), i behaviour che agiscono in `Activate`; poi partite con `legacyElection = false` contro quelle di oggi.
 - Dopo, da ordinare: `EchoDebug` costoso (punto 11), ordini grandi (punto 10), `shard_null` (punto 12), `gridSize` 128 (§5b), `ShardMemStats` autocontenuto.
 
@@ -123,6 +125,7 @@ Poi, come prima:
 
 - **Partita A**: STAI contro SimpleAI, Comet Catcher Remake 1.8, 15 minuti, `SHARD_MEM_STATS=1`, con `.ai-notes/tools/run_engine_game.sh`. Righe da confrontare: unità ai minuti 1/5/10/13, unità, fabbriche e mex a fine partita, messaggi/ordini/rifiutati del relay, memoria per frame, heap, righe `[AI Loader] error`.
 - **Riferimenti** (sul framework, prima del porting): circa 145–194 unità a fine partita, 15–37 mex, circa 15.000 ordini, 10–15 rifiutati, memoria media 0,2–0,7 KB per frame, heap 13–15 MB. Una partita sola non basta per dire che un cambio peggiora il gioco: servono almeno tre partite.
+- **Varianza** (S10): con codice che gioca come S9, tre partite A hanno dato 132–175 unità e 19–32 mex (una con una fabbrica sola): una partita sotto S1 da sola non dice che il codice peggiora.
 - **Riferimenti dopo T16** (S1, tre partite A, 24 novembre 2026): unità a fine partita 141 / 161 / 186; mex 23 / 29 / 35; fabbriche 2; ordini 10.445–15.948, rifiutati 9–16 (nessun messaggio rifiutato, quindi niente `excluded` né gruppi oltre 20); memoria media 0,37–0,45 KB per frame, picco 68–74 KB; heap 13,1–15,5 MB; nessuna riga `[AI Loader] error`. Unità al minuto 13: 117–159.
 - **Controlli**: test busted con prova delle mutazioni, StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `.ai-notes/tools/run_engine_tests.sh`.
 
