@@ -17,12 +17,14 @@ shard_include("damagehst")
 shard_include("cleanhst")
 shard_include("taskshst")
 shard_include("tool")
+shard_include("perceptionhandler")
 
 return {
 	SleepST,
 	ArmyHST,
 	GridHST,
 	MapHST,
+	PerceptionHandler,
 	EcoHST,
 	AttackHST,
 	BomberHST,
