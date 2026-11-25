@@ -19,36 +19,20 @@
 
 ## Compito attuale
 
-Due compiti. L'utente dice «esegui s22»: fai **solo S22**, fermati, «fatto». Poi «esegui s23»: **solo S23**. Risultati separati.
+### S25: metodi inesistenti e globali accidentali
 
-### S22: regola nuova d'elezione e due difetti piccoli
+**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente (25 novembre 2026). Meccanico. **Stile**: `nuovo-stai.md` §7.
 
-**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente il 25 novembre 2026. **Stile**: `nuovo-stai.md` §7.
-
-1. **Regola nuova** (decisione dell'utente dopo S13): `STAI/ai.lua` r. 4 `STAI.legacyElection = false` con il commento proposto in S13 (`--only a priority above zero wins: a unit whose behaviours are all at zero has none active`). `CleanerBST:Priority` (`cleanerbst.lua` r. 54, vuota): `return 0`. Un commit.
-2. **`labshst.lua:367`** (`PostPositionalFilter`): se `MobilityNetworkHere` dà `nil` (o `networks[mtype][network]` è `nil`), quel punto **non va bene** per la fabbrica: stesso ramo di «area too small» (leggi la funzione e usa il suo modo di scartare). Test busted. Un commit.
-3. **`bomberhst.lua` r. 158–160**: `cmdUnitId` con contatore `n` come in S21. Un commit (test se semplice, sul modello di `raidhst_spec.lua`).
-- **Una** partita A e **una** partita C (righe solite; nessuna riga `[AI Loader] error`).
+1. `self.ai.tool:GiveOrderToUnit` non esiste in `Tool` (S23). `bomberbst.lua` r. 59 (`Deactivate`): → `self.ai.tool:GiveOrder(self.id or self.unit:Internal():ID(), CMD.MOVE, self.homepos, 0, "1-1")` (come `BootBST:ExitFactory` dopo S23; controlla quale id usa il file). `mexupbst.lua` r. 35 e 127 (non caricato): stessa correzione, primo argomento l'id dell'unità.
+2. **Ricerca generale** in `STAI/`: chiamate `self.ai.<modulo>:<Metodo>(` e `self.ai.tool:<Metodo>(` dove `<Metodo>` non è definito nel modulo (né in `Toolbox` per `tool`, che lo avvolge). Uno script in `/tmp` (non committato) va bene. Elenco nei risultati; correggi solo i casi ovvi (nome sbagliato con equivalente chiaro), gli altri elencali e basta.
+3. **Globali accidentali**: assegnazioni a nomi senza `local` dentro funzioni (EmmyLua `undefined-global` / `lowercase-global` sui file di `STAI/`, o `luac -l`/grep `SETGLOBAL` se più facile). Correggi con `local` o `self.` dove è evidente (come `DebugEnabled` in S23); elenca il resto.
+- Test busted solo dove è semplice. **Una** partita A e **una** C; nessuna riga `[AI Loader] error`.
 - Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
-
-### S23: `BootBST` non riconosce mai la fabbrica
-
-**Impegno: medium. Modello: Sonnet 5.5.** Approvato dall'utente. **`AttackerBST` non si tocca** (decisione dell'utente: si capirà dopo). **Il gioco cambia**: tre partite A. **Stile**: §7.
-
-- `bootbst.lua`:
-  - r. 11 `DebugEnabled = false` → `self.DebugEnabled = false` (oggi scrive un globale);
-  - r. 14 `self.mobile = ... speed == 0` → `speed > 0` (oggi è al contrario; `ignoreFactories` r. 18 ne dipende);
-  - `FindMyFactory` (r. 108–115): `self.factory = nil` **prima** del ciclo, non dopo (oggi cancella sempre quello che trova); controlla che `labshst.labs[id].behaviour` e `.exitRect` esistano davvero (`labsbst.lua` r. 35, 67–72).
-- Con questo `BootBST:Priority` dà 120 alle unità ancora nella fabbrica, `Activate` chiama `ExitFactory`: leggi `ExitFactory` e scrivi cosa fa ora che gira davvero (ordini, quante volte, per quali unità).
-- `ReclaimBST`: `Priority` legge `self.act`, mai assegnato (lavora già da `Update`, attivo o no). Togli il ramo morto: `Priority` restituisce 0, con un commento a fine riga che dice che lavora da `Update`. Nell'indice.
-- Test busted: `FindMyFactory` dentro e fuori dall'`exitRect`; `mobile` per un'unità mobile e un edificio.
-- Misura con patch non committata, in una partita C: quante volte `BootBST` si attiva, quanti `ExitFactory`, quante unità restano nella fabbrica più di 300 frame (prima e dopo se riesci).
-- **Tre partite A** (confronto con S13 e S1). Se vanno peggio in più di una, scrivilo; non tentare altre correzioni.
-- Controlli come S22. Commit, in inglese: uno per `BootBST` con test, uno per `ReclaimBST`, uno per i risultati.
+- Commit, in inglese: uno per punto, più i risultati.
 
 ## Risultati
 
-### S23 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+### S23 (agente locale, 25 novembre 2026) — verificato dal coordinatore; commit `540d26c853` accettato
 
 **In breve**: `BootBST` ora riconosce la fabbrica e `ExitFactory` gira davvero. Appena girato è emerso un errore **non previsto dal compito**: `ExitFactory` chiamava `self.ai.tool:GiveOrderToUnit`, che in `Tool` non esiste (107 + 99 errori `[AI Loader]` in una partita C). L'ho corretto in un commit a parte (`GiveOrder`, come `SetMoveState`): senza, le uscite cadevano in errore dopo `u:Move`. Tre partite A senza errori del loader.
 
@@ -93,7 +77,7 @@ Riferimenti: S21 min. 13 147–194, fine 161–217, 29–36 mex; S1 fine 141–1
 1. Va bene il commit `540d26c853` (fuori dal compito)? Senza, `BootBST` dà errore a ogni uscita.
 2. `bomberbst.lua:59` e `mexupbst.lua`: compito a parte?
 
-### S22 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+### S22 (agente locale, 25 novembre 2026) — verificato dal coordinatore; test di `bomberhst` non serve; i rifiutati delle partite C (21–44) si tengono d'occhio
 
 **In breve**: regola nuova d'elezione (`STAI.legacyElection = false`), `CleanerBST:Priority` a `0`, `labshst.lua` non più indicizza una rete `nil` (il caso di S21 è ora coperto da test), `bomberhst` con contatore. Tre commit di codice più questo. Una partita A e una C, nessuna riga `[AI Loader] error`.
 
