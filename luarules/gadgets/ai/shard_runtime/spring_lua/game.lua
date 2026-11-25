@@ -215,7 +215,7 @@ end
 --
 -- '1-1': one command to one unit: id, cmd, params and options of the command
 -- '2-1': commands to one unit: id, then arrays cmd, params and options with an entry per command; they stay together
--- '1-2': one command to units: an array of ids, then cmd, params and options as in '1-1'
+-- '1-2': one command to units: an array of ids, then cmd, params and options as in '1-1'; one record in the message
 -- '2-2': a command each to units: arrays id, cmd, params and options; id[i] gets cmd[i], params[i] and options[i]
 --        as Spring.GiveOrderArrayToUnitArray(units, commands, true) did, up to the shorter of id and cmd
 --
@@ -248,11 +248,7 @@ function game:GiveOrder(id, cmd, params, options, method)
 			warnOrders(self, "GiveOrder '1-2' takes an array of units and one command; orders dropped")
 			return false
 		end
-		local queued = true
-		for i = 1, #id do
-			queued = outbox:Queue(id[i], cmd, params, options) and queued
-		end
-		return queued
+		return outbox:QueueGroup(id, cmd, params, options)
 	elseif method == "2-2" then
 		if
 			type(id) ~= "table"

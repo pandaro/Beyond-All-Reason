@@ -54,6 +54,17 @@ local function decode(world, message)
 			params.n = nil
 		end
 		decoded.orders[i] = { unit = unitID, cmd = cmdID, options = options, params = params }
+		if unitID == codec.GROUP_UNIT then
+			local unitCount, unitsPosition, afterGroup = codec.UnpackGroupUnits(message, nextPosition)
+			assert.is_not_nil(unitCount, "group " .. i .. " runs past the message")
+			local groupUnits = {}
+			if unitCount > 0 then
+				groupUnits = world.VFS.UnpackU16(message, unitsPosition, unitCount)
+				groupUnits.n = nil
+			end
+			decoded.orders[i].units = groupUnits
+			nextPosition = afterGroup
+		end
 		position = nextPosition
 	end
 	assert.equal(#message + 1, position)
@@ -74,6 +85,14 @@ local function units(decoded)
 	local list = {}
 	for i, order in ipairs(decoded.orders) do
 		list[i] = order.unit
+	end
+	return list
+end
+
+local function range(first, last)
+	local list = {}
+	for unitID = first, last do
+		list[#list + 1] = unitID
 	end
 	return list
 end
@@ -118,18 +137,18 @@ describe("OrderCodec", function()
 		local world = loadOrders()
 		local codec = world.codec
 		local message = codec.PackHeader(7, 123456, 9000, 3)
-			.. codec.PackOrder(65535, -2147483648, 255, { -1234.5678, 0.1, 40960 }, 3)
+			.. codec.PackOrder(65534, -2147483648, 255, { -1234.5678, 0.1, 40960 }, 3)
 			.. codec.PackOrder(42, 2147483647, 0, { 3.25 }, 1)
 			.. codec.PackOrder(0, -250, 96, { 1e-3, -7.75 }, 2)
 
 		local decoded = decode(world, message)
 
-		assert.equal(1, decoded.version)
+		assert.equal(2, decoded.version)
 		assert.equal(7, decoded.teamID)
 		assert.equal(123456, decoded.seq)
 		assert.equal(9000, decoded.frame)
 		local expected = {
-			{ unit = 65535, cmd = -2147483648, options = 255, params = { -1234.5678, 0.1, 40960 } },
+			{ unit = 65534, cmd = -2147483648, options = 255, params = { -1234.5678, 0.1, 40960 } },
 			{ unit = 42, cmd = 2147483647, options = 0, params = { 3.25 } },
 			{ unit = 0, cmd = -250, options = 96, params = { 1e-3, -7.75 } },
 		}
@@ -156,6 +175,49 @@ describe("OrderCodec", function()
 
 		assert.is_nil(world.VFS.UnpackU8(message, #message))
 		assert.same({ unit = 5, cmd = CMD.STOP, options = CMD.OPT_SHIFT, params = {} }, decoded.orders[2])
+	end)
+
+	it("reads back a group of 0, 1 and 255 units, with its params, between orders", function()
+		local world = loadOrders()
+		local codec = world.codec
+		local all = range(1000, 1254)
+		local message = codec.PackHeader(1, 1, 1, 5)
+			.. codec.PackOrder(5, CMD.STOP, 0, nil, 0)
+			.. codec.PackGroup(CMD.MOVE, CMD.OPT_SHIFT, { 1, 2, 3 }, 3, all, 255)
+			.. codec.PackGroup(CMD.STOP, 0, nil, 0, nil, 0)
+			.. codec.PackGroup(CMD.GUARD, 0, { 77 }, 1, { 65534 }, 1)
+			.. codec.PackOrder(6, CMD.STOP, 0, nil, 0)
+
+		local decoded = decode(world, message)
+
+		assert.same({ 5, 65535, 65535, 65535, 6 }, units(decoded))
+		assert.equal(CMD.MOVE, decoded.orders[2].cmd)
+		assert.equal(CMD.OPT_SHIFT, decoded.orders[2].options)
+		assert.same({ 1, 2, 3 }, decoded.orders[2].params)
+		assert.same(all, decoded.orders[2].units)
+		assert.same({}, decoded.orders[3].units)
+		assert.same({ 65534 }, decoded.orders[4].units)
+		assert.same({ 77 }, decoded.orders[4].params)
+		assert.equal(255, codec.MAX_UNITS_PER_GROUP)
+		assert.equal(10 + 12 + 2 * 255, #codec.PackGroup(CMD.MOVE, 0, { 1, 2, 3 }, 3, all, 255))
+	end)
+
+	it("reads nothing from a group whose count or units run past the end of the message", function()
+		local world = loadOrders()
+		local codec = world.codec
+		local header = codec.PackHeader(1, 1, 1, 1)
+		local group = codec.PackGroup(CMD.MOVE, 0, { 1, 2, 3 }, 3, { 10, 11, 12 }, 3)
+		local function groupUnits(text)
+			local _, _, _, _, _, nextPosition = codec.UnpackOrder(header .. text, 17)
+			return codec.UnpackGroupUnits(header .. text, nextPosition)
+		end
+
+		assert.equal(3, groupUnits(group))
+		assert.is_nil(groupUnits(string.sub(group, 1, #group - 1)))
+		assert.is_nil(groupUnits(string.sub(group, 1, #group - 6)))
+		assert.is_nil(groupUnits(string.sub(group, 1, 21)))
+		assert.is_nil(groupUnits(string.sub(group, 1, 20)))
+		assert.is_nil(codec.UnpackOrder(header .. string.sub(group, 1, 19), 17))
 	end)
 
 	it("reads nothing from a short header or an order cut short", function()
@@ -210,6 +272,7 @@ describe("ShardOutbox", function()
 		assert.is_false(outbox:Queue(7, CMD.MOVE, tooMany, 0))
 		assert.is_false(outbox:Queue(9, 2 ^ 31, nil, 0))
 		assert.is_false(outbox:Queue(2 ^ 16, CMD.STOP, nil, 0))
+		assert.is_false(outbox:Queue(65535, CMD.STOP, nil, 0))
 		tooMany[256] = nil
 		outbox:Queue(8, CMD.MOVE, tooMany, 0)
 		local decoded = flush(world, outbox)
@@ -221,7 +284,7 @@ describe("ShardOutbox", function()
 		assert.same({ 10, 20, 30 }, decoded.orders[4].params)
 		assert.same({ 10, 20, 30, 2 }, decoded.orders[5].params)
 		assert.equal(255, #decoded.orders[6].params)
-		assert.equal(4, echoesWith(world, "dropped"))
+		assert.equal(5, echoesWith(world, "dropped"))
 	end)
 
 	it("sends at most 20 orders a message, in order, without losing or repeating any", function()
@@ -302,6 +365,130 @@ describe("ShardOutbox", function()
 		assert.equal(1, echoesWith(world, "dropped"))
 	end)
 
+	it("queues one command for several units as one group record", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+
+		assert.is_true(outbox:QueueGroup({ 9, 3, 7 }, CMD.MOVE, { x = 1, y = 2, z = 3 }, { "shift" }))
+		local decoded = flush(world, outbox)
+
+		assert.equal(1, #decoded.orders)
+		assert.same({
+			unit = 65535,
+			cmd = CMD.MOVE,
+			options = CMD.OPT_SHIFT,
+			params = { 1, 2, 3 },
+			units = { 9, 3, 7 },
+		}, decoded.orders[1])
+	end)
+
+	it("queues a group of one unit as an order, and nothing for no unit", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+
+		assert.is_true(outbox:QueueGroup({ 9 }, CMD.STOP, nil, 0))
+		assert.is_true(outbox:QueueGroup({}, CMD.STOP, nil, 0))
+		local decoded = flush(world, outbox)
+
+		assert.same({ { unit = 9, cmd = CMD.STOP, options = 0, params = {} } }, decoded.orders)
+		assert.is_nil(flush(world, outbox))
+	end)
+
+	it("splits more than 255 units into records of 255, in order", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+
+		assert.is_true(outbox:QueueGroup(range(1, 510), CMD.MOVE, { 5, 6, 7 }, 0))
+		assert.is_true(outbox:QueueGroup(range(1000, 1254), CMD.STOP, nil, 0))
+		local decoded = flush(world, outbox)
+
+		assert.same({ 65535, 65535, 65535 }, units(decoded))
+		assert.same(range(1, 255), decoded.orders[1].units)
+		assert.same(range(256, 510), decoded.orders[2].units)
+		assert.same({ 5, 6, 7 }, decoded.orders[2].params)
+		assert.same(range(1000, 1254), decoded.orders[3].units)
+		assert.is_nil(flush(world, outbox))
+	end)
+
+	it("counts a group as one record of the 20 in a message, and keeps the units of the ones that wait", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+		for i = 1, 19 do
+			outbox:Queue(i, CMD.STOP, nil, 0)
+		end
+		outbox:QueueGroup({ 21, 22, 23 }, CMD.MOVE, { 1, 2, 3 }, 0)
+		outbox:QueueGroup({ 31, 32 }, CMD.MOVE, { 4, 5, 6 }, 0)
+		outbox:Queue(40, CMD.STOP, nil, 0)
+
+		local first = flush(world, outbox)
+		local second = flush(world, outbox)
+
+		assert.equal(20, #first.orders)
+		assert.same({ 21, 22, 23 }, first.orders[20].units)
+		assert.same({ { 65535, { 31, 32 }, { 4, 5, 6 } }, { 40 } }, {
+			{ second.orders[1].unit, second.orders[1].units, second.orders[1].params },
+			{ second.orders[2].unit },
+		})
+	end)
+
+	it("writes only the units of the group, whatever the queue slot held before", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+		outbox:QueueGroup({ 1, 2, 3, 4, 5 }, CMD.MOVE, { 1, 2, 3 }, 0)
+		flush(world, outbox)
+
+		outbox:QueueGroup({ 7, 8 }, CMD.STOP, nil, 0)
+		local decoded = flush(world, outbox)
+
+		assert.same({ 7, 8 }, decoded.orders[1].units)
+	end)
+
+	it("drops a unit ID that is not valid alone, with one warning, and a bad command whole", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+
+		assert.is_false(outbox:QueueGroup({ 1, -1, 2, 65535, 3, 1.5 }, CMD.MOVE, nil, 0))
+		assert.equal(1, echoesWith(world, "dropped"))
+		assert.is_false(outbox:QueueGroup({ 4, 5 }, CMD.MOVE, { x = 1 }, 0))
+		assert.is_false(outbox:QueueGroup({ 4, 5 }, 2 ^ 31, nil, 0))
+		assert.equal(3, echoesWith(world, "dropped"))
+		local decoded = flush(world, outbox)
+
+		assert.same({ 1, 2, 3 }, decoded.orders[1].units)
+		assert.equal(1, #decoded.orders)
+	end)
+
+	it("queues the 256th unit of a group as an order of its own", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+
+		outbox:QueueGroup(range(1, 256), CMD.STOP, nil, 0)
+		local decoded = flush(world, outbox)
+
+		assert.same({ 65535, 256 }, units(decoded))
+		assert.same(range(1, 255), decoded.orders[1].units)
+	end)
+
+	it("keeps a group inside BeginGroup and EndGroup together, and drops it whole with its bad command", function()
+		local world = loadOrders()
+		local outbox = world.env.ShardOutbox(4)
+		for i = 1, 19 do
+			outbox:Queue(i, CMD.STOP, nil, 0)
+		end
+		outbox:BeginGroup()
+		outbox:QueueGroup({ 21, 22 }, CMD.MOVE, nil, 0)
+		outbox:QueueGroup({ 23, 24 }, CMD.MOVE, nil, 0)
+		assert.is_true(outbox:EndGroup())
+		outbox:BeginGroup()
+		outbox:Queue(30, CMD.STOP, nil, 0)
+		outbox:QueueGroup({ 31, 32 }, CMD.MOVE, { x = 1 }, 0)
+		assert.is_false(outbox:EndGroup())
+
+		assert.equal(19, #flush(world, outbox).orders)
+		assert.same({ 65535, 65535 }, units(flush(world, outbox)))
+		assert.is_nil(flush(world, outbox))
+	end)
+
 	it("starts again from seq 1 with an empty queue after Reset", function()
 		local world = loadOrders()
 		local outbox = world.env.ShardOutbox(4)
@@ -370,15 +557,28 @@ describe("game:GiveOrder", function()
 		}, flush(world, outbox).orders)
 	end)
 
-	it("'1-2' queues one command for every unit", function()
+	it("'1-2' queues one record for one command to every unit", function()
 		assert.is_true(game:GiveOrder({ 3, 1, 2 }, CMD.MOVE, { x = 5, y = 6, z = 7 }, 0, "1-2"))
 
-		local orders = flush(world, outbox).orders
-		assert.same({ 3, 1, 2 }, { orders[1].unit, orders[2].unit, orders[3].unit })
-		for _, order in ipairs(orders) do
-			assert.equal(CMD.MOVE, order.cmd)
-			assert.same({ 5, 6, 7 }, order.params)
-		end
+		assert.same(
+			{ { unit = 65535, cmd = CMD.MOVE, options = 0, params = { 5, 6, 7 }, units = { 3, 1, 2 } } },
+			flush(world, outbox).orders
+		)
+	end)
+
+	it("'1-2' sends a call with more than 20 units whole, in one message", function()
+		assert.is_true(game:GiveOrder(range(1, 40), CMD.STOP, nil, 0, "1-2"))
+
+		local decoded = flush(world, outbox)
+
+		assert.same(range(1, 40), decoded.orders[1].units)
+		assert.is_nil(flush(world, outbox))
+	end)
+
+	it("'1-2' drops the units that are not valid and says so", function()
+		assert.is_false(game:GiveOrder({ 3, 65535, 2 }, CMD.MOVE, nil, 0, "1-2"))
+
+		assert.same({ 3, 2 }, flush(world, outbox).orders[1].units)
 	end)
 
 	it("'2-2' gives the i-th command to the i-th unit, up to the shorter array", function()

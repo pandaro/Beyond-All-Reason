@@ -10,19 +10,24 @@ local spValidUnitID = Spring.ValidUnitID
 local spGetUnitTeam = Spring.GetUnitTeam
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
 local spGiveOrderArrayToUnit = Spring.GiveOrderArrayToUnit
+local spGiveOrderToUnitArray = Spring.GiveOrderToUnitArray
 local spUnpackF32 = VFS.UnpackF32
+local spUnpackU16 = VFS.UnpackU16
 local isOrderMessage = OrderCodec.IsOrderMessage
 local unpackHeader = OrderCodec.UnpackHeader
 local unpackOrder = OrderCodec.UnpackOrder
+local unpackGroupUnits = OrderCodec.UnpackGroupUnits
 
 local MAX_ORDERS_PER_MESSAGE = OrderCodec.MAX_ORDERS_PER_MESSAGE
+local MAX_UNITS_PER_GROUP = OrderCodec.MAX_UNITS_PER_GROUP
+local GROUP_UNIT = OrderCodec.GROUP_UNIT
 local MAX_MESSAGES_PER_FRAME = 2 -- per team and emission frame, never per arrival frame
 local MAX_FRAME_AGE = 900 -- oldest accepted emission frame, in frames
 
 local lastSeq = {} ---@type table<integer, number?> teamID -> last accepted seq
 local lastFrame = {} ---@type table<integer, number?> teamID -> emission frame of the last accepted message
 local messagesInFrame = {} -- teamID -> accepted messages with that emission frame
-local relayCounter = { messages = 0, orders = 0, rejectedOrders = 0, rejected = {} }
+local relayCounter = { messages = 0, orders = 0, groups = 0, rejectedOrders = 0, rejected = {} }
 
 -- orders of the unit being decoded; these tables are reused, only the params tables are new
 local cmdArray = {} ---@type table[]
@@ -93,6 +98,38 @@ local function ReadParams(msg, paramCount, paramsPosition)
 	return nil
 end
 
+-- one command for the units of a group that are valid and of the team, in one engine call; the units rejected
+local function GiveGroup(msg, teamID, cmdID, options, paramCount, paramsPosition, unitCount, unitsPosition)
+	if unitCount > MAX_UNITS_PER_GROUP then
+		return unitCount
+	end
+	if unitCount == 0 then
+		return 0
+	end
+	---@diagnostic disable-next-line: redundant-parameter
+	local units = spUnpackU16(msg, unitsPosition, unitCount) --[[@as integer[] ]]
+	---@diagnostic disable-next-line: inject-field
+	units.n = nil -- the engine reads the units with next() too
+	local allowed = 0
+	for i = 1, unitCount do
+		local unitID = units[i] --[[@as integer]]
+		if spValidUnitID(unitID) and spGetUnitTeam(unitID) == teamID then
+			allowed = allowed + 1
+			units[allowed] = unitID
+		end
+	end
+	for i = allowed + 1, unitCount do
+		units[i] = nil
+	end
+	if allowed > 0 then
+		---@diagnostic disable-next-line: param-type-mismatch
+		spGiveOrderToUnitArray(units, cmdID, ReadParams(msg, paramCount, paramsPosition), options)
+		relayCounter.orders = relayCounter.orders + allowed
+		relayCounter.groups = relayCounter.groups + 1
+	end
+	return unitCount - allowed
+end
+
 -- message -----------------------------------------------------------------------------------------------------
 
 -- every check of the header, in order; the team, its orders and where they start, or nil when rejected
@@ -140,7 +177,7 @@ local function CheckHeader(msg, playerID)
 	return teamID, count, position
 end
 
--- the orders of a message, each unit checked once; an order cut short and the ones after it are rejected
+-- the records of a message, each unit of an order checked once; a record cut short and the ones after it are rejected
 local function GiveMessageOrders(msg, teamID, count, position)
 	local currentUnit = nil
 	local unitAllowed = false
@@ -151,15 +188,28 @@ local function GiveMessageOrders(msg, teamID, count, position)
 			rejectedOrders = rejectedOrders + count - i + 1
 			break
 		end
-		if unitID ~= currentUnit then
+		if unitID == GROUP_UNIT then
 			GiveOrders(currentUnit)
-			currentUnit = unitID
-			unitAllowed = spValidUnitID(unitID) and spGetUnitTeam(unitID) == teamID
-		end
-		if unitAllowed then
-			AddOrder(cmdID, ReadParams(msg, paramCount, paramsPosition), options)
+			currentUnit = nil
+			local unitCount, unitsPosition, afterGroup = unpackGroupUnits(msg, nextPosition)
+			if unitCount == nil then
+				rejectedOrders = rejectedOrders + count - i + 1
+				break
+			end
+			rejectedOrders = rejectedOrders
+				+ GiveGroup(msg, teamID, cmdID, options, paramCount, paramsPosition, unitCount, unitsPosition)
+			nextPosition = afterGroup
 		else
-			rejectedOrders = rejectedOrders + 1
+			if unitID ~= currentUnit then
+				GiveOrders(currentUnit)
+				currentUnit = unitID
+				unitAllowed = spValidUnitID(unitID) and spGetUnitTeam(unitID) == teamID
+			end
+			if unitAllowed then
+				AddOrder(cmdID, ReadParams(msg, paramCount, paramsPosition), options)
+			else
+				rejectedOrders = rejectedOrders + 1
+			end
 		end
 		position = nextPosition
 	end
@@ -195,6 +245,7 @@ local function WriteCounters()
 		relayCounter.rejectedOrders,
 		"orders rejected"
 	)
+	spEcho("Shard relay:", relayCounter.groups, "groups given")
 	for reason, count in pairs(relayCounter.rejected) do
 		spEcho("Shard relay: " .. count .. " messages rejected (" .. reason .. ")")
 	end

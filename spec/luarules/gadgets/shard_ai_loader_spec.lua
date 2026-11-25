@@ -35,7 +35,7 @@ end
 -- Loads ShardAILoader.lua as synced code over a fake engine and returns what it did.
 local function loadLoader(world)
 	world = world or defaultWorld()
-	local recorded = { orders = {}, arrays = {}, toUnsynced = {}, rulesParams = {}, echoes = {} }
+	local recorded = { orders = {}, groups = {}, arrays = {}, toUnsynced = {}, rulesParams = {}, echoes = {} }
 	local env = setmetatable({}, { __index = _G })
 	local teamIDs = {}
 	for teamID in pairs(world.teams) do
@@ -108,6 +108,20 @@ local function loadLoader(world)
 		GiveOrderToUnit = function(unitID, cmdID, params, options)
 			recorded.orders[#recorded.orders + 1] = { unit = unitID, cmds = { { cmdID, params, options } } }
 		end,
+		GiveOrderToUnitArray = function(unitIDs, cmdID, params, options)
+			local copy = {}
+			for i, unitID in ipairs(unitIDs) do
+				copy[i] = unitID
+			end
+			recorded.groups[#recorded.groups + 1] = {
+				units = copy,
+				array = unitIDs,
+				cmd = cmdID,
+				params = params,
+				options = options,
+				after = #recorded.orders,
+			}
+		end,
 		GiveOrderArrayToUnit = function(unitID, array)
 			local cmds = {}
 			for i, cmd in ipairs(array) do
@@ -135,6 +149,24 @@ local function message(loader, teamID, seq, frame, orders)
 	for i, order in ipairs(orders) do
 		local params = order[3] or {}
 		pieces[i + 1] = codec.PackOrder(order[1], order[2], order[4] or 0, params, #params)
+	end
+	return table.concat(pieces)
+end
+
+-- A message from records: { unitID, cmdID, params, options } is an order, { units = {...}, cmdID, params, options }
+-- a group.
+local function mixedMessage(loader, teamID, seq, frame, records)
+	local codec = loader.codec
+	local pieces = { codec.PackHeader(teamID, seq, frame, #records) }
+	for i, record in ipairs(records) do
+		if record.units then
+			local params = record.params or {}
+			pieces[i + 1] =
+				codec.PackGroup(record.cmd, record.options or 0, params, #params, record.units, #record.units)
+		else
+			local params = record[3] or {}
+			pieces[i + 1] = codec.PackOrder(record[1], record[2], record[4] or 0, params, #params)
+		end
 	end
 	return table.concat(pieces)
 end
@@ -251,6 +283,161 @@ describe("ShardAILoader synced relay", function()
 		assert.same({ { "shard_relay_rejected", 0, 3 } }, loader.toUnsynced)
 	end)
 
+	it("gives a group to its valid units in one engine call, and reports the units it dropped", function()
+		local loader = started()
+
+		receive(
+			loader,
+			0,
+			mixedMessage(loader, 0, 1, 1000, {
+				{
+					units = { 100, 200, 101, 999, 300 },
+					cmd = CMD_MOVE,
+					params = { 10.5, -20, 30 },
+					options = OPT_SHIFT,
+				},
+			})
+		)
+
+		assert.equal(0, #loader.orders)
+		assert.equal(1, #loader.groups)
+		local group = loader.groups[1]
+		assert.same({ 100, 101 }, group.units)
+		assert.is_nil(group.array.n)
+		assert.is_nil(next(group.array, 2))
+		assert.equal(CMD_MOVE, group.cmd)
+		assert.same({ 10.5, -20, 30 }, group.params)
+		assert.equal(OPT_SHIFT, group.options)
+		assert.same({ { "shard_relay_rejected", 0, 3 } }, loader.toUnsynced)
+	end)
+
+	it("gives a group of one unit and a group without params", function()
+		local loader = started()
+
+		receive(
+			loader,
+			0,
+			mixedMessage(loader, 0, 1, 1000, {
+				{ units = { 101 }, cmd = CMD_STOP },
+				{ units = { 100 }, cmd = CMD_GUARD, params = { 101 } },
+			})
+		)
+
+		assert.same({ 101 }, loader.groups[1].units)
+		assert.is_nil(loader.groups[1].params)
+		assert.same({ 100 }, loader.groups[2].units)
+		assert.equal(101, loader.groups[2].params)
+		assert.equal(0, #loader.toUnsynced)
+	end)
+
+	it("calls the engine for nothing from a group without a unit of the team", function()
+		local loader = started()
+
+		receive(
+			loader,
+			0,
+			mixedMessage(loader, 0, 1, 1000, {
+				{ units = { 200, 999, 300 }, cmd = CMD_STOP },
+				{ units = {}, cmd = CMD_STOP },
+			})
+		)
+
+		assert.equal(0, #loader.groups)
+		assert.same({ { "shard_relay_rejected", 0, 3 } }, loader.toUnsynced)
+	end)
+
+	it("gives orders and groups in the order of the message, each unit of an order checked again", function()
+		local loader = started()
+
+		receive(
+			loader,
+			0,
+			mixedMessage(loader, 0, 1, 1000, {
+				{ 100, CMD_MOVE, { 1, 2, 3 } },
+				{ 100, CMD_STOP, nil, OPT_SHIFT },
+				{ units = { 100, 101 }, cmd = CMD_GUARD, params = { 7 } },
+				{ 100, CMD_STOP },
+				{ 101, CMD_STOP },
+			})
+		)
+
+		assert.equal(3, #loader.orders)
+		assert.equal(2, #loader.orders[1].cmds)
+		assert.same({ 100, 101 }, { loader.orders[2].unit, loader.orders[3].unit })
+		assert.equal(1, loader.groups[1].after)
+		assert.equal(1, #loader.groups)
+	end)
+
+	it("rejects a group of more than 255 units whole, and reads on after it", function()
+		local loader = started()
+		local many = {}
+		for i = 1, 256 do
+			many[i] = 100
+		end
+
+		receive(
+			loader,
+			0,
+			mixedMessage(loader, 0, 1, 1000, {
+				{ units = many, cmd = CMD_STOP },
+				{ units = { 101 }, cmd = CMD_STOP },
+			})
+		)
+
+		assert.equal(1, #loader.groups)
+		assert.same({ 101 }, loader.groups[1].units)
+		assert.same({ { "shard_relay_rejected", 0, 256 } }, loader.toUnsynced)
+	end)
+
+	it("gives a group of 255 units", function()
+		local loader = started()
+		local many = {}
+		for i = 1, 255 do
+			many[i] = 100 + i % 2
+		end
+
+		receive(loader, 0, mixedMessage(loader, 0, 1, 1000, { { units = many, cmd = CMD_STOP } }))
+
+		assert.equal(255, #loader.groups[1].units)
+		assert.equal(0, #loader.toUnsynced)
+	end)
+
+	it("gives the records before a group cut short and reports the rest as rejected", function()
+		local loader = started()
+		local text = mixedMessage(loader, 0, 1, 1000, {
+			{ 100, CMD_STOP },
+			{ units = { 100, 101, 100 }, cmd = CMD_MOVE, params = { 1, 2, 3 } },
+			{ 101, CMD_STOP },
+		})
+
+		receive(loader, 0, string.sub(text, 1, #text - 8 - 2))
+
+		assert.equal(1, #loader.orders)
+		assert.equal(0, #loader.groups)
+		assert.same({ { "shard_relay_rejected", 0, 2 } }, loader.toUnsynced)
+	end)
+
+	it("counts a group as one of the 20 records of a message, and its units as given orders", function()
+		local loader = started()
+		local records = {}
+		for i = 1, 20 do
+			records[i] = { units = { 100, 101 }, cmd = CMD_STOP }
+		end
+		local tooMany = {}
+		for i = 1, 21 do
+			tooMany[i] = records[1]
+		end
+
+		receive(loader, 0, mixedMessage(loader, 0, 1, 1000, records))
+		receive(loader, 0, mixedMessage(loader, 0, 2, 1000, tooMany))
+
+		assert.equal(20, #loader.groups)
+		assert.same({ count = 1 }, rejections(loader))
+		local lines = table.concat(loader.echoes, "\n")
+		assert.is_not_nil(string.find(lines, "Shard relay: 2 messages, 40 orders given, 0 orders rejected", 1, true))
+		assert.is_not_nil(string.find(lines, "Shard relay: 20 groups given", 1, true))
+	end)
+
 	it("rejects a seq that is not above the last accepted one", function()
 		local loader = started()
 
@@ -329,7 +516,7 @@ describe("ShardAILoader synced relay", function()
 		local loader = started()
 		local VFS = loader.VFS
 		local valid = message(loader, 0, 1, 1000, { { 100, CMD_STOP } })
-		local wrongVersion = "AIFw" .. VFS.PackU8(2, 0) .. string.sub(valid, 7)
+		local wrongVersion = "AIFw" .. VFS.PackU8(3, 0) .. string.sub(valid, 7)
 
 		assert.is_true(receive(loader, 0, wrongVersion))
 		assert.is_true(receive(loader, 0, string.sub(valid, 1, 15)))

@@ -20,7 +20,7 @@ end
 local function test_round_trip()
 	-- Integers exact as single precision floats too, as Lua numbers are in the engine.
 	local orders = {
-		{ unit = 65535, cmd = -2147483648, options = 255, params = { -1234.5678, 0.1, 40960 } },
+		{ unit = 65534, cmd = -2147483648, options = 255, params = { -1234.5678, 0.1, 40960 } },
 		{ unit = 1, cmd = 2147483520, options = 0, params = { 16777216 } },
 		{ unit = 42, cmd = CMD.GUARD, options = CMD.OPT_SHIFT, params = { 3.25 } },
 		{ unit = 0, cmd = -250, options = 0, params = { 1e-3, -7.75, 0, 2 } },
@@ -59,9 +59,43 @@ local function test_round_trip()
 	assertEqual(nil, OrderCodec.UnpackOrder(string.sub(message, 1, #message - 1), position - 8), "cut order")
 end
 
+local function test_group_round_trip()
+	local sizes = { 0, 1, 2, OrderCodec.MAX_UNITS_PER_GROUP }
+	for _, size in ipairs(sizes) do
+		local unitIDs = {}
+		for i = 1, size do
+			unitIDs[i] = 65535 - i
+		end
+		local params = { 1.5, -2, 300 }
+		local message = OrderCodec.PackHeader(3, 1, 1, 2)
+			.. OrderCodec.PackGroup(CMD.MOVE, CMD.OPT_SHIFT, params, 3, unitIDs, size)
+			.. OrderCodec.PackOrder(7, CMD.STOP, 0, nil, 0)
+
+		local _, _, _, _, count, position = OrderCodec.UnpackHeader(message)
+		assertEqual(2, count, "record count with " .. size .. " units")
+		local unitID, cmdID, options, paramCount, _, nextPosition = OrderCodec.UnpackOrder(message, position)
+		assertEqual(OrderCodec.GROUP_UNIT, unitID, "group marker with " .. size .. " units")
+		assertEqual(CMD.MOVE, cmdID, "group cmdID")
+		assertEqual(CMD.OPT_SHIFT, options, "group options")
+		assertEqual(3, paramCount, "group params")
+		local unitCount, unitsPosition, afterGroup = OrderCodec.UnpackGroupUnits(message, nextPosition)
+		assertEqual(size, unitCount, "unit count")
+		if size > 0 then
+			---@diagnostic disable-next-line: redundant-parameter
+			local units = VFS.UnpackU16(message, unitsPosition, unitCount) --[[@as table]]
+			for i = 1, size do
+				assertEqual(unitIDs[i], units[i], "unit " .. i .. " of " .. size)
+			end
+		end
+		assertEqual(7, OrderCodec.UnpackOrder(message, afterGroup), "order after a group of " .. size)
+		assertEqual(nil, OrderCodec.UnpackGroupUnits(string.sub(message, 1, afterGroup - 2), nextPosition), "cut group")
+	end
+end
+
 function test()
 	test_byte_order()
 	test_round_trip()
+	test_group_round_trip()
 end
 
 return { test = test }
