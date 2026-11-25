@@ -49,7 +49,7 @@
 
 ## Risultati
 
-### S4a (agente locale, 25 novembre 2026)
+### S4a (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Cosa ho fatto**
 
