@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, seconda chat del coordinatore del porting (S5 verificato). Per riprendere: leggere questo file, `nuovo-stai.md` (§4 decisioni, §5 ordine, §5b numeri da provare, §7 stile) e i risultati in fondo a `handoff.md`; se l'utente dice «fatto», verificare l'ultimo compito scritto. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, seconda chat del coordinatore del porting (S5 e S6 verificati). Per riprendere: leggere questo file, `nuovo-stai.md` (§4 decisioni, §5 ordine, §5b numeri da provare, §7 stile) e i risultati in fondo a `handoff.md`; se l'utente dice «fatto», verificare l'ultimo compito scritto. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -71,7 +71,8 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S4a | `GridHST`: geometria (misura della cella in un solo punto, 256), `CELLS` per indice, funzioni di griglia spostate da `MapHST`; gioco invariato — verificato (test busted, 12 mutazioni; `maphst.lua` 488 righe) |
 | S4b | strati (`NewLayer(resetCell)`, `Get`, `Mark`, `Clear`), `MapHST.GRID` come primo strato per indice, lettori di `X`/`Z`/`POS` sulla geometria; gioco invariato — verificato (classe `GridLayer`, 16 mutazioni; `topology` tolto) |
 | S5 | `Tool`: libreria `Toolbox` (matematica senza stato), modulo di team per il resto, via 16 funzioni mai chiamate (più 6 rimaste senza chiamanti, approvate dall'utente); `MapHST` usa già `Toolbox`; indice `codice-tolto.md` — verificato (`tool.lua` da 785 a 261 righe, 12 mutazioni, righe `[S3-PROOF]` identiche) |
-| S6 | `ArmyHST`, `GridHST`, `MapHST` `"global"` (gioco invariato); commento di `outbox.lua` (commit «Shard …»); `tableConcat` corretta (il gioco cambia: tre partite A) — scritto, da eseguire |
+| S6 | `ArmyHST`, `GridHST`, `MapHST` `"global"` (gioco invariato); commento di `outbox.lua` (commit «Shard …»); `tableConcat` corretta (il gioco cambia: tre partite A) — verificato (righe `[S3-PROOF]` uguali e una volta sola, `global`; tre partite A dentro i riferimenti: 155–178 unità, 26–33 mex) |
+| S7 | `collect` alla fine di `StartAIs` (commit «Shard …»), via quella di `MapHST`; gioco invariato — scritto, da eseguire |
 
 **Piano per il 26 novembre 2026** (concordato con l'utente il 25 novembre; S5 già scritto):
 

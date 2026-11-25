@@ -19,39 +19,33 @@
 
 ## Compito attuale
 
-### S6: `ArmyHST`, `GridHST`, `MapHST` `"global"`; `tableConcat` corretta
+### S7: una `collect` alla fine di `StartAIs`; via quella di `MapHST`
 
-**Impegno: alto.** Decisioni dell'utente: ambiti globali (`nuovo-stai.md` §3 punto 2, §5 n. 5); il 25 novembre 2026 l'utente approva S6 e chiede di correggere `tableConcat` subito. **Stile**: `nuovo-stai.md` §7. Tre parti, in quest'ordine: le prime due **non cambiano il gioco**, la terza sì.
+**Impegno: medio.** Decisione dell'utente del 25 novembre 2026 (`nuovo-stai.md` §4 n. 5). **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7 per STAI; per il framework lo stile di `shard_runtime/`.
 
-**1. Ambiti globali** (il gioco non cambia)
+**1. Framework** (commit a parte «Shard …», approvato dall'utente)
 
-- `Scope()` → `"global"` in `armyhst.lua`, `gridhst.lua`, `maphst.lua`. Nient'altro, salvo quello che serve per i punti sotto.
-- Lettura del coordinatore (ricontrolla): `ArmyHST` non usa `self.ai`; `GridHST` usa solo `map:`; `MapHST` usa `self.ai.armyhst`, `self.ai.gridhst` (globali anche loro, va bene), `self.ai.drawDebug`, il globale `map` (16 chiamate), `Spring.*` (6). Nessun modulo scrive dentro `maphst`, `gridhst`, `armyhst` da fuori (grep di assegnazioni `ai.maphst.<campo> =`): ricontrolla.
-- Da controllare e scrivere nei risultati:
-  - il globale `map` dentro un modulo globale: `ShardGlobal:Prepare` lo imposta, ma una funzione di `MapHST` chiamata da un modulo di team gira con il `map` di quel team. Controlla che `map` (e `self.map`) di `ShardGlobal` e dei team siano equivalenti per le chiamate di `MapHST` (`TestPath`, `GetPathObject`, `GetPathWaypoints`, `MapDimensions`, `GetGroundHeight`, metal e geo spot, `Draw*`). Se no, fermati e scrivilo;
-  - `self.ai.drawDebug` lo scrive `game.lua` r. 147 su un'AI di team: su `ShardGlobal` non c'è, quindi `MapHST:DrawDebug` non disegna più. È solo debug: lascialo così e scrivilo (o dimmi una forma semplice se c'è);
-  - ogni funzione di `MapHST`, `GridHST`, `ArmyHST` chiamata dai moduli e behaviour di team: nessuna deve leggere o scrivere dati di un team (`self.ai.id`, `game:GetTeamID()`, moduli di team). Il coordinatore non ne ha trovate;
-  - l'ordine in `modules.lua` resta (`ArmyHST`, `GridHST`, `MapHST` prima dei moduli di team).
-- **Prova**: le righe `[S3-PROOF]` di S5 (con la riga `tool`), codice di partenza e codice dopo questa parte, `c_stai_vs_stai.txt`, 2 minuti: i valori identici. Adesso le righe `grid`, `map`, `tool` dovrebbero comparire **una volta** (ambito globale) invece che per team: scrivilo. Nel log: `Init` di `MapHST` una volta sola con due STAI, righe di log con `global`. Se i valori cambiano, **fermati**.
+- `shard_runtime/loader/lifecycle.lua`, `StartAIs`: `collectgarbage("collect")` dopo l'ultimo `DropFailed(failed)` (dopo gli `Init` di globali, alleanze e team), prima di `return fresh`, con un commento breve a fine riga che dica perché (pulizia dopo le analisi di avvio delle AI).
+- Controlla chi chiama `StartAIs` (oggi `StartAIsOnce` e `CatchUpAfterReload`) e se una nuova AI aggiunta dopo l'avvio (`AddAI`, cambio di host) la fa rigirare: scrivi quante volte gira in una partita normale (atteso: una).
+- `CatchUpAfterReload` ha già una sua `collect` dopo `StartAIs`: dopo il cambio diventano due di seguito quando la partita è già partita. Toglila **solo** se è chiaramente doppia (la `collect` di `StartAIs` gira sempre prima); se in qualche caso `StartAIs` non viene chiamata (frame 0), lasciala e scrivilo.
 
-**2. Commento del framework** (commit a parte «Shard …», approvato dall'utente il 25 novembre 2026): `shard_runtime/spring_lua/outbox.lua` r. 77 cita `STAI's Tool:SerializeOrder`, che non c'è più. Riscrivi il commento perché dica il formato senza citarla (o con `git show e06200dd72^:luarules/gadgets/ai/STAI/tool.lua` se serve il riferimento). Solo il commento.
+**2. STAI**: `maphst.lua` r. 38, via `collectgarbage("collect")` alla fine di `MapHST:Init`. Nient'altro. Aggiungila a `codice-tolto.md` (S7).
 
-**3. `Toolbox:tableConcat` corretta** (il gioco cambia; richiesta dell'utente)
+**3. Prova che il gioco non cambia**: le righe `[S3-PROOF]` di S6 (codice di partenza e codice nuovo, `c_stai_vs_stai.txt`, 2 minuti): identiche. Se cambiano, **fermati**.
 
-- `table.insert(T, -1, value)` → `table.insert(T, value)`: tutti i valori nella parte array, nell'ordine delle tabelle date. Togli il `WARNING` a fine riga. Il resto della funzione resta com'è.
-- Chiamanti oggi: solo `MapHST` r. 28 (`allSpots`) e r. 149 (`network.allSpots`). Lettori di quei campi: `MapHST` (`#allSpots` in `LayerScan`), `buildingshst.lua` r. 137 (`pairs`), `scouthst.lua` r. 60, `labshst.lua` (`layers[...].allSpots`). Scrivi cosa cambia per ognuno (per esempio `ratioSpots`).
-- Aggiorna il test di `toolbox_spec.lua` al comportamento giusto (`#T` = somma, ordine delle tabelle date); la mutazione `table.insert(T, -1, value)` deve far fallire il test.
-- **Prova**: le righe `[S3-PROOF]` dopo questa parte: `grid`, `map`, `trampled` uguali; nella riga `tool` cambiano `#allSpots` (atteso 80) e la somma delle reti. Scrivi le righe.
+**4. Misure** (`SHARD_MEM_STATS=1`): prima e dopo, quanto dura la `collect` (una misura con `Spring.GetTimer`/`Spring.DiffTimers` temporanea, non committata, attorno alla `collect` di `MapHST` prima e a quella di `StartAIs` dopo) e l'heap subito dopo; frame in cui gira; memoria per frame e heap dei primi minuti, prima e dopo.
 
-**Partite**: con il codice finale, **tre partite A** (`nuovo-stai.md` §6), confronto con i riferimenti dopo T16. Righe solite (unità min. 1/5/10/13, unità, fabbriche, mex a fine partita, relay, memoria, heap, `[AI Loader] error`). Se le tre partite stanno tutte sotto i riferimenti, scrivilo chiaramente.
+**Partite**: una partita C di 15 minuti con il codice finale (righe solite). Basta questa: il gioco non cambia.
+
+**Guida**: non toccare `.ai-notes/drafts/README.md`; la aggiorna il coordinatore.
 
 **Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Commit**, in inglese: uno per gli ambiti; uno «Shard …» per il commento; uno per `tableConcat` e il test; uno per i risultati (aggiungi a `codice-tolto.md` solo se togli codice).
+**Commit**, in inglese: uno «Shard …» per `lifecycle.lua`; uno per `maphst.lua`; uno per l'indice e i risultati.
 
 ## Risultati
 
-### S6 (agente locale, 25 novembre 2026)
+### S6 (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Cosa ho fatto**
 

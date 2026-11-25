@@ -213,7 +213,7 @@ Modules may call `Spring.*` directly, as STAI does.
 
 ## Scopes: team, ally, global
 
-**Stable.** The loader creates `ShardAlly` and `ShardGlobal` and feeds them events. Every module of STAI declares `"team"` for now; MapHST and LosHST will move to `"global"` and `"ally"` when they are ported.
+**Stable.** The loader creates `ShardAlly` and `ShardGlobal` and feeds them events. In STAI, ArmyHST, GridHST and MapHST are `"global"`; the other modules declare `"team"` for now, and LosHST will move to `"ally"` when it is ported.
 
 Some work is the same for every AI: the map analysis does not depend on the team, and the line of sight is shared by the whole ally team. Each module declares where it lives with `Scope()`, and the framework creates it once per instance of that scope:
 
