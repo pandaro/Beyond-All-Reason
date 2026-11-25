@@ -54,6 +54,62 @@
 
 ## Risultati
 
+### S10 (agente locale, 25 novembre 2026)
+
+**In breve**: i cinque difetti corretti, un commit e un test per ciascuno (il punto 5 è una riga tolta, senza test); ogni test nuovo fallisce sul codice di base. **Il gioco non cambia su Comet Catcher, nemmeno per il punto 1**: fuori da `LosHST` nessuno legge `unarm*`, `A`/`S`/`G` o `*_balance` (solo `LosHST:Draw`, con `drawDebug`). Delle tre partite A, **la 1 va sotto S1** (19 mex e 1 fabbrica al minuto 14) e **la 3 va sotto S1 per unità ai minuti 13–14** e ha 35 ordini rifiutati: non ho tentato correzioni; visto che il codice gioca come in S9, lo attribuisco al seme, ma decide l'utente.
+
+**Commit**
+
+- `11e6b95039` «STAI LosHST: add up the unarmed immobile units of a cell instead of copying the mobile ones» (`loshst.lua`, `loshst_spec.lua`).
+- `34e9bda055` «STAI MapHST: skip only the metal or geo spot without a cell, not the rest of the scan» (`maphst.lua`, `maphst_spec.lua`).
+- `082004516b` «STAI MapHST: simplify the metal spots up to the Z size of the map» (`maphst.lua`, `maphst_spec.lua`).
+- `de54d3bc9a` «STAI GridHST: tell the bad raw position with its own x and z in the debug» (`gridhst.lua`, `gridhst_spec.lua`).
+- `5bb29fbb13` «STAI ArmyHST: remove the unused UWMetalSpotCheckUnit» (`armyhst.lua`).
+- Un commit per l'indice e questi risultati.
+
+**1. `LosHST`, immobile disarmato** (`setCellRadar` r. 313–315, `setCellLos` r. 401, 403, 405)
+
+- **Chi legge i campi** (grep su `unarm`, `armed[AGS]`, `_balance`, `.A`/`.S`/`.G`, e sui campi passati a `getCellsFields`/`sumCellsFields` e a `TargetHST:Blobbing`): solo `LosHST` stesso. `unarmA/S/G` → `A`, `S`, `G`, `*_balance` dentro `setCellLos`/`setCellRadar`; `A`, `S`, `G` letti solo da `LosHST:Draw` (esce subito senza `drawDebug`). I lettori fuori: `getCellsFields` con `ARMED`, `UNARM`, `ENEMY` (`commanderbst.lua`, `targethst.lua`, `nukebst.lua`); `Blobbing` con `SPEED`, `IMMOBILE`. Nessuno di questi cambia. Quindi, contrariamente al compito, **il gioco non cambia**.
+- Corretti tutti e sei i punti (`AI`, `SI`, `GI` in tutte e due le funzioni).
+- Test (`loshst_spec.lua`; `newLosHST` ha in più `game:Frame`, `Spring.GetUnitVelocity` finto e `armyhst.unitTable`; `getEnemyCell` e `setPosLayer2` sostituiti sull'istanza): «adds up the unarmed buildings of a cell in los, layer G/A/S» (tre test: due edifici da 100 → `unarm?I` 200, `unarm?M` 0; con un mobile da 50 prima → 200 e 50); «adds up the immobile units of a cell on radar, on every layer» (due immobili da 30 → 60 su `G`, `A`, `S`; con un mobile prima → 60 e 30).
+- Mutazioni: codice di base 4 falliti su 10; una sola riga riportata alla base (r. 313, 315, 401, 403, 405) → 1 fallito ciascuna.
+
+**2. `metalScan` / `geoScan`**: `if not index then EchoDebug(...) --skip only this spot else ... end`. Test: «skips only the metal spot out of the map, and puts the ones after it in their cells and networks» e lo stesso per i geo (spot fuori in mezzo a due spot; celle, rete `ground` con tutte e due le celle, rete `air` con una). Codice di base: 2 falliti su 3.
+
+**3. `SimplifyMetalSpots`**: `z` fino a `elmoMapSizeZ`; commento a fine riga sul `table.remove` («safe inside pairs: break right after»). Test «simplifies the metal spots over the whole of a map that is not square»: mappa 1024 × 2048, 1000 spot sul bordo (mai presi) più uno al centro di ciascuno dei 32 quadrati da 256; tornano 32 spot, 16 con `z` oltre 1024. Codice di base: fallisce (ne tornano 16).
+
+**4. `RawPosIsInMap`**: `x .. ", " .. z`. Test «tells a raw position out of the map in the debug, and gives it back when in the map» (griglia propria con `DebugEnabled`, `SendToConsole` che registra le righe): riga «bad position: 1537, 100» e `nil`; dentro la mappa restituisce `x, y, z`. Codice di base: errore (`pos` nil).
+
+**5. `UWMetalSpotCheckUnit`**: grep in tutto il repository (fuori da `.ai-notes/`, `.lux/`, `.git/`): solo la riga tolta. Tolta col commento sopra; nell'indice `codice-tolto.md` (sezione S10).
+
+**Il codice di S10 gioca come S9 su Comet Catcher**: misura con una patch temporanea (`[S10-CHECK]`, non committata) in `metalScan`: 80 metal spot, 0 geo, **0 spot senza cella**; con 80 spot `SimplifyMetalSpots` esce subito (≤ 1024); il punto 4 è solo debug, il 5 una costante non letta.
+
+**Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice finale `5bb29fbb13`, uscita 0, 18–21 s)
+
+| | partita 1 | partita 2 | partita 3 | S9 | S8b (tre partite) | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 36 / 83 / 124 | 5 / 39 / 97 / 154 | 6 / 40 / 92 / **114** | 6 / 38 / 84 / 142 | 5/38/108/152 · 5/38/86/149 · 6/37/101/171 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14): unità, fabbriche, mex | 145, **1**, **19** | 175, 2, 32 | **132**, 2, 28 | 161, 2, 32 | 168/166/198, 2, 33/29/39 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 173, 1, 20 | 203, 2, 34 | 153, 2, 30 | 169, 2, 34 | 190/197/212, 2, 34/34/43 | — |
+| relay: messaggi / ordini / rifiutati | 4005 / 15659 / 6 | 3598 / 15423 / 7 | 2733 / 10860 / **35** | 2912 / 11906 / 7 | 3301–3891 / 13383–19508 / 8–16 | 3405–3933 / 10445–15948 / 9–16 |
+| heap | 12,9–15,3 MB | 12,8–14,6 MB | 12,9–14,6 MB | 13,0–14,9 | 12,9–15,1 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 | 0 | 0 |
+
+- **Sotto i riferimenti**: partita 1, mex al minuto 14 (19 contro 23–35 di S1) e una fabbrica sola per tutta la partita; partita 3, unità al minuto 13 (114 contro 117) e 14 (132 contro 141), 35 ordini rifiutati (S1 9–16). Non ho tentato correzioni. Per quanto sopra il codice gioca come S9, quindi lo leggo come varianza del seme, ma non l'ho provato con una prova nella stessa partita.
+- La memoria per frame non l'ho riportata in medie: lo script nuovo la stampa per minuto (`avg 0.18–0.76 KB`, picco per minuto fino a 35 KB nella partita 1), in linea con le partite di prima.
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown).
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2768 successi, 0 falliti, 1 pending (2760 + 4 di `LosHST` + 3 di `MapHST` + 1 di `GridHST`). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 (dalla radice) su tutti i file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `663698e4d6`: errori 19 → 19. Per file (base → finale): `loshst.lua` 10 avvisi / 17 hint → uguale; `maphst.lua` 11 / 15 → uguale; `gridhst.lua` 0 / 9 → uguale; `armyhst.lua` 40 / 17 → 39 / 17; i tre spec senza diagnostiche. I totali degli avvisi dei due alberi differiscono di centinaia (23405 / 23059) per file che non ho toccato, come nelle volte prima.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte `.ai-notes/`.
+
+**Da sapere**
+
+- Il compito dava il punto 1 come l'unico che cambia il gioco: non lo cambia (sopra). Diventa visibile solo se un modulo legge `unarm*`, `A`/`S`/`G` o i `*_balance`.
+
 ### S9 (agente locale, 25 novembre 2026) — verificato dal coordinatore. `POS` di `DAMAGED` da `GridToPos` accettato (previsto dal compito); uscita sulle celle fuori griglia accettata (0 casi)
 
 **In breve**: `GridLayer:Unmark(i)` c'è, con test e mutazioni; `DAMAGED` è uno strato di `DamageHST`, `SCOUTED` uno strato di `ScoutHST` scritto solo dal padrone (`ScoutHST:Scouted(X, Z)`); via `areaGridCells` e `getGridCellsFields`. **Prova nella stessa partita: 0 differenze** in tutta la partita C, per tutti e due gli strati, cella per cella, con lo stesso numero di celle e le stesse somme di `defenderThreat` a ogni `Update`. **`POS` di `DAMAGED` resta da `GridToPos`**: con il `POS` della cella di `GridHST` la prova ha trovato una cella con `y` diverso (terreno deformato dopo `Init`). La partita A non sta sotto i riferimenti.

@@ -146,3 +146,9 @@ Altro:
 | nome | file | cosa faceva |
 | --- | --- | --- |
 | riga commentata `-- cell = nil` in `ScoutHST:Update` | `scouthst.lua` | resto di una vecchia scadenza delle celle |
+
+## S10 — `5bb29fbb13` «STAI ArmyHST: remove the unused UWMetalSpotCheckUnit»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `ArmyHST.UWMetalSpotCheckUnit` (`"cormex"`) e il commento sopra | `armyhst.lua` | unità di prova per dividere i metal spot in sott'acqua e a terra; il suo lettore (`map:CanBuildHere` in `metalScan`) è stato tolto in S3. Grep in tutto il repository (fuori da `.ai-notes/`): nessun altro uso |
