@@ -74,7 +74,7 @@ local function optionsMask(options)
 end
 
 -- Writes the params into the reused array `slot` and returns how many; nil and why when they cannot be sent.
--- A position table becomes x, y, z and then its [1] if any, as STAI's Tool:SerializeOrder flattened it.
+-- A position table becomes x, y, z, followed by its [1] when it has one.
 local function writeParams(slot, params)
 	local count
 	if params == nil then
