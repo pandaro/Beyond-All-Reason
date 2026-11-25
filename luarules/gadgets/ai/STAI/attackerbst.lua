@@ -1,8 +1,3 @@
---[[function IsAttacker(unit)
-	-- 	return self.ai.armyhst.attackerlist[unit:Internal():Name()] or false
-	return self.ai.armyhst.unitTable[unit:Internal():Name()].isAttacker
-end]]
-
 AttackerBST = class(Behaviour)
 
 function AttackerBST:Name()
@@ -46,17 +41,14 @@ function AttackerBST:Init()
 end
 
 function AttackerBST:OwnerBuilt()
-	self.attacking = false
 	self.ai.attackhst:AddRecruit(self)
 end
 
 function AttackerBST:OwnerDamaged(attacker, damage)
-	self.damaged = self.game:Frame()
+	self.damaged = self.game:Frame() --frame of the last hit
 end
 
 function AttackerBST:OwnerDead()
-	self.attacking = nil
-	self.active = nil
 	self.unit = nil
 	self.ai.attackhst:RemoveRecruit(self)
 	self.ai.attackhst:RemoveMember(self)
@@ -64,9 +56,7 @@ end
 
 function AttackerBST:OwnerIdle()
 	self.idle = true
-	if self.active then
-		self.ai.attackhst:MemberIdle(self)
-	end
+	self.ai.attackhst:MemberIdle(self)
 end
 
 function AttackerBST:OwnerMoveFailed(unit)
@@ -75,26 +65,11 @@ function AttackerBST:OwnerMoveFailed(unit)
 end
 
 function AttackerBST:Priority()
-	if not self.attacking then
-		return 0
-	else
-		return 200
-	end
-end
-
-function AttackerBST:Activate()
-	self.active = true
-end
-
-function AttackerBST:Deactivate()
-	self.active = false
+	return 0 --the squad gives the orders
 end
 
 function AttackerBST:Update()
 	local f = self.game:Frame()
-	if not self.active and self.squad and self.target then
-		self.unit:ElectBehaviour()
-	end
 	if not self.mtype then
 		self:Warn("no mtype and network")
 	end
@@ -106,13 +81,10 @@ function AttackerBST:Update()
 end
 
 function AttackerBST:Free()
-	self.attacking = false
-	self.target = nil
 	self.idle = nil
 	if self.squad and self.squad.disbanding then
 		self.squad = nil
 	else
 		self.ai.attackhst:RemoveMember(self)
 	end
-	self.unit:ElectBehaviour()
 end
