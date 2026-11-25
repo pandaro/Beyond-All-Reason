@@ -1,7 +1,20 @@
-Toolbox = {} --math and table helpers for every scope: no state, no ai, no game
+Toolbox = {} --math and table helpers, and the debug colours, for every scope: no state, no ai, no game
 
 local sqrt = math.sqrt
 local twicePi = math.pi * 2
+
+Toolbox.COLOURS = {
+	red = { 1, 0, 0, 1 }, --ship
+	green = { 0, 1, 0, 1 }, --kbot
+	blue = { 0, 0, 1, 1 }, -- air
+
+	aqua = { 0, 1, 1, 1 }, --hov
+	yellow = { 1, 1, 0, 1 }, -- amp
+	purple = { 1, 0, 1, 1 }, -- sub
+
+	white = { 1, 1, 1, 1 },
+	black = { 0, 0, 0, 1 }, --veh
+}
 
 function Toolbox:RawDistance(x1, y1, z1, x2, y2, z2)
 	local x = x1 - x2

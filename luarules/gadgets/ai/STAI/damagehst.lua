@@ -103,12 +103,6 @@ end
 
 function DamageHST:Update()
 	self:UpdateBadPositions()
-	-- 	local prepathnodecost = Spring.GetPathNodeCosts(game:GetTeamID())
-	-- 	for i,v in pairs(prepathnodecost) do
-	-- 		if v > 0 then
-	-- 			self:EchoDebug('get path node cost',i,v)
-	-- 		end
-	-- 	end
 	self:VisualDBG()
 end
 
@@ -119,7 +113,7 @@ function DamageHST:VisualDBG()
 	end
 	local ch = 1
 	self.map:EraseAll(ch)
-	local colours = self.ai.tool.COLOURS
+	local colours = Toolbox.COLOURS
 	local cellElmosHalf = self.ai.gridhst.gridSizeHalf ---@type number
 	local LIST = self.DAMAGED.LIST
 	for n = 1, #LIST do

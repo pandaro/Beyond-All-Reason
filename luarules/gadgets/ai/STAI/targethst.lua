@@ -1,3 +1,5 @@
+local TablePool = shard_include("tablepool")
+
 TargetHST = class(Module)
 
 function TargetHST:Name()
@@ -19,6 +21,7 @@ function TargetHST:Init()
 	self.MOBILE_BLOBS = {}
 	self.enemyFrontList = {}
 	self.blobchecked = {}
+	self.blobPool = TablePool.New() --the tables of the blobs, given back at every round
 	self.enemyCenter = { x = 0, y = 0, z = 0 }
 	self.enemyBasePosition = { x = 0, y = 0, z = 0 }
 	self.enemybasecount = 0
@@ -32,10 +35,8 @@ function TargetHST:Update()
 	self:drawDBG()
 end
 
-function TargetHST:GetBlobs(_blobs_, param) --reset all the old blobs
-	--for ref,blob in pairs(self[_blobs_]) do --reset all the old blobs
-	self.ai.tool:ResetTable(self[_blobs_])
-	--end
+function TargetHST:GetBlobs(_blobs_, param)
+	self:releaseBlobs(self[_blobs_])
 	local blobref
 	local ENEMY = self.ai.loshst.ENEMY
 	for n = 1, #ENEMY.LIST do --find all the bew blobs, numeric loop keeps the order of the cells
@@ -66,22 +67,38 @@ function TargetHST:GetBlobs(_blobs_, param) --reset all the old blobs
 	self:EchoDebug("selfblob", _blobs_, self[_blobs_])
 end
 
+function TargetHST:releaseBlobs(blobs) --give back to the pool the old blobs and the tables in them
+	local pool = self.blobPool
+	for ref, blob in pairs(blobs) do
+		local cells = blob.cells
+		for n = 1, #cells do
+			pool:Release(cells[n])
+		end
+		pool:Release(cells)
+		pool:Release(blob.position)
+		pool:Release(blob.units)
+		pool:Release(blob.targetCell)
+		pool:Release(blob)
+		blobs[ref] = nil
+	end
+end
+
 function TargetHST:Blobbing(layer, param, x, z, _blobs_, blobref) --rolling on the cell to extrapolate blob of param
 	self.blobchecked[x .. ":" .. z] = true
 	local CELL = self.ai.gridhst:GetCell(x, z, layer) --nil out of the edges, the recursion goes beyond them
 	if CELL and CELL[param] and CELL[param] > 0 then
 		if not self[_blobs_][blobref] then
-			self[_blobs_][blobref] = self.ai.tool:RezTable()
-			self[_blobs_][blobref].position = self.ai.tool:RezTable()
+			self[_blobs_][blobref] = self.blobPool:Get()
+			self[_blobs_][blobref].position = self.blobPool:Get()
 			self[_blobs_][blobref].position.x = 0
 			self[_blobs_][blobref].position.y = 0
 			self[_blobs_][blobref].position.z = 0
-			self[_blobs_][blobref].cells = self.ai.tool:RezTable()
-			self[_blobs_][blobref].units = self.ai.tool:RezTable()
+			self[_blobs_][blobref].cells = self.blobPool:Get()
+			self[_blobs_][blobref].units = self.blobPool:Get()
 			self[_blobs_][blobref].metal = 0
-			self[_blobs_][blobref].targetCell = self.ai.tool:RezTable()
+			self[_blobs_][blobref].targetCell = self.blobPool:Get()
 		end
-		local cellCoord = self.ai.tool:RezTable()
+		local cellCoord = self.blobPool:Get()
 		cellCoord.X = x
 		cellCoord.Z = z
 		table.insert(self[_blobs_][blobref].cells, cellCoord)
@@ -156,7 +173,7 @@ function TargetHST:drawDBG()
 	end
 	local ch = 4
 	self.map:EraseAll(ch)
-	local colours = self.ai.tool.COLOURS
+	local colours = Toolbox.COLOURS
 	if self.enemyBasePosition then
 		map:DrawPoint(self.enemyBasePosition, colours.black, "BASE", ch)
 	end

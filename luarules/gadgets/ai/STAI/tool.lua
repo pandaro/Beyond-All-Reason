@@ -16,8 +16,10 @@ function Tool:Scope()
 end
 
 for name, func in pairs(Toolbox) do --the Toolbox helpers answer as self.ai.tool:<name> too, with Toolbox as self
-	Tool[name] = function(_, ...)
-		return func(Toolbox, ...)
+	if type(func) == "function" then
+		Tool[name] = function(_, ...)
+			return func(Toolbox, ...)
+		end
 	end
 end
 
@@ -35,18 +37,7 @@ abs = math.abs
 min = math.min
 max = math.max
 
-Tool.COLOURS = {
-	red = { 1, 0, 0, 1 }, --ship
-	green = { 0, 1, 0, 1 }, --kbot
-	blue = { 0, 0, 1, 1 }, -- air
-
-	aqua = { 0, 1, 1, 1 }, --hov
-	yellow = { 1, 1, 0, 1 }, -- amp
-	purple = { 1, 0, 1, 1 }, -- sub
-
-	white = { 1, 1, 1, 1 },
-	black = { 0, 0, 0, 1 }, --veh
-}
+Tool.COLOURS = Toolbox.COLOURS --the same table
 Tool._TABLES = {}
 Tool.tablerez = 0
 Tool.tablenew = 0
