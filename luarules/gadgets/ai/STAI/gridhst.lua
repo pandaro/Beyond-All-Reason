@@ -278,6 +278,24 @@ function GridLayer:Mark(i) --put the cell i in LIST, once
 	self.LIST[#self.LIST + 1] = i
 end
 
+function GridLayer:Unmark(i) --take the cell i out of LIST keeping the order of the others, and reset it; the table stays for the next use
+	if not self.marked[i] then
+		return
+	end
+	local LIST = self.LIST
+	for n = 1, #LIST do --LIST is short
+		if LIST[n] == i then
+			table.remove(LIST, n)
+			break
+		end
+	end
+	self.marked[i] = nil
+	local CELL = self.CELLS[i]
+	if self.resetCell and CELL then
+		self.resetCell(CELL)
+	end
+end
+
 function GridLayer:Clear() --reset the cells in LIST and empty it; the tables stay for the next use
 	local LIST = self.LIST
 	for n = 1, #LIST do

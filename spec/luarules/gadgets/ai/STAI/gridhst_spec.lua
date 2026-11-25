@@ -228,6 +228,65 @@ describe("STAI GridHST", function()
 			assert.same({ corner, inside }, cells)
 		end)
 
+		it("takes one cell out of the list keeping the order of the others, and resets it", function()
+			local layer = grid:NewLayer(resetCell)
+			local LIST = layer.LIST
+			for _, i in ipairs({ 5, 9, 2, 7 }) do
+				layer:Get(i).metal = i
+				layer:Mark(i)
+			end
+			resets = {}
+			layer:Unmark(9)
+			assert.same({ 5, 2, 7 }, layer.LIST)
+			assert.is_true(rawequal(LIST, layer.LIST))
+			assert.is_nil(layer:GetMarked(9))
+			assert.equal(1, #resets)
+			assert.is_true(rawequal(layer.CELLS[9], resets[1]))
+			assert.equal(0, layer.CELLS[9].metal)
+			assert.equal(2, layer:GetMarked(2).metal)
+		end)
+
+		it("does nothing on a cell that is not in the list", function()
+			local layer = grid:NewLayer(resetCell)
+			layer:Get(3).metal = 4
+			layer:Mark(6)
+			resets = {}
+			layer:Unmark(3)
+			layer:Unmark(8)
+			assert.same({ 6 }, layer.LIST)
+			assert.equal(0, #resets)
+			assert.equal(4, layer.CELLS[3].metal)
+		end)
+
+		it("marks a cell again after it was taken out, at the end of the list", function()
+			local layer = grid:NewLayer(resetCell)
+			local CELL = layer:Get(4)
+			layer:Mark(4)
+			layer:Mark(1)
+			layer:Unmark(4)
+			layer:Mark(4)
+			assert.same({ 1, 4 }, layer.LIST)
+			assert.is_true(rawequal(CELL, layer:GetMarked(4)))
+		end)
+
+		it("takes cells out while a backward loop runs over the list", function()
+			local layer = grid:NewLayer(resetCell)
+			for i = 1, 6 do
+				layer:Get(i).metal = i
+				layer:Mark(i)
+			end
+			local LIST, seen = layer.LIST, {}
+			for n = #LIST, 1, -1 do
+				local i = LIST[n]
+				seen[#seen + 1] = i
+				if i % 2 == 0 then
+					layer:Unmark(i)
+				end
+			end
+			assert.same({ 6, 5, 4, 3, 2, 1 }, seen)
+			assert.same({ 1, 3, 5 }, layer.LIST)
+		end)
+
 		it("keeps the layers apart", function()
 			local first, second = grid:NewLayer(), grid:NewLayer()
 			first:Get(1)
