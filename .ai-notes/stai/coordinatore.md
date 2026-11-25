@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, S26 e S19 verificati (`gridSize` resta 256); **S24a scritto e da eseguire** (ordine a molte unità nel framework); poi S24b (`AttackerBST` solo sensore). Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S24a, poi scrivere S24b. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, S26 e S19 verificati (`gridSize` resta 256); S24a verificato; **S24b scritto e da eseguire**. Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S24b. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -112,13 +112,13 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | ~~S13~~ | elezione: fatto, regola nuova | high | Opus 5.5 |
 | ~~S22, S23~~ | fatti | | |
 | S25 | metodi inesistenti (`GiveOrderToUnit`) e globali accidentali | low | Haiku 5.5 |
-| S24a | ordine «un comando a molte unità» (codec, outbox, relay; «Shard …») | high | Sonnet 5.5 |
+| ~~S24a~~ | ordine «un comando a molte unità»: fatto | high | Sonnet 5.5 |
 | S24b | `AttackerBST` solo sensore: eventi alla squadra, priorità 0, via `attacking` | medium | Sonnet 5.5 |
 | S22 | `labshst.lua:367` rete `nil`; `bomberhst` `cmdUnitId` con buchi | low | Haiku 5.5 |
 | S17 | `shard_null` (punto 12) — dopo S24, se restano token (utente) | alto | Sonnet 5.5 |
 | ~~S18~~ | `ShardMemStats`: **decisione dell'utente (25 novembre 2026)**: resta per lo sviluppo; in S20 si toglie dal codice distribuito e si scrive un «How to debug» nella guida | — | — |
 | ~~S19~~ | `gridSize` 128: provato, peggio, ritirato | high | Opus 5.5 |
-| S20 | chiusura (con: via `ShardMemStats` da `memstats.lua` e dagli script, sezione «How to debug» nella guida): guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
+| S20 | chiusura (con: `ShardMemStats` resta nel codice **disattivato** — commentato o non chiamato, si accende solo a mano — con un commento che dice come; via `springsettings` dagli script; sezione «How to debug» nella guida): guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
 
 Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku. Obiettivo: chiudere il porting dopo S24 (S18, S17 se restano token), poi tenere token per idee e miglioramenti.
 S18: l'unico uso di `springsettings` è `ShardMemStats` in `shard_runtime/loader/memstats.lua` (`Spring.GetConfigInt` r. 20 e 54); gli script di prova scrivono la riga in un `springsettings.cfg` temporaneo.

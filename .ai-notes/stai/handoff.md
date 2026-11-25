@@ -19,26 +19,28 @@
 
 ## Compito attuale
 
-### S24a: ordine «un comando a molte unità» nel framework (commit «Shard …»)
+### S24b: `AttackerBST` solo sensore
 
-**Impegno: high. Modello: Sonnet 5.5.** Approvato dall'utente (25 novembre 2026). Cambio al **framework**: commit che iniziano con «Shard …». Il formato del codec lo deciderà poi l'utente con il coordinatore del framework: qui serve la versione **minima** che funziona, scritta in modo che si possa cambiare (tutto in `ordercodec.lua`, niente formati sparsi). Se trovi un ostacolo di progetto, **fermati** e descrivilo.
+**Impegno: medium. Modello: Sonnet 5.5.** Decisione dell'utente (25 novembre 2026): la squadra (`AttackHST`) dà gli ordini, `AttackerBST` è il sensore dell'unità (eventi alla squadra, priorità 0, nessun ordine). **Il gioco cambia** (sotto): tre partite A. **Stile**: `nuovo-stai.md` §7.
 
-Oggi (S16) `game:GiveOrder '1-2'` (`spring_lua/game.lua` r. 240 circa) mette in coda **un ordine per unità**; il relay synced (`loader/relay.lua`) li esegue unità per unità. Obiettivo: `'1-2'` diventa **un solo record** nel messaggio, eseguito dal relay con **`Spring.GiveOrderToUnitArray`**.
+Trovato dal coordinatore: `AttackerBST:OwnerIdle` (r. 66–71) chiama `AttackHST:MemberIdle` **solo se `self.active`**, e `AttackerBST` non è mai attivo (`attacking` mai vero, S13): quindi `squad.idleCount` non sale mai dagli eventi, e la condizione di `attackhst.lua` r. 190 (`idleCount > 85 % dei membri`) non scatta per questa via. Correggerlo cambia il gioco.
 
-1. **Codec** (`ordercodec.lua`): un tipo di record «gruppo»: `cmdID`, `options`, params, numero di unità, gli `unitID` (U16). Scegli tu come distinguerlo dal record di oggi (versione 2 del formato, o un campo); scrivilo nel commento di testa. `MAX_ORDERS_PER_MESSAGE`: decidi e scrivi come conta un record gruppo (consiglio: 1 record = 1, più un tetto di unità per record, per esempio 255).
-2. **Outbox** (`spring_lua/outbox.lua`): `Queue` per un gruppo; `game:GiveOrder '1-2'` lo usa.
-3. **Relay** (synced): legge il record, **scarta le unità non valide o non della squadra** (stesse regole di oggi per l'ordine singolo, contate nei rifiutati), chiama `GiveOrderToUnitArray` con le rimanenti; contatori: ordini = unità comandate, più un contatore dei gruppi.
-4. **Test busted**: codec (pacchetto e lettura, gruppo vuoto, 1 unità, tetto), outbox (`'1-2'` dà un record), relay (unità estranee scartate, chiamata unica all'engine; c'è già lo spec di `ordercodec` e di `spring_lua/`). Mutazioni. `run_engine_tests.sh` (aggiungi un caso in motore se il runner lo permette).
-5. **Partite**: una A e una C, confronto con S26 (A) e S25 (C): **messaggi**, ordini, rifiutati, memoria per frame. Il gioco non deve cambiare (stessi ordini, meno messaggi); righe `[AI Loader] error` 0.
-- Aggiorna `.ai-notes/drafts/README.md` (sezione ordini) in breve.
-- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
-- Commit, in inglese: «Shard …» per codec+outbox+relay con test (uno o due), uno per la guida, uno per i risultati.
-
-S24b (`AttackerBST` solo sensore) viene dopo, separato.
+1. `attackerbst.lua`:
+   - `Priority` restituisce sempre 0 (commento a fine riga: la squadra dà gli ordini);
+   - via `attacking` (r. 49, 58, 109 e il ramo di `Priority`), `Activate`/`Deactivate` (o vuoti), il ramo di `Update` che chiama `ElectBehaviour` (r. 93–95) e la chiamata in `Free` se resta inutile;
+   - `OwnerIdle` chiama `MemberIdle` **sempre** (la squadra controlla `squad`); `OwnerMoveFailed` come oggi (passa da `OwnerIdle`);
+   - `OwnerDamaged`/`damaged`: grep se qualcuno lo legge; se no lascialo (segnale per il futuro) e scrivilo;
+   - il blocco commentato `IsAttacker` in testa: via (indice).
+2. Grep in `luarules/` e `spec/` per `attacking`, `.active` letti da fuori su un `AttackerBST`.
+3. Test busted: `OwnerIdle` con e senza squadra incrementa `idleCount`; `Priority` 0.
+4. Misura (patch non committata, una partita A): quante volte `MemberIdle` è chiamato e quante volte r. 190 scatta, prima e dopo.
+5. **Tre partite A** e **una C** (confronto con S26, S24a, S1). Se peggio in più di una A, scrivilo e non tentare altro.
+- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
+- Commit, in inglese: uno per `AttackerBST` con test, uno per i risultati.
 
 ## Risultati
 
-### S24a (agente locale, 25 novembre 2026) — `'1-2'` è un solo record, eseguito con `GiveOrderToUnitArray`
+### S24a (agente locale, 25 novembre 2026) — verificato dal coordinatore. Le due cose «da decidere» (tetto di unità per messaggio, marcatore 65535) passano all'utente e al coordinatore del framework — `'1-2'` è un solo record, eseguito con `GiveOrderToUnitArray`
 
 **In breve**: fatto. Formato versione 2, tutto in `ordercodec.lua`. Test: 2808 successi, 0 fallimenti; `run_engine_tests.sh` `RESULT: ok`; StyLua pulito; EmmyLua senza avvisi nuovi nei file toccati (`.emmyrc.json` ripristinato). Partite A e C: 0 righe `[AI Loader] error`, gioco nei riferimenti.
 
