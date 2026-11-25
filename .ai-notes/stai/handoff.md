@@ -51,6 +51,18 @@ Due compiti: «esegui s26» → **solo S26**; poi, **solo se S26 dice che il cro
 
 ## Risultati
 
+### S26 (agente locale, 25 novembre 2026) — il crollo era varianza; nessuna bisezione
+
+Tre partite A su `HEAD` (`a99cabc2c3`), 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, righe `[AI Loader] error`: 0. Nessuna è crollata (criterio: fabbriche 0 o unità < 100).
+
+| | min. 14: unità | fine (SUMMARY): unità, fabbriche, mex | relay: messaggi / ordini / rifiutati | `Shard memory record` |
+| --- | --- | --- | --- | --- |
+| A1 | 191 | 200, 2, 38 | 4837 / 14562 / 4 | 15581 |
+| A2 | 183 | 203, 2, 37 | 4330 / 17437 / 4 | 15468 |
+| A3 | 167 | 188, 2, 29 | 2645 / 12911 / 19 | 15573 |
+
+Come da compito: ferma qui, nessun `Echo`, nessun cambio di codice. Il crollo di S25 (1 unità, 0 fabbriche, 2705 messaggi) resta una partita su quattro non spiegata; non si è ripetuta. S19 si può eseguire.
+
 ### S25 (agente locale, 25 novembre 2026) — verificato dal coordinatore; la partita A crollata va in S26. Domande: `GetBestBombardCell` e funzioni matematiche globali restano per ora; `test.lua` da guardare in chiusura — da verificare dal coordinatore
 
 **Punto 1, metodi inesistenti in `Tool`** (commit `1209557466`): `bomberbst.lua:59` (`Deactivate`) e `mexupbst.lua:35` e `:127` usavano `GiveOrderToUnit`, che non esiste. Ora `self.ai.tool:GiveOrder(<id>, …)` con l'id dell'unità (`:ID()`), come le altre chiamate. `mexupbst` non è caricato: la correzione è solo di coerenza.
