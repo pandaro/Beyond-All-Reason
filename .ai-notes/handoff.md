@@ -18,29 +18,82 @@
 
 ## Compito attuale
 
-### T16: `maxInstances` per partita
+### T17: tempi di moduli e behaviour nell'infolog; `ShardMemStats` acceso da codice
 
-**Impegno: basso.** Oggi `MAX_INSTANCES_PER_AI_TYPE` (T14) conta le AI che **questo client** fa girare: con due host le AI di un tipo possono essere 4. L'utente lo intendeva **per partita**.
+**Impegno: medio.** L'utente vede picchi gravi in partita e vuole sapere chi li fa. Si lavora su `shard/fase1`; il port su `stai/porting` lo decide poi il coordinatore.
 
 **Lavoro**
 
-1. Il conto diventa **per partita e deterministico**: ogni client guarda tutti i team AI della partita (la stessa lista da cui `SetupAI` legge il tipo), li ordina per ID di team, e per ogni tipo partono solo i primi `MAX_INSTANCES_PER_AI_TYPE`. Tutti i client arrivano allo stesso risultato senza scambiarsi niente. Se pensi che serva il synced, scrivi perché prima di farlo.
-2. Al cambio di host il conto non cambia: un team escluso resta escluso, uno ammesso resta ammesso.
-3. La riga di log resta, con il motivo nuovo (per esempio «AI team 4 not started: 2 STAI AIs already in this game, the most one AI type may have»).
-4. Il relay synced rifiuta gli ordini di un team AI escluso, con la stessa funzione (un solo punto che decide chi è ammesso, incluso da tutti e due i lati, come `OrderCodec` per il limite degli ordini).
-5. La costante resta 2 e resta l'unico posto da cambiare.
+1. **Misura dei tempi** in un file nuovo, `loader/timers.lua`, nel lato unsynced:
+   - un interruttore **nel codice**, come al punto 3 (niente springsettings), oggi **acceso**, e la soglia `SPIKE_MS = 10`, tutti e due in costanti in cima al file;
+   - le misure stanno **solo** dove i moduli e i behaviour vengono chiamati, cioè nei punti già segnati (commentati) in `shardai.lua` (`ShardAI:Update` e `ShardAI:ScheduledUpdate` per i moduli, i gestori degli eventi) e in `unit.lua` (behaviour). `delivery.lua` e `scheduler.lua` chiamano solo questi metodi: **non** si toccano. `timers.lua` offre due funzioni piccole (inizio e fine) usate in quei punti; niente misure sparse altrove;
+   - oltre la soglia, **una riga** con `Spring.Echo` (infolog e terminale), facile da leggere con uno script, per esempio:
+     `[Shard timer] frame=1234 ai=STAI team=1 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4`
+     (`behaviour=-` per i moduli; per i behaviour anche il nome del modulo che li tiene, se c'è). Se non riesci ad avere tutti i campi, scrivi quali mancano e perché;
+   - a fine partita un riepilogo per nome (chiamate, min, max, media, somma, quante oltre la soglia), una riga per nome;
+   - la risoluzione: in S7 `Spring.DiffTimers` dava millesimi interi; in S19 `Spring.GetTimerMicros` nel contesto dei moduli restituiva un userdata. Trova un modo per avere almeno decimi di ms (per esempio un argomento di `DiffTimers`, o i timer presi nel loader e non dentro l'ambiente dei moduli) e scrivi quale hai usato.
+2. **Il passaggio al widget resta**: non togliere `game:StartTimer`/`game:StopTimer` in `spring_lua/game.lua`, né il codice dei timer in `luaui/Widgets/shard_help_draw.lua`, né le righe commentate in `shardai.lua`/`unit.lua` (servono se un giorno si vuole il grafico).
+3. **`ShardMemStats` da codice** (decisione dell'utente): in `memstats.lua` niente più `Spring.GetConfigInt("ShardMemStats")` né rilettura ogni minuto; una costante in cima al file, oggi **accesa**. Stesso schema dell'interruttore del punto 1. Aggiorna gli strumenti in `.ai-notes/tools/` che usano `SHARD_MEM_STATS` e la guida (`.ai-notes/drafts/README.md`: una sezione «How to debug» con i due interruttori, la soglia e il formato della riga).
+4. **Niente controllo del costo della misura** (decisione dell'utente): basta che funzioni.
 
-6. **Extra, decisione dell'utente**: `MAX_ORDERS_PER_MESSAGE` in `ordercodec.lua` da 10 a **20**. Nient'altro: un gruppo con più di 20 ordini resta rifiutato intero, come oggi. Aggiorna i test di T15 che usano il numero.
+**Test busted**: una chiamata sopra soglia scrive una riga con i campi giusti, una sotto no; il riepilogo conta bene; con l'interruttore spento nessuna misura. Mutazioni.
 
-**Test busted**: due ally team con tre AI dello stesso tipo in tutto → partono le prime due per ID di team, su qualunque host; tipi diversi contano separati; il cambio di host non cambia chi è ammesso; il relay rifiuta un messaggio di un team escluso. Mutazioni.
-
-**Partite**: nessuna, salvo che il codice di gioco cambi più del previsto.
+**Partite**: una partita A (STAI) di 15 minuti: riporta le righe `[Shard timer]` (quante, i nomi più frequenti, i 10 picchi più alti) e il riepilogo. Nessuna riga `[AI Loader] error`.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno per `maxInstances`, uno per i 20 ordini.
+**Commit**, in inglese: uno per i tempi, uno per `ShardMemStats`, uno per guida e strumenti.
 
 ## Risultati
+
+### T17 (agente locale, 25 novembre 2026) — verificato dal coordinatore (`ShardTimers` è un globale del gadget: scostamento accettato, serve a `shardai.lua` e `unit.lua`)
+
+**Commit**: `b204166b0a` (tempi), `f5745cb437` (`ShardMemStats` da codice), `202eddbf18` (guida e strumenti).
+
+**1. Tempi** — `shard_runtime/loader/timers.lua`, unsynced, incluso da `ShardAILoader.lua` e reso visibile al runtime come globale del gadget `ShardTimers` (lo leggono `shardai.lua` e `unit.lua`; senza loader, come negli spec del runtime, le funzioni diventano vuote).
+- In cima: `TIMERS_ON = true`, `SPIKE_MS = 10`.
+- Quattro funzioni piccole: `BeginModule`/`EndModule` attorno a ogni chiamata a un modulo in `shardai.lua` (Init, Update, ScheduledUpdate, GameMessage e tutti i gestori degli eventi: 16 punti), `BeginBehaviour`/`EndBehaviour` attorno a ogni chiamata a un behaviour in `unit.lua` (Update nei due rami, PreActivate+Activate come `call=Activate`, Owner*/Unit* degli eventi, GameEnd). `delivery.lua` e `scheduler.lua` non toccati; le righe commentate (`game:StartTimer`, tracy) restano, e il codice dei timer di `game.lua` e del widget pure.
+- Riga sopra soglia (strettamente > 10 ms), tutti i campi presenti:
+  `[Shard timer] frame=5 ai=STAI team=0 ally=0 scope=team module=UnitHandler behaviour=BuildersBST call=Update ms=12.3`
+  `team=-` per ally e global, `ally=-` per global, `behaviour=-` per i moduli. Il modulo di un behaviour è quello la cui chiamata è in corso quando il behaviour è chiamato (quello che tiene l'unità); `BeginModule` restituisce il modulo esterno e `EndModule` lo rimette, senza tabelle. Il tempo di un modulo include i behaviour che chiama: un behaviour lento dà due righe.
+- Riepilogo a `GameOver`, o a `Shutdown` se la partita non è finita (una volta sola): `[Shard timer summary] names=N spike_ms=10`, poi per nome, somma più alta prima: `name= kind= calls= min= max= avg= sum= spikes=` (ms).
+- **Risoluzione**: `Spring.DiffTimers(Spring.GetTimerMicros(), t0, true, true)` (quarto argomento `fromMicroSecs`), letti nel loader e non nell'ambiente dei moduli. In partita il riepilogo mostra `min=0.001`: risoluzione sotto il ms confermata. Il passo di `GetTimerMicros` cresce con l'uptime (memoria: 256 µs dopo 45 minuti), sempre sotto i decimi di ms richiesti fino a lì.
+- Un errore dentro un modulo (preso da `xpcall` in `delivery.lua`) salta `EndModule`: quella chiamata non viene contata e il «modulo corrente» resta quello fino alla prossima `BeginModule`.
+
+**3. `ShardMemStats`** — `memstats.lua`: `SHARD_MEM_STATS = true` in cima; tolti `Spring.GetConfigInt` e la rilettura ogni minuto. `SetMeasuring`/`SetEnabled` esistono solo per gli spec.
+
+**Strumenti e guida**: `run_engine_game.sh` non usa più `SHARD_MEM_STATS` (toglie solo un eventuale `ShardMemStats` vecchio dallo springsettings temporaneo), stampa le righe `Shard timer summary` e il numero di righe `[Shard timer]`. `.ai-notes/drafts/README.md`: sezione «How to debug» (i due interruttori, la soglia, i due formati, un comando per i picchi più alti), voce 12 dell'indice.
+
+**Test busted** (spec del loader unsynced, 7 nuovi in «with the timers»): riga sopra soglia con tutti i campi per behaviour e modulo; nessuna riga a 10 ms e sotto; ally e global con il loro scope; `call=UnitCreated`; riepilogo con conteggi, min, max, media, somma, spikes, scritto a GameOver e una volta sola; spento → nessuna lettura del timer e nessuna riga; acceso dalla costante. Memstats: i test usano lo switch al posto di springsettings; «riprende a misurare dopo /set» sostituito da «misura con springsettings vuoto: lo switch è nel codice». Gli spec sovrascrivono gli switch (`world.timers`, `world.memStats`; `"code"` lascia il valore del file).
+Mutazioni, ognuna rilevata: `TIMERS_ON = false`, `<` al posto di `<=` sulla soglia, `SetEnabled` ignorato, riepilogo scritto più volte, modulo corrente non registrato, `spikes` non contato, `max` sbagliato, `SHARD_MEM_STATS = false`, tolta la misura di UnitCreated in `shardai.lua`, tolta quella di Update in `unit.lua` (3 falliti), tolto il riepilogo da GameOver (1 fallito dopo aver rafforzato il test: prima `Shutdown` lo copriva).
+
+**Partita A** (STAI contro SimpleAI, 15 minuti, `run_engine_game.sh`; uscita 0 in 21 s): STAI 122 unità, 2 fabbriche, 15 mex; SimpleAI 85/1/11. Relay 3268 messaggi, 10255 ordini, 9 rifiutati. Nessuna riga `[AI Loader] error`. Memoria per frame: media 0,4-0,6 KB, massimo 35,7 KB; picco heap 15374 KB.
+- Righe `[Shard timer]`: **2**, tutte e due a `Init` (frame 0), nessuna durante il gioco:
+
+| frame | modulo | call | ms |
+|---|---|---|---|
+| 0 | ArmyHST | Init | 20,6 |
+| 0 | MapHST | Init | 18,2 |
+
+- Riepilogo (29 nomi; i primi per somma, ms):
+
+| nome | tipo | chiamate | max | media | somma |
+|---|---|---|---|---|---|
+| UnitHandler | modulo | 31672 | 4,1 | 0,050 | 1583,4 |
+| LabsHST | modulo | 27032 | 0,3 | 0,011 | 307,9 |
+| ScoutBST | behaviour | 302838 | 0,9 | 0,000 | 130,2 |
+| EcoHST | modulo | 27032 | 0,7 | 0,004 | 117,7 |
+| AttackHST | modulo | 27032 | 0,3 | 0,004 | 102,8 |
+| TargetHST | modulo | 27032 | 0,1 | 0,004 | 100,1 |
+| BuildersBST | behaviour | 145254 | 1,6 | 0,001 | 84,1 |
+| BootBST | behaviour | 587629 | 0,1 | 0,000 | 83,5 |
+| RaidHST | modulo | 27032 | 0,1 | 0,003 | 70,7 |
+| LosHST | modulo | 32294 | 0,2 | 0,002 | 69,4 |
+
+  Il massimo di una chiamata durante il gioco è 4,1 ms (UnitHandler, che include i behaviour delle unità).
+- Lettura: in headless, con una sola STAI e questo STAI di `shard/fase1`, nessuna chiamata supera 10 ms dopo l'avvio. I picchi gravi che l'utente vede vanno cercati in una partita vera con lo stesso codice (le righe e il riepilogo ci sono già): se lì non compaiono righe, i picchi non stanno dentro moduli o behaviour (garbage collector, engine, widget). Nota: `TaskQueueBST` dell'esempio del compito non esiste in questo STAI.
+
+**Controlli**: `lx --lua-version 5.1 test` 2735 successi, 0 falliti, 1 pending di sempre. StyLua 2.5.2 pulito sui file toccati. EmmyLua 0.24.0: 20 errori, gli stessi; `timers.lua` e `memstats.lua` 0 diagnostiche, warning di `unit.lua` da 9 a 6. `run_engine_tests.sh`: `RESULT: ok`. `.emmyrc.json` ripristinato.
 
 ### T16 (agente locale, 24 novembre 2026) — verificato dal coordinatore
 
