@@ -42,7 +42,7 @@
 
 ## Risultati
 
-### T18 (agente locale, 25 novembre 2026)
+### T18 (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Commit**: `1b3723e86a` (codice e spec, «Shard timers: …»), `25e2282983` (guida).
 
