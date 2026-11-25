@@ -248,4 +248,22 @@ describe("STAI LosHST", function()
 		assert.equal(100, CELL.BUILDINGS)
 		assert.is_nil(CELL.base)
 	end)
+
+	it("keeps the center where it is without own buildings, and puts it in their mean position with them", function()
+		local units = { [40] = newUnit(40, 100, 300), [41] = newUnit(41, 300, 500) }
+		local losHST = newLosHST({}, units)
+		local commanderPosition = { x = 1000, y = 20, z = 2000 }
+		losHST.CENTER = commanderPosition
+
+		losHST:getCenter()
+
+		assert.equal(commanderPosition, losHST.CENTER)
+		assert.same({ x = 1000, y = 20, z = 2000 }, losHST.CENTER)
+
+		losHST.ownImmobile[40] = BUILDING
+		losHST.ownImmobile[41] = BUILDING
+		losHST:getCenter()
+
+		assert.same({ x = 200, y = 0, z = 400 }, losHST.CENTER)
+	end)
 end)

@@ -161,25 +161,26 @@ function LosHST:setPosLayer2(unitName, x, y, z)
 	return 0, floating
 end
 
-function LosHST:getCenter()
-	self.CENTER = self.CENTER or {}
-	self.CENTER.x = 0
-	self.CENTER.y = 0
-	self.CENTER.z = 0
+function LosHST:getCenter() --the mean position of the own buildings; with none, CENTER stays as it is
+	local x, y, z = 0, 0, 0
 	local count = 0
 	for uid in pairs(self.ownImmobile) do
 		local u = game:GetUnitByID(uid)
-		local x, y, z = u:GetRawPos()
-		if x then
-			self.CENTER.x = self.CENTER.x + x
-			self.CENTER.y = self.CENTER.y + y
-			self.CENTER.z = self.CENTER.z + z
+		local ux, uy, uz = u:GetRawPos()
+		if ux then
+			x = x + ux
+			y = y + uy
+			z = z + uz
 			count = count + 1
 		end
 	end
-	self.CENTER.x = self.CENTER.x / count
-	self.CENTER.y = self.CENTER.y / count
-	self.CENTER.z = self.CENTER.z / count
+	if count == 0 then
+		return
+	end
+	self.CENTER = self.CENTER or {}
+	self.CENTER.x = x / count
+	self.CENTER.y = y / count
+	self.CENTER.z = z / count
 end
 
 function LosHST:getEnemyCell(X, Z) --the cell X, Z of ENEMY, marked as true for this round
