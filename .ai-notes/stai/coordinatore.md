@@ -119,7 +119,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | ~~S17~~ | STAI sotto `shard_null`: fatto (`stai_null_spec.lua`) | high | Sonnet 5.5 |
 | ~~S18~~ | `ShardMemStats`: **decisione dell'utente (25 novembre 2026)**: resta per lo sviluppo; in S20 si toglie dal codice distribuito e si scrive un «How to debug» nella guida | — | — |
 | ~~S19~~ | `gridSize` 128: provato, peggio, ritirato | high | Opus 5.5 |
-| S27 | confronto globale: STAI di fase 0 (`57992771`) contro STAI di oggi, 10 + 10 partite A, test di Welch (utente, 25 novembre 2026) | high | Sonnet 5.5 |
+| S27 | confronto globale: STAI di fase 0 (`57992771` senza loader: fermato; **S27b** con A+ = `57992771` + `AILoader.lua` e `luaai.lua` di `3ad8f3fb^`, senza commit) contro STAI di oggi, 10 + 10 partite A, test di Welch (utente, 25 novembre 2026) | high | Sonnet 5.5 |
 | S20 | chiusura (anche: `test.lua` vecchio; `GetBestBombardCell` mancante in `NukeBST`; funzioni matematiche globali di `tool.lua`; tetto di unità per messaggio del codec, con il coordinatore del framework) (con: `ShardMemStats` resta nel codice **disattivato** — commentato o non chiamato, si accende solo a mano — con un commento che dice come; via `springsettings` dagli script; sezione «How to debug» nella guida): guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
 
 Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku. Obiettivo: chiudere il porting dopo S24 (S18, S17 se restano token), poi tenere token per idee e miglioramenti.
@@ -130,4 +130,5 @@ S18: l'unico uso di `springsettings` è `ShardMemStats` in `shard_runtime/loader
 - L'esecutore a volte fa più del compito (funzioni morte in più, guardie): va bene se lo scrive; chiedere all'utente e registrare l'approvazione.
 - Per risparmiare contesto: `git pull --depth`, leggere solo il blocco dei risultati con `awk '/^### S<n> \(agente/,/^### S<n-1> \(agente/'`, diff a campione con `git diff <base> HEAD -- luarules/`.
 - `ShardUnit:GetPosition` riscrive sempre la stessa tabella dell'unità: chi la tiene (come faceva `CENTER`) vede la posizione viva. Prima di descrivere all'utente un valore, controllare se è una tabella condivisa.
+- Prima di indicare un commit come versione da giocare, controllare che contenga il loader e le voci di `luaai.lua` (S27: `57992771` aveva STAI ma non `AILoader.lua`).
 - I compiti funzionano meglio quando il coordinatore ha già letto il codice e scrive righe e nomi precisi (lettori, scrittori, campi).

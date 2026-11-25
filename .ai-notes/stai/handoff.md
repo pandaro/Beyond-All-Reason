@@ -19,7 +19,18 @@
 
 ## Compito attuale
 
-### S27: confronto globale, STAI di fase 0 contro STAI di oggi
+### S27b: confronto globale con A+ (riprende S27)
+
+**Impegno: high. Modello: Sonnet 5.5.** Tutto come S27 (sotto), con una sola differenza nella versione A. Nessun cambio al codice del gioco, nessun commit fuori da `.ai-notes/`.
+
+**A+ (decisione dell'utente, 25 novembre 2026)**: worktree detached a `57992771`, poi **nel worktree, senza commit**: `git checkout 3ad8f3fb^ -- luarules/gadgets/AILoader.lua luaai.lua` (se `3ad8f3fb` manca nel clone, `git fetch` del commit). Così cambia solo l'AI: gioco BAR e SimpleAI restano quelli di B. Se al passo 1 l'avvio chiede altri file tolti da `3ad8f3fb`, prendili allo stesso modo da `3ad8f3fb^` e scrivili nei risultati; se serve cambiare codice, **fermati**.
+
+**Passo 1**: partita di prova A+. Deve risultare che STAI gioca davvero: unità, fabbriche e mex della squadra 0 crescono; nell'infolog righe del vecchio loader (`AILoader`), nessuna riga `[AI Loader]` del nuovo runtime, nessun «being removed from team». Se no, fermati e scrivi l'errore.
+
+**Passi 2 e 3**: come S27 (10 partite A+ e 10 B alternate, stessi dati, Welch). Alla fine worktree rimossi, `~/.spring` non toccato.
+
+#### Compito S27 originale (riferimento)
+
 
 **Impegno: high. Modello: Sonnet 5.5.** Nessun cambio al codice del gioco, nessun commit fuori da `.ai-notes/`.
 
@@ -50,7 +61,7 @@
 
 ## Risultati
 
-### S27 (agente locale, 25 novembre 2026) — **fermato al passo 1**: A non gioca STAI, nessuna partita di misura
+### S27 (agente locale, 25 novembre 2026) — verificato dal coordinatore: errore del coordinatore (`57992771` senza loader). Decisione dell'utente (25 novembre 2026): **A+** senza commit, si riparte con S27b — **fermato al passo 1**: A non gioca STAI, nessuna partita di misura
 
 **In breve**: il commit `57992771` non contiene il loader, quindi in A l'engine non carica STAI: la squadra 0 resta con la sola unità iniziale per tutta la partita. Come da compito mi sono fermato, senza correggere il codice di A e senza giocare le 20 partite. Nessuna statistica.
 
