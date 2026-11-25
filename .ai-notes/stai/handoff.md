@@ -51,6 +51,96 @@
 
 ## Risultati
 
+### S6 (agente locale, 25 novembre 2026)
+
+**Cosa ho fatto**
+
+- Commit `b854dc7d88` «STAI: run ArmyHST, GridHST and MapHST in the global scope»: solo `Scope()` → `"global"` nei tre file, nient'altro (non è servito altro).
+- Commit `c7debb58fb` «Shard outbox: describe the position params without citing removed STAI code»: `outbox.lua` r. 77 → `-- A position table becomes x, y, z, followed by its [1] when it has one.` Solo il commento.
+- Commit `405a8d5136` «STAI Toolbox: keep every value of tableConcat in the array part, in order»: `table.insert(T, value)`, tolto il `WARNING`; il resto uguale (anche i due `pairs`). Test aggiornato (sotto).
+
+**Controlli sugli ambiti** (la lettura del coordinatore è giusta, con una correzione su `drawDebug`)
+
+- `ArmyHST`: nessun `self.ai`, `game`, `map`, `Spring`. `GridHST`: solo `map:MapDimensions` e `map:GetGroundHeight`. `MapHST`: `self.ai.armyhst`, `self.ai.gridhst`, `self.ai.drawDebug`, `map:`/`self.map:`, `Spring.GetGameRulesParam`, `Spring.TestMoveOrder`, `Spring.GetGroundHeight`. Nessuno dei tre usa `self.ai.id`, `game:GetTeamID()` o moduli di team (dopo S5 `MapHST` non usa più `self.ai.tool`).
+- Scritture da fuori: grep di assegnazioni `ai.(maphst|gridhst|armyhst).<campo>… =` e di `table.insert/remove/sort` su di loro: 0. Ho guardato anche gli alias locali (`local ut = self.ai.armyhst.unitTable[...]`, `self.spec`, `.army` di `LabsBST`, `local networks = self.ai.maphst.networks` di `LabsHST`, `networkSpots` di `ScoutHST`, il risultato di `AccessibleSpotsHere`, `sortByDistance` su `networks[...].metals`): solo letture. `GridHST:NewLayer` lo chiama solo `MapHST`.
+- **`map` di `ShardGlobal` e dei team**: ogni oggetto ha la sua `api` (`NewAPI` in `loader/types.lua`, `VFS.Include` di `api.lua` senza cache), quindi un suo `map` e `game`; `map.ai` è l'oggetto che l'ha preso in `Init`. Per le chiamate di `MapHST`/`GridHST` sono equivalenti: `TestPath`, `GetPathObject`, `GetPathWaypoints`, `NextPath`, `GetGroundHeight`, `MapDimensions` leggono solo `Spring`/`Game`; `GetMetalSpots` legge i game rules param (cache per oggetto, stessi valori); `GetGeoSpots` è la lista di `spring_lua/geo.lua`, calcolata per ogni `api` dalle feature al caricamento (stesse feature, stessi spot: la riga `map` lo conferma, 0 geo prima e dopo). Gli unici metodi di `map` che dipendono dall'oggetto sono i `Draw*`/`Erase*` (`self.ai.game:GetTeamID()`): li usa solo `MapHST:DrawDebug`.
+- **`drawDebug` (correzione)**: su `ShardGlobal` c'è, vale `false`: `ShardAI:Init` chiama `self.game:DrawDisplay(false)`, che scrive `self.ai.drawDebug` sull'oggetto che sta inizializzando, anche globale. E nessuno chiama mai `DrawDisplay(true)` (grep in `luarules` e `luaui`: solo la chiamata di `ShardAI:Init`), quindi `MapHST:DrawDebug` non disegnava neanche prima. Lasciato così.
+- **Da sapere su `DrawDebug`**: prima del controllo su `drawDebug` fa `self.map:EraseAll(0..9)` a ogni `Init`. Sul globale `game:GetTeamID()` è `ShardGlobal.id` = `nil`, quindi chiama `ShardDrawClearShapes(nil, i)`. Con il widget `shard_help_draw` spento (è il default) non succede niente; acceso, `GetShapes(nil, …)` fa `aiTeams[nil] = {}` e va in errore dentro LuaUI (non ho provato se l'errore torna nell'`Init` di `MapHST`). Forma semplice, se vuoi: spostare `if not self.ai.drawDebug then return end` prima del ciclo `EraseAll` (all'`Init` non c'è niente da cancellare). Non l'ho fatto.
+- Funzioni chiamate dai moduli e behaviour di team: `MapHST:getPath`, `MobilityNetworkHere`, `MobilityOfUnit`, `UnitCanGoHere`, `UnitCanGetToUnit`, `AccessibleSpotsHere`; di `GridHST` tutte le conversioni, `GetCell`, `areaCells`, `getCellsFields`, `isInMap`, `NewLayer`, `PosToCell`; di `ArmyHST` solo campi (`unitTable`, `factoryMobilities`, …). Nessuna legge o scrive dati di un team: le uniche cose del team arrivano come argomenti (`unit`, posizioni, la griglia passata a `GetCell`/`areaCells`). Unica differenza visibile: i `Warn`/`EchoDebug` di queste funzioni ora escono con il prefisso `global` anche quando le chiama un team.
+- `modules.lua` non cambia: `ArmyHST`, `GridHST`, `MapHST` restano prima dei moduli di team (dopo `SleepST`). Nel log: `global, ShardGlobal, Info: , adding ArmyHST module`, poi `GridHST`, `MapHST`, una volta sola; poi i moduli di ogni team, senza i tre.
+
+**Prova** (`Echo` temporanei, non committati; `c_stai_vs_stai.txt`, 2 minuti). Patch di S5 con due ritocchi per il globale: `tostring(self.ai.id or "global")` al posto di `self.ai.id` (sul globale è `nil`, e `%d` darebbe errore) e `Toolbox:gcd` al posto di `self.ai.tool:gcd` (sul globale non c'è `Tool`; è la stessa funzione).
+
+Partenza `9463fe9826` (identica a S5):
+
+```
+[S3-PROOF] grid, 0, 32, 24, 768, 295296, 295296
+[S3-PROOF] map, 0, 80, 0, 32,  air=1 amp=1 bot=1 hov=1 veh=3
+[S3-PROOF] tool, 0, 78, 390, 5120.0000000000 10240.0000000000 130983.9921875000 103122.6718750000, 80, 2048
+[S3-PROOF] grid, 1, … (uguali al team 0)
+[S3-PROOF] trampled, 1, 79, 406400.0000000000 296576.0000000000 2.118384599685669
+[S3-PROOF] trampled, 0, 68, 208640.0000000000 141568.0000000000 2.246112346649170
+```
+
+Dopo la parte 1 (`b854dc7d88`): `grid`, `map`, `tool` **una volta**, con `global`, stessi valori; `trampled` identiche.
+
+```
+[S3-PROOF] grid, global, 32, 24, 768, 295296, 295296
+[S3-PROOF] map, global, 80, 0, 32,  air=1 amp=1 bot=1 hov=1 veh=3
+[S3-PROOF] tool, global, 78, 390, 5120.0000000000 10240.0000000000 130983.9921875000 103122.6718750000, 80, 2048
+[S3-PROOF] trampled, 1, 79, 406400.0000000000 296576.0000000000 2.118384599685669
+[S3-PROOF] trampled, 0, 68, 208640.0000000000 141568.0000000000 2.246112346649170
+```
+
+Dopo la parte 3 (`405a8d5136`): `grid`, `map`, `trampled` uguali; nella riga `tool` cambiano solo `#allSpots` (78 → 80) e la somma delle reti (390 → 400).
+
+```
+[S3-PROOF] tool, global, 80, 400, 5120.0000000000 10240.0000000000 130983.9921875000 103122.6718750000, 80, 2048
+```
+
+Dai numeri: le 7 reti hanno 400 spot in tutto con al massimo 80 ciascuna, quindi `air`, `amp`, `bot`, `hov` e una rete `veh` hanno tutti gli 80 spot e le altre due reti `veh` nessuno (prima: 5 × 78 = 390).
+
+**Cosa cambia per i lettori di `allSpots`**
+
+| lettore | cosa legge | prima | dopo |
+| --- | --- | --- | --- |
+| `MapHST:LayerScan` | `#self.allSpots`, `#network.allSpots` → `network.ratioSpots` | `#` = n − 2 (0 per reti di 1–2 spot) | `#` = n; `ratioSpots` giusto. **Nessuno legge `ratioSpots`** (grep), quindi nessun effetto |
+| `BuildingsHST:DontBuildOnMetalOrGeoSpots` (r. 137) | `pairs(maphst.allSpots)` | `pairs` vedeva anche le chiavi `0` e `-1`: tutti gli 80 | tutti gli 80; cambia solo l'ordine dei rettangoli in `dontBuildRects`. Stessi rettangoli |
+| `ScoutHST` r. 60 | `pairs(networks[...].allSpots)` → `lastSpotCheck[distanza] = indice` | tutti gli spot (anche `0`, `-1`) | stessi spot, indici diversi; l'ordine di `pairs` su `lastSpotCheck` può cambiare, quindi a parità di distanza il primo spot scelto può essere un altro |
+| `LabsBST:ampRating` (via `AccessibleSpotsHere`) | `#ampSpots`, `#vehSpots` | n − 2 | n. Su Comet Catcher `amphRank` non cambia (78/78 → 80/80 = 0; rete `veh` vuota: 1 prima e dopo); su mappe con reti piccole sì |
+| `LabsHST` | `layers[...].allSpots` | è un conteggio (`#metals + #geos`), non passa da `tableConcat` | invariato |
+
+**Test** (`toolbox_spec.lua`): il caso diventa «concatenates every value in the array part, in the order of the given tables»: `{ {a, b}, {}, {c, d, e} }` → `#T == 5` e `assert.same({ a, b, c, d, e }, T)` (quindi niente chiavi `0`/`-1`); in più `{ {x} }` → `{ x }` (la rete di uno spot); resta `nil` su un argomento non tabella. Mutazioni: `table.insert(T, -1, value)` (il codice di prima) e `table.insert(T, 1, value)`: tutte e due fanno fallire il test (2745 successi, 1 fallito); col codice giusto 2746, 0 falliti.
+
+**Tre partite A** (`SHARD_MEM_STATS=1`, 15 minuti, codice finale `405a8d5136`, uscita 0 tutte e tre)
+
+| | partita 1 | partita 2 | partita 3 | S1 (intervallo) |
+| --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 33 / 79 / 138 | 5 / 36 / 101 / 154 | 6 / 33 / 88 / 133 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14) | 157 unità, 1 fabbrica, 26 mex | 178, 2, 33 | 155, 2, 30 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 175, 2, 28 | 200, 2, 36 | 181, 2, 33 | — |
+| relay: messaggi | 3095 | 3572 | 3247 | 3405–3933 |
+| relay: ordini dati | 12678 | 15278 | 14002 | 10445–15948 |
+| relay: ordini rifiutati | 7 | 4 | 8 | 9–16 |
+| messaggi rifiutati per motivo | nessuno | nessuno | nessuno | nessuno |
+| memoria per frame, medie per minuto | 0,19–0,58 (media 0,35) | 0,18–0,61 (0,37) | 0,19–0,63 (0,39) | 0,18–0,90 (0,37–0,45) |
+| memoria per frame, picco | 159,0 KB (min. 14) | 124,6 KB (min. 12) | 90,1 KB (min. 13) | 67,9–73,5 KB |
+| heap | 13,1–14,9 MB | 13,1–15,2 MB | 13,2–16,0 MB | 13,1–15,5 MB |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 |
+| tempo reale | 18 s | 21 s | 18 s | 19–21 s |
+
+- **Nessuna partita sta sotto i riferimenti**: unità a fine partita 157/178/155 e mex 26/33/30, tutti dentro 141–186 e 23–35; al minuto 13 tutte nell'intervallo di S1. Gli ordini sono nell'intervallo, i rifiutati (4–8) più bassi di S1; i messaggi della partita 1 (3095) sono sotto i 3405 di S1, come la partita 1 di S2 (3222).
+- Da notare: i picchi di memoria per frame (90–159 KB) sono più alti di S1 (68–74), come già in S2 (84–99); 159 è il picco di T14. Le medie sono uguali a S1. L'heap della partita 3 arriva a 16,0 MB (S1 fino a 15,5). Con tre partite non lo distinguo dalla variabilità.
+- Partita 1: una sola fabbrica fino al minuto 14 (la seconda arriva prima del `SUMMARY`), come la partita 1 di S2. Al minuto 1 la partita 2 ha 0 fabbriche (5 unità), come due partite di S2.
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown). Nessuno cita Shard, STAI, `MapHST` o `Toolbox`.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2746 successi, 0 falliti, 1 pending (stesso numero di S5: il caso di `tableConcat` è sostituito, non aggiunto). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 (dalla radice) sui file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `9463fe9826`: 20 errori, gli stessi (stessi file). Per file uguali alla base: `armyhst.lua` 39 avvisi, `maphst.lua` 11, `gridhst.lua` 0 (9 hint), `toolbox.lua` 0 (11 hint); `outbox.lua` e `toolbox_spec.lua` senza diagnostiche.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte questo file. Niente codice tolto, quindi `codice-tolto.md` non cambia.
+
 ### S5 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Approvati dall'utente (25 novembre 2026): le 6 funzioni tolte oltre l'elenco e i tre avvisi tolti da `Toolbox` (niente `Warn` in `Toolbox`)
 
 **Cosa ho fatto**
