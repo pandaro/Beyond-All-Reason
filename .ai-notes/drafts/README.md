@@ -433,7 +433,7 @@ The map can draw shapes for debugging, shown by the `shard_help_draw` widget: `D
 **Timers** (`timers.lua`, `TIMERS_ON`). Every call the runtime makes into a module (`Init`, `Update`, every event) and into a behaviour (`Update`, `Activate`, every event) is timed. A call longer than `SPIKE_MS` (10 ms) writes one line to the infolog:
 
 ```
-[Shard timer] frame=1234 ai=STAI team=1 ally=0 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4
+[Shard timer] frame=1234 ai=STAI team=1 ally=0 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4 kb=-48210.3
 ```
 
 - `team` is `-` for ally and global modules, `ally` is `-` for global modules.
@@ -441,6 +441,7 @@ The map can draw shapes for debugging, shown by the `shard_help_draw` widget: `D
 - `call` is the method called; `ScheduledUpdate` is a module's `Update` in its scheduler turn.
 - A module's time includes the behaviours it calls, so a slow behaviour gives two lines: its own and its module's.
 - `ms` has one decimal. The clock is `Spring.GetTimerMicros`, whose step grows with the uptime of the engine process (2 us at start, 256 us after 45 minutes).
+- `kb` is the change of the Lua heap (`collectgarbage("count")`) from the start to the end of the call, signed, one decimal. Far below zero: the garbage collector ran inside the call, and the time is probably its own. Large and positive: the call itself allocates a lot.
 
 At `GameOver` (or at shutdown, if the game did not end), one line per module or behaviour name, the largest total first:
 
