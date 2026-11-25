@@ -48,6 +48,75 @@
 
 ## Risultati
 
+### S5 (agente locale, 25 novembre 2026)
+
+**Cosa ho fatto**
+
+- Commit `f5d91af207` «STAI: move the stateless helpers of Tool to a Toolbox library»:
+  - `STAI/toolbox.lua` nuovo: `Toolbox = {}` (tabella semplice, senza `class`), `local sqrt`, `local twicePi` propri (così il file non dipende dai globali che `tool.lua` assegna e si carica da solo). Dentro, con i due punti, stesso corpo e stesso commento: `RawDistance`, `DISTANCE`, `distance`, `AngleAdd`, `PositionWithinRect`, `RectsOverlap`, `pairsByKeys`, `tableSorting`, `sortByDistance`, `listHasValue`, `gcd`, `tableConcat`. I `self:` interni (`self:pairsByKeys`, `self:distance`, `self:gcd`) restano.
+  - **Tre righe cambiate (scelta mia)**, perché `Toolbox` non ha console: tolti gli `self:EchoDebug` di `tableSorting` e `sortByDistance` (non stampavano mai: `Tool` non ha `Init` e non accende `DebugEnabled`) e il `self:Warn` di `tableConcat` (l'uscita anticipata resta, col testo dell'avviso come commento a fine riga). Il `Warn` non poteva scattare: tutti i 31 chiamanti passano una tabella scritta sul posto (`tableConcat({ a, b })`). In alternativa `Toolbox` potrebbe avere un suo `Warn` con `Spring.Echo`, ma la regola del compito vieta `Spring`: dimmi se lo vuoi.
+  - **`Tool` prende le funzioni con rimandi**, in `tool.lua` subito dopo `Scope`: `for name, func in pairs(Toolbox) do Tool[name] = function(_, ...) return func(Toolbox, ...) end end`. Così `self.ai.tool:distance(...)` funziona come prima e dentro la libreria `self` è sempre `Toolbox`, mai l'istanza di `Tool`. Ho scartato `Tool[name] = func` (più corto): lì `self` sarebbe l'istanza di `Tool`, e `sortByDistance` userebbe `Tool.distance` dell'istanza (oggi la stessa funzione, ma basta un campo con quel nome per cambiarla) — il test lo distingue. Costo: una chiamata in più per ogni `self.ai.tool:<funzione della libreria>`, senza tabelle nuove.
+  - `tool.lua` fa `shard_include("toolbox")` dopo `astarclass`; `maphst.lua` lo fa in testa (prima riga), così la dipendenza di `MapHST` si vede nel file. `shard_include` del tipo d'AI tiene una cache: il file gira una volta.
+  - `MapHST`: le 8 chiamate → `Toolbox:tableConcat` (2), `Toolbox:distance` (3), `Toolbox:gcd`, `Toolbox:RawDistance` (2). `grep self.ai.tool maphst.lua`: 0 righe. StyLua ha rimesso su una riga l'`if` di `gridThePath` (più corto con `Toolbox:`).
+  - Test `spec/luarules/gadgets/ai/STAI/toolbox_spec.lua` (sotto).
+- Commit `e06200dd72` «STAI Tool: remove functions nobody calls»: solo righe tolte.
+  - Le 16 dell'elenco; grep in tutto il repository (anche `.md`, `luaui`, `common`, `Shard`, `tool[`/`Tool[` con stringa) prima di toglierle: nessuna è usata. L'unico riferimento fuori da `tool.lua` era la riga commentata `--local gas = self.ai.tool:WhatHurtsUnit(...)` di `damagehst.lua`: l'ho tolta con il resto del ciclo commentato che la usava (`--for groundAirSubmerged, yes in pairs(gas) do`, `--	if yes then`, i due `--end`).
+  - **In più, scelta mia (fermami se non va)**: funzioni chiamate *solo* da quelle dell'elenco, che dopo restavano senza chiamanti — `TableToString` e `StringToTable` (solo `SerializeOrder`, `DeserializeOrder`, `TableToStringBackup`), `AngleAtoB` (solo `AnglePosPos` e `SimplifyPath`), `AngleDist` (funzione globale, solo `SimplifyPath`), `HorizontalLine` e `Plot4` (solo `FillCircle`). Il coordinatore ne metteva quattro nella libreria e due in `Tool`; `TableToString` comunque non passava la regola (stato nel `local serialized` del file). Con loro: i `local` che usavano (`serialized`, `whatHurtsUnit`, `whatHurtsMtype`), i `local` mai letti (`mapBuffer`, `layerNames`, `unitThreatLayers`, `quadX`, `quadZ`, `output`) e `Tool:CustomCommand` commentata in fondo. Tutto è nell'indice; si riprende con `git show e06200dd72^:luarules/gadgets/ai/STAI/tool.lua`.
+  - `tool.lua`: da 785 a 261 righe. Resta in `Tool`: `COLOURS`, `_TABLES`, `RezTable`, `KillTable`, `ResetTable`, `GiveOrder`, `RandomAway`, `RandomAway2`, `getTeamUnitsByClass`, `countFinished`, `countMyUnit`, `mtypedLvCount`, `UnitPos`, i rimandi a `Toolbox` e i globali `sqrt`, `random`, `pi`, … (li usano altri file di STAI). `RandomAway2` la chiama `scoutbst.lua` r. 103.
+- `.ai-notes/stai/codice-tolto.md` (questo commit): una tabella per commit (S2, S3, S4a, S4b, S5), nome, file, cosa faceva; in testa come si riprende.
+
+**Come si condivide `Toolbox` fra ambiti.** `LoadAIType` (`shard_runtime/loader/types.lua`) legge ogni tipo d'AI una volta, in un ambiente suo (`setmetatable({}, { __index = gadget })`), e `shard_include` di quel tipo (`shard_generate_include_func` con `env`) esegue ogni file una volta e poi restituisce dalla cache. Quindi `Toolbox` è **una sola tabella per tutte le STAI** del client, di qualunque ambito; non ha stato, e i suoi `local` (`sqrt`, `twicePi`) sono costanti. Lo stesso vale già per le classi: anche `Tool._TABLES` (la riserva di `RezTable`/`KillTable`) sta nella classe, quindi è **una sola riserva per tutte le STAI**, non per team come diceva il compito (le tabelle vuote passano da un team all'altro; nessun effetto oggi, ma da sapere per S6).
+
+**Da segnalare: `tableConcat` è difettosa** (lasciata com'è, il gioco non deve cambiare; ho messo un `WARNING` a fine riga). `table.insert(T, -1, value)` in Lua 5.1 sposta gli elementi e scrive in `T[-1]`: gli ultimi due valori finiscono nelle chiavi `0` e `-1`, fuori dalla parte array, e l'ordine è rovesciato. Con 80 metalli e 0 geo `#MapHST.allSpots` è 78 (riga `tool` della prova). Le reti con 1 o 2 spot hanno `#allSpots == 0`. Il test fissa il comportamento di oggi: chi lo corregge aggiorna il test.
+
+**Test** `spec/luarules/gadgets/ai/STAI/toolbox_spec.lua`: carica `toolbox.lua` da solo con `loadfile` in un ambiente suo; un secondo caso carica `class`, `AIBase`, `Module` e `tool.lua` (con uno `shard_include` finto che esegue solo `toolbox`). Casi: `distance` sul piano, `DISTANCE` e `RawDistance` in tre dimensioni (anche con i punti scambiati); `gcd` (anche `gcd(10240, 6144) = 2048` e con `b = 0`); `sortByDistance` dal più vicino, sul piano (il più vicino ha `y = 900`); `tableConcat` com'è oggi (sopra) e `nil` su un argomento non tabella; un'istanza di `Tool` con `distance` sostituita da una funzione che dà errore: `tool:sortByDistance` funziona lo stesso (quindi `self` è `Toolbox`) e `tool:gcd` = `Toolbox:gcd`. **Mutazioni** (12, tutte fanno fallire il test): `distance` con `y`; `DISTANCE` senza `y`; `RawDistance` senza `y`; `gcd` con argomenti scambiati; `gcd` che restituisce `b`; `sortByDistance` in ordine inverso; `sortByDistance` che tiene l'ordine della lista; `tableConcat` con `table.insert(T, value)`; con `table.insert(T, 1, value)`; senza il controllo del tipo; rimando che passa l'istanza di `Tool` al posto di `Toolbox`; `Tool[name] = func`.
+
+**Righe per file**
+
+| commit | file | + | − |
+| --- | --- | --- | --- |
+| `f5d91af207` | `toolbox.lua` (nuovo) | 104 | 0 |
+| | `tool.lua` | 7 | 104 |
+| | `maphst.lua` | 10 | 10 |
+| | `spec/luarules/gadgets/ai/STAI/toolbox_spec.lua` (nuovo) | 88 | 0 |
+| `e06200dd72` | `tool.lua` | 0 | 427 |
+| | `damagehst.lua` | 0 | 5 |
+
+**Prova che il gioco non cambia** (`Echo` temporanei, non committati; `c_stai_vs_stai.txt`, 2 minuti). Alle righe di S4b ho aggiunto una riga `tool` = team, `#allSpots`, somma dei `#allSpots` delle reti, `elmoMapMaxCenterDistance`, `elmoMapMaxDistance`, somma `x` e `z` degli `hotSpots`, somma dei pesi, `self.ai.tool:gcd(elmoMapSizeX, elmoMapSizeZ)`: sono i valori che `MapHST` calcola con le funzioni spostate (e `gcd` passa per i rimandi di `Tool`).
+
+Codice di partenza `103285ea7b`, codice dopo il primo commit e codice finale: righe identiche (`diff` vuoto), e le righe `grid`, `map`, `trampled` identiche a quelle di S4b.
+
+```
+[S3-PROOF] grid, 0, 32, 24, 768, 295296, 295296
+[S3-PROOF] map, 0, 80, 0, 32,  air=1 amp=1 bot=1 hov=1 veh=3
+[S3-PROOF] tool, 0, 78, 390, 5120.0000000000 10240.0000000000 130983.9921875000 103122.6718750000, 80, 2048
+[S3-PROOF] grid, 1, 32, 24, 768, 295296, 295296
+[S3-PROOF] map, 1, 80, 0, 32,  air=1 amp=1 bot=1 hov=1 veh=3
+[S3-PROOF] tool, 1, 78, 390, 5120.0000000000 10240.0000000000 130983.9921875000 103122.6718750000, 80, 2048
+[S3-PROOF] trampled, 1, 79, 406400.0000000000 296576.0000000000 2.118384599685669
+[S3-PROOF] trampled, 0, 68, 208640.0000000000 141568.0000000000 2.246112346649170
+```
+
+**Partita C** (`c_stai_vs_stai.txt`, 15 minuti, codice finale, uscita 0, 23 s): tutte e due le STAI ospitate dal giocatore 0.
+
+| | team 0 STAI | team 1 STAI |
+| --- | --- | --- |
+| unità min. 1 / 5 / 10 / 13 | 6 / 35 / 90 / 127 | 6 / 37 / 105 / 162 |
+| mex min. 5 / 10 / 13 | 5 / 17 / 20 | 6 / 20 / 30 |
+| min. 14 | 141 unità, 2 fabbriche, 20 mex | 182, 2, 32 |
+| `SUMMARY` | 142, 2, 21 | 190, 2, 34 |
+
+- Relay: 4924 messaggi, 28074 ordini, 28 rifiutati; nessun messaggio rifiutato. 0 righe `[AI Loader] error`; errori solo quelli di sempre (`gui_pip` `CreateShader`, `gui_sensor_ranges_jammer_preview` in Shutdown, `AdvSky`, `ceg_test_projectile`, atlas groundFX, shader AoE Napalm/Reclaim Field), nessuno cita Shard, STAI o `Tool`.
+- Qui il team 1 va avanti dal minuto 10 (come il team 1 di S3 e S4a); l'inizializzazione è identica, lo attribuisco alla variabilità.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2746 successi (+5), 0 falliti, 1 pending. `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 sui file toccati: ok. (Va lanciato dalla radice del repository: da `STAI/` non trova `.stylua.toml` e usa la configurazione predefinita.)
+- EmmyLua 0.24.0, confronto con un worktree della base `103285ea7b`: 20 errori, gli stessi (stessi file). Per file: `tool.lua` 6 → 1 avviso (44 → 15 hint), `maphst.lua` 11 → 11, `damagehst.lua` uguale (1 errore di prima, 7 avvisi), `toolbox.lua` 0 avvisi e 11 hint (variabili inutilizzate del codice spostato), il test 0 avvisi. L'avviso rimasto in `tool.lua` è nuovo: `param-type-mismatch` su `func(Toolbox, ...)` nel rimando (l'analizzatore non capisce `self` dei metodi presi con `pairs`); gli altri cinque erano nel codice tolto.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte questo file.
+- Nota: il commento di `shard_runtime/spring_lua/outbox.lua` r. 77 cita ancora «STAI's Tool:SerializeOrder» (che non c'è più). È nel framework, quindi non l'ho toccato: va in un commit «Shard …» se vuoi correggerlo.
+
 ### S4b (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Cosa ho fatto**
