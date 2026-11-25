@@ -19,16 +19,16 @@
 
 ## Compito attuale
 
-### S16: ordini grandi (punto 10) — indagine, niente cambio di gioco
+### S21: `#` con buchi in `RaidHST` (ordini saltati)
 
-**Impegno: medio. Agente: Sonnet 5.5.** Solo misura e proposta; **non cambiare il codice di STAI né il framework**. Risultati come `### S16`.
+**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente il 25 novembre 2026. **Il gioco cambia** (i raid ricevono ordini che oggi saltano): tre partite A. **Stile**: `nuovo-stai.md` §7.
 
-1. **Framework**: leggi come il relay tratta un ordine per molte unità (cerca in `shard_runtime/` e `ShardAILoader.lua` il limite di 20, `excluded`, i «rifiutati», `GiveOrderArrayToUnitArray`). Scrivi in breve: cosa succede oltre 20 unità, cosa conta come «rifiutato» e perché.
-2. **STAI**: elenco dei punti che danno ordini a più unità insieme (grep `GiveOrder`, `GiveOrderToUnitArray`, `Tool:GiveOrder` con tabelle di id, ordini in cicli sui membri di squadre: `AttackHST`, `RaidHST`, `BomberHST`, `CleanHST`, …): file, riga, quante unità al massimo in pratica.
-3. **Misura** con una patch non committata: una partita C (15 minuti) che conta per ciascun punto del passo 2 le chiamate con più di 20 unità, e le righe «rifiutati» del relay con il motivo. Tabella nei risultati.
-4. **Proposta**: se ci sono ordini persi, 1–3 modi per correggerli (in STAI o nel framework), con pro e contro. Se non ce ne sono, scrivilo: il punto 10 si chiude.
-
-**Controlli**: nessun commit di codice; `git status` pulito a parte `.ai-notes/`. Commit solo dei risultati.
+- `raidhst.lua` r. 271–280: `squad.cmdUnitId[i]` si scrive solo per i membri da comandare, quindi ha buchi, e `#squad.cmdUnitId` (r. 279) e `game:GiveOrder '1-2'` (che usa `#id`) possono dare 0 o saltare unità. Correzione: contatore locale `n`, `n = n + 1`, `squad.cmdUnitId[n] = ...`; `if n > 0 then`.
+- Uguale, per sicurezza (oggi senza buchi solo se `squad.members` è un array senza buchi: controlla e scrivilo), negli altri cicli che riempiono `cmdUnitId` con l'indice del membro: `raidhst.lua` r. 263–264 e 290–291, `attackhst.lua` r. 236–237 e 252–253. `cmdUnitId` viene da `ResetTable` (vuota) prima del ciclo: controlla che sia così in ogni caso.
+- Test busted (spec di `RaidHST`, nuovo se non c'è): tre membri, il primo già in GUARD sul bersaglio → l'ordine parte per gli altri due.
+- **Tre partite A** (righe solite, confronto con S12b e S1); scrivi anche quante volte nella prima partita la vecchia `#` avrebbe dato un numero diverso da `n` (patch non committata).
+- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer` prima di `git add -A`.
+- Commit, in inglese: uno per il codice con il test, uno per i risultati.
 
 ## Risultati
 
