@@ -16,6 +16,7 @@ function LosHST:Init()
 	self.DebugEnabled = false
 	self.losEnemy = {}
 	self.radarEnemy = {}
+	self.ghostEnemy = {} --mobile units seen in los and still on radar since: their type is known
 	self.ownImmobile = {}
 	self.ENEMY = self.ai.gridhst:NewLayer(self.resetCell) --the cells with enemies in this round
 	self.ai.friendlyTeamID = {}
@@ -27,8 +28,8 @@ function LosHST:Update()
 	for id, def in pairs(self.losEnemy) do
 		local unit = game:GetUnitByID(id)
 		local x, y, z = unit:GetRawPos()
-		if self.losEnemy[id] and self.radarEnemy[id] then
-			self:Warn("unit in los and in radar, with losStatus:", game:GetUnitLos(id))
+		if self:countSets(id) > 1 then
+			self:Warn("unit in more than one of los, radar and ghost, with losStatus:", game:GetUnitLos(id))
 		elseif not x or not unit:IsAlive() then
 			self:cleanEnemy(id)
 		else
@@ -41,13 +42,25 @@ function LosHST:Update()
 		local x, y, z = unit:GetRawPos()
 		--self:EchoDebug('enemyunitx',x,unit.x,unit.y,unit.z)
 
-		if self.losEnemy[id] and self.radarEnemy[id] then
-			self:Warn("unit in los and in radar, with losStatus:", game:GetUnitLos(id))
+		if self:countSets(id) > 1 then
+			self:Warn("unit in more than one of los, radar and ghost, with losStatus:", game:GetUnitLos(id))
 		elseif not x or not unit:IsAlive() then
 			self:cleanEnemy(id)
 		else
 			local X, Z = self.ai.gridhst:RawPosToGrid(x, y, z)
 			self:setCellRadar(unit, X, Z)
+		end
+	end
+	for id, def in pairs(self.ghostEnemy) do
+		local unit = game:GetUnitByID(id)
+		local x, y, z = unit:GetRawPos() --the radar position, as for radarEnemy
+		if self:countSets(id) > 1 then
+			self:Warn("unit in more than one of los, radar and ghost, with losStatus:", game:GetUnitLos(id))
+		elseif not x or not unit:IsAlive() then
+			self:cleanEnemy(id)
+		else
+			local X, Z = self.ai.gridhst:RawPosToGrid(x, y, z)
+			self:setCellLos(unit, X, Z) --the type is known, so it counts as a unit in los
 		end
 	end
 end
@@ -59,6 +72,7 @@ function LosHST:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
 	self:EchoDebug("ENTER LOS", unitID, unitTeam, allyTeam, unitDefID, UnitDefs[unitDefID].name)
 	self.losEnemy[unitID] = unitDefID
 	self.radarEnemy[unitID] = nil
+	self.ghostEnemy[unitID] = nil
 end
 
 function LosHST:UnitLeftLos(unitID, unitTeam, allyTeam, unitDefID)
@@ -69,6 +83,9 @@ function LosHST:UnitLeftLos(unitID, unitTeam, allyTeam, unitDefID)
 	if speed == 0 then
 		self.losEnemy[unitID] = unitDefID
 		self.radarEnemy[unitID] = nil
+	elseif self.ai.perceptionhandler:OnRadar(unitID) then --the radar never stopped: the player still sees its type
+		self.losEnemy[unitID] = nil
+		self.ghostEnemy[unitID] = unitDefID
 	else
 		self.losEnemy[unitID] = nil
 	end
@@ -90,6 +107,7 @@ function LosHST:UnitLeftRadar(unitID, unitTeam, allyTeam, unitDefID)
 		return
 	end
 	self.radarEnemy[unitID] = nil
+	self.ghostEnemy[unitID] = nil
 	self:EchoDebug("LEFT RADAR", unitID, unitTeam, allyTeam, unitDefID)
 end
 
@@ -110,6 +128,21 @@ function LosHST:cleanEnemy(id)
 	self:EchoDebug("unit dead removed from los and radar", id)
 	self.losEnemy[id] = nil
 	self.radarEnemy[id] = nil
+	self.ghostEnemy[id] = nil
+end
+
+function LosHST:countSets(id) --in how many of losEnemy, radarEnemy, ghostEnemy is the unit: one at a time
+	local count = 0
+	if self.losEnemy[id] then
+		count = count + 1
+	end
+	if self.radarEnemy[id] then
+		count = count + 1
+	end
+	if self.ghostEnemy[id] then
+		count = count + 1
+	end
+	return count
 end
 
 function LosHST:setPosLayer2(unitName, x, y, z)
@@ -404,6 +437,10 @@ function LosHST:Draw()
 	for id, def in pairs(self.radarEnemy) do
 		local u = self.game:GetUnitByID(id)
 		u:DrawHighlight({ 0, 1, 0, 1 }, nil, ch)
+	end
+	for id, def in pairs(self.ghostEnemy) do
+		local u = self.game:GetUnitByID(id)
+		u:DrawHighlight({ 1, 1, 0, 1 }, nil, ch)
 	end
 
 	local colours = {
