@@ -48,7 +48,7 @@
 
 ## Risultati
 
-### S5 (agente locale, 25 novembre 2026)
+### S5 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Da approvare dall'utente: le 6 funzioni tolte oltre l'elenco (`TableToString`, `StringToTable`, `AngleAtoB`, `AngleDist`, `HorizontalLine`, `Plot4`) e i tre avvisi tolti da `Toolbox`
 
 **Cosa ho fatto**
 
