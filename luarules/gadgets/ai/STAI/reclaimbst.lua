@@ -32,11 +32,5 @@ function ReclaimBST:Update()
 end
 
 function ReclaimBST:Priority()
-	if self.act then
-		self:EchoDebug("priority HIGH")
-		return 101
-	else
-		self:EchoDebug("priority LOW")
-		return 0
-	end
+	return 0 --it works from Update, active or not
 end
