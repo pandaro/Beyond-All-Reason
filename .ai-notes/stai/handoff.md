@@ -51,7 +51,7 @@ Due compiti: «esegui s26» → **solo S26**; poi, **solo se S26 dice che il cro
 
 ## Risultati
 
-### S19 (agente locale, 25 novembre 2026) — prova fallita, due commit ritirati; decide l'utente
+### S19 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Prova fallita, due commit ritirati: `gridSize` resta 256
 
 **In breve**: con `gridSize` 128 le tre partite A sono **tutte peggiori** (fine 90 / 132 / 175 unità, contro 188–203 di S26); la memoria sale e `TopologyFooded` sulla mappa più grande arriva a 15.588 chiamate annidate, il 78% del limite di Lua 5.1. Come da compito ho fatto `git revert` dei due commit: `ba90f2c514` «STAI: grid cell size 128 elmos» (con `gridhst_spec.lua` su una mappa 768×512) e `4664f38be0` «STAI: cell radii for the 128-elmo grid», ritirati da `0f57a6bbc3` e `47fe7ca3b9`. `luarules/` e `spec/` sono identici a `a99cabc2c3`.
 
@@ -114,7 +114,7 @@ Riferimenti: S26 (A a 256, stesso `HEAD`) fine 188–203 unità, 29–38 mex, me
 
 **Per l'utente / il coordinatore**: tenere 256 (consiglio: la ricorsione da sola rende 128 rischioso sulle mappe grandi senza riscrivere `TopologyFooded` in modo iterativo), oppure riprovare 128 con `IsSafeCell` `adjacent` 1 e un `TopologyFooded` iterativo.
 
-### S26 (agente locale, 25 novembre 2026) — il crollo era varianza; nessuna bisezione
+### S26 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il crollo era varianza; nessuna bisezione
 
 Tre partite A su `HEAD` (`a99cabc2c3`), 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, righe `[AI Loader] error`: 0. Nessuna è crollata (criterio: fabbriche 0 o unità < 100).
 

@@ -125,7 +125,7 @@ Poi, come prima:
 
 | Numero | Oggi | Da provare | Nota |
 | --- | --- | --- | --- |
-| `gridSize` (`GridHST:Init`) | 256 | 128 | celle ×4; i raggi «in celle» (`getCellsFields(..., 2, ...)`, `areaCells`) cambiano significato e vanno ritarati insieme; percorribilità provata solo al centro della cella (256 è grossa per l'analisi della mappa); `TopologyFooded` ricorsivo, Lua 5.1 regge circa 20.000 chiamate annidate (32×32 a 128 = 16.384 celle) |
+| `gridSize` (`GridHST:Init`) | 256 | 128 — S19 (25 novembre 2026): tre partite A peggiori (90–175 unità), più memoria, ricorsione al 78 % del limite su 2048×2048: **ritirato**, resta 256 | celle ×4; i raggi «in celle» (`getCellsFields(..., 2, ...)`, `areaCells`) cambiano significato e vanno ritarati insieme; percorribilità provata solo al centro della cella (256 è grossa per l'analisi della mappa); `TopologyFooded` ricorsivo, Lua 5.1 regge circa 20.000 chiamate annidate (32×32 a 128 = 16.384 celle) |
 
 ## 6. Come si verifica
 
