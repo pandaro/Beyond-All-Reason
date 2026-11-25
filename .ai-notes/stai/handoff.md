@@ -19,36 +19,39 @@
 
 ## Compito attuale
 
-### S5: `Tool` diviso in libreria e modulo di team; indice del codice tolto
+### S6: `ArmyHST`, `GridHST`, `MapHST` `"global"`; `tableConcat` corretta
 
-**Impegno: alto.** Decisioni dell'utente del 25 novembre 2026 (`nuovo-stai.md` §4 n. 6 e 8). Serve a S6: `MapHST` diventerà `"global"` e non potrà più usare un modulo di team. **Il gioco non deve cambiare.** **Stile**: `nuovo-stai.md` §7.
+**Impegno: alto.** Decisioni dell'utente: ambiti globali (`nuovo-stai.md` §3 punto 2, §5 n. 5); il 25 novembre 2026 l'utente approva S6 e chiede di correggere `tableConcat` subito. **Stile**: `nuovo-stai.md` §7. Tre parti, in quest'ordine: le prime due **non cambiano il gioco**, la terza sì.
 
-**1. La libreria: file nuovo `STAI/toolbox.lua`, tabella `Toolbox`** (nome proposto dal coordinatore; l'utente può cambiarlo)
+**1. Ambiti globali** (il gioco non cambia)
 
-- Ci vanno le funzioni di `tool.lua` che **non hanno stato e non toccano il gioco**: niente `self.<campo>`, niente `self.ai`, `self.game`, `game`, `map`, `Spring`. Dalla lettura del coordinatore: `RawDistance`, `DISTANCE`, `distance`, `AngleAdd`, `AngleAtoB`, `PositionWithinRect`, `RectsOverlap`, `pairsByKeys`, `tableSorting`, `sortByDistance`, `listHasValue`, `gcd`, `tableConcat`, `TableToString`, `StringToTable` (ricontrolla ognuna con questa regola).
-- Restano in `Tool` (modulo `"team"`): quelle con stato o che toccano il gioco — `RezTable`, `KillTable`, `ResetTable` (pool per team), `GiveOrder`, `RandomAway`, `RandomAway2`, `getTeamUnitsByClass`, `countFinished`, `countMyUnit`, `mtypedLvCount`, `UnitPos`, `HorizontalLine`, `Plot4`, e ogni altra che non passa la regola.
-- Le funzioni della libreria si scrivono con i due punti come oggi (`function Toolbox:distance(POS1, POS2)`): stesso corpo, stesso commento. Al posto di `self:altraFunzione` dentro la libreria resta `self:` (il `self` è `Toolbox`).
-- **I chiamanti di oggi non cambiano**: `self.ai.tool:distance(...)` deve continuare a funzionare. `Tool` prende le funzioni della libreria senza copiarne il codice (per esempio riferimenti assegnati una volta, o `__index`): scegli la forma più semplice e leggibile, e controlla che una funzione della libreria chiamata come `self.ai.tool:distance` non usi niente di `Tool`.
-- **Solo `MapHST`** passa già alla libreria: `self.ai.tool:RawDistance` / `distance` / `gcd` / `tableConcat` (8 chiamate) → `Toolbox:…`. Dopo, `maphst.lua` non deve avere `self.ai.tool`.
-- Come si condivide fra ambiti: controlla come `shard_include` carica i file di STAI (ambiente dell'AI, una volta per tipo o per istanza) e scrivi nei risultati se `Toolbox` è una sola tabella per tutte le STAI. Deve esserlo, o almeno non avere stato: per questo la regola sopra.
+- `Scope()` → `"global"` in `armyhst.lua`, `gridhst.lua`, `maphst.lua`. Nient'altro, salvo quello che serve per i punti sotto.
+- Lettura del coordinatore (ricontrolla): `ArmyHST` non usa `self.ai`; `GridHST` usa solo `map:`; `MapHST` usa `self.ai.armyhst`, `self.ai.gridhst` (globali anche loro, va bene), `self.ai.drawDebug`, il globale `map` (16 chiamate), `Spring.*` (6). Nessun modulo scrive dentro `maphst`, `gridhst`, `armyhst` da fuori (grep di assegnazioni `ai.maphst.<campo> =`): ricontrolla.
+- Da controllare e scrivere nei risultati:
+  - il globale `map` dentro un modulo globale: `ShardGlobal:Prepare` lo imposta, ma una funzione di `MapHST` chiamata da un modulo di team gira con il `map` di quel team. Controlla che `map` (e `self.map`) di `ShardGlobal` e dei team siano equivalenti per le chiamate di `MapHST` (`TestPath`, `GetPathObject`, `GetPathWaypoints`, `MapDimensions`, `GetGroundHeight`, metal e geo spot, `Draw*`). Se no, fermati e scrivilo;
+  - `self.ai.drawDebug` lo scrive `game.lua` r. 147 su un'AI di team: su `ShardGlobal` non c'è, quindi `MapHST:DrawDebug` non disegna più. È solo debug: lascialo così e scrivilo (o dimmi una forma semplice se c'è);
+  - ogni funzione di `MapHST`, `GridHST`, `ArmyHST` chiamata dai moduli e behaviour di team: nessuna deve leggere o scrivere dati di un team (`self.ai.id`, `game:GetTeamID()`, moduli di team). Il coordinatore non ne ha trovate;
+  - l'ordine in `modules.lua` resta (`ArmyHST`, `GridHST`, `MapHST` prima dei moduli di team).
+- **Prova**: le righe `[S3-PROOF]` di S5 (con la riga `tool`), codice di partenza e codice dopo questa parte, `c_stai_vs_stai.txt`, 2 minuti: i valori identici. Adesso le righe `grid`, `map`, `tool` dovrebbero comparire **una volta** (ambito globale) invece che per team: scrivilo. Nel log: `Init` di `MapHST` una volta sola con due STAI, righe di log con `global`. Se i valori cambiano, **fermati**.
 
-**2. Via le funzioni di `Tool` mai chiamate**: `StoreOrder`, `SerializeOrder`, `DeserializeOrder`, `TableToStringBackup`, `sumPos`, `MiddleOfTwo`, `ApplyVector`, `AnglePosPos`, `CheckRect`, `sortByValue`, `reverseSortByValue`, `listHasKey`, `dictHasKey`, `WhatHurtsUnit`, `FillCircle`, `SimplifyPath`. Ricontrolla con grep in tutto il repository (anche `local tool = self.ai.tool` e chiamate interne con `self:`) prima di togliere ciascuna. Se una è usata, lasciala e scrivilo.
+**2. Commento del framework** (commit a parte «Shard …», approvato dall'utente il 25 novembre 2026): `shard_runtime/spring_lua/outbox.lua` r. 77 cita `STAI's Tool:SerializeOrder`, che non c'è più. Riscrivi il commento perché dica il formato senza citarla (o con `git show e06200dd72^:luarules/gadgets/ai/STAI/tool.lua` se serve il riferimento). Solo il commento.
 
-**3. Indice del codice tolto: `.ai-notes/stai/codice-tolto.md`** (decisione dell'utente: si toglie, si tiene l'indice). Una tabella: nome, file d'origine, commit che l'ha tolto, una riga su cosa faceva. Dentro: quello tolto in S2 (`schedulerHST.lua`), S3 (`maphst.lua` e righe commentate di `attackhst`, `raidhst`, `damagehst`), S4a (`GridToNodeIndex`), S4b (`topology`) e S5. In testa come si riprende: `git show <commit>^:<file>`. Commit con `git add -f`.
+**3. `Toolbox:tableConcat` corretta** (il gioco cambia; richiesta dell'utente)
 
-**4. Prova che il gioco non cambia**: le stesse righe `[S3-PROOF]` di S4b col codice di partenza e col nuovo (`c_stai_vs_stai.txt`, 2 minuti): identiche. Se cambiano, **fermati**.
+- `table.insert(T, -1, value)` → `table.insert(T, value)`: tutti i valori nella parte array, nell'ordine delle tabelle date. Togli il `WARNING` a fine riga. Il resto della funzione resta com'è.
+- Chiamanti oggi: solo `MapHST` r. 28 (`allSpots`) e r. 149 (`network.allSpots`). Lettori di quei campi: `MapHST` (`#allSpots` in `LayerScan`), `buildingshst.lua` r. 137 (`pairs`), `scouthst.lua` r. 60, `labshst.lua` (`layers[...].allSpots`). Scrivi cosa cambia per ognuno (per esempio `ratioSpots`).
+- Aggiorna il test di `toolbox_spec.lua` al comportamento giusto (`#T` = somma, ordine delle tabelle date); la mutazione `table.insert(T, -1, value)` deve far fallire il test.
+- **Prova**: le righe `[S3-PROOF]` dopo questa parte: `grid`, `map`, `trampled` uguali; nella riga `tool` cambiano `#allSpots` (atteso 80) e la somma delle reti. Scrivi le righe.
 
-**Test**: se `Toolbox` si carica da solo come `GridHST` nel suo test, un test busted di poche funzioni (`distance`, `RawDistance`, `gcd`, `tableConcat`, `sortByDistance`) con mutazioni; altrimenti scrivi perché.
+**Partite**: con il codice finale, **tre partite A** (`nuovo-stai.md` §6), confronto con i riferimenti dopo T16. Righe solite (unità min. 1/5/10/13, unità, fabbriche, mex a fine partita, relay, memoria, heap, `[AI Loader] error`). Se le tre partite stanno tutte sotto i riferimenti, scrivilo chiaramente.
 
-**Partite**: oltre alla prova, una partita C di 15 minuti.
+**Controlli**: StyLua 2.5.2 (dalla radice), EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
 
-**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (confronto per file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato.
-
-**Commit**, in inglese: uno per la libreria e `MapHST`, uno per le funzioni tolte, uno per l'indice e i risultati.
+**Commit**, in inglese: uno per gli ambiti; uno «Shard …» per il commento; uno per `tableConcat` e il test; uno per i risultati (aggiungi a `codice-tolto.md` solo se togli codice).
 
 ## Risultati
 
-### S5 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Da approvare dall'utente: le 6 funzioni tolte oltre l'elenco (`TableToString`, `StringToTable`, `AngleAtoB`, `AngleDist`, `HorizontalLine`, `Plot4`) e i tre avvisi tolti da `Toolbox`
+### S5 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Approvati dall'utente (25 novembre 2026): le 6 funzioni tolte oltre l'elenco e i tre avvisi tolti da `Toolbox` (niente `Warn` in `Toolbox`)
 
 **Cosa ho fatto**
 
