@@ -19,22 +19,11 @@
 
 ## Compito attuale
 
-### S24c: `idleCount` azzerato prima di essere letto
-
-**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente (25 novembre 2026). **Il gioco cambia**: tre partite A. **Stile**: `nuovo-stai.md` §7.
-
-Trovato in S24b: `AttackHST:SquadAdvance` azzera `squad.idleCount` (r. 233) **prima** di chiamare `SquadStepComplete` (r. 250), che lo legge (r. 190: `idleCount > floor(#members * 0.85)`): la condizione è sempre falsa. Stesso schema in `raidhst.lua` (azzerato r. 248, letto r. 204).
-
-1. In tutti e due i moduli: l'azzeramento va **dopo** la lettura (o dopo `SquadStepComplete`), così gli `idle` raccolti fra due avanzamenti contano. Controlla gli altri azzeramenti (`attackhst.lua` r. 402, `raidhst.lua` r. 461) e scrivi se servono.
-2. Test busted (sul modello di `attackerbst_spec.lua`): squadra di 4, 4 `MemberIdle`, avanzamento → il passo scatta per idle.
-3. Misura (patch non committata, una partita A): quante volte il passo scatta per idle (r. 190 e r. 204), prima e dopo.
-4. **Tre partite A** e **una C** (confronto con S24b, S26, S1). Se peggio in più di una A, scrivilo e non tentare altro.
-- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test` (compreso `stai_null_spec`), `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
-- Commit, in inglese: uno per il codice con test, uno per i risultati.
+Nessuno. Porting chiuso il 25 novembre 2026; resta S20 (chiusura per la PR), non prima del 2 dicembre 2026.
 
 ## Risultati
 
-### S24c (agente locale, 25 novembre 2026)
+### S24c (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il fix resta (corretto, provato dai test); A2 bassa: una partita su tre, varianza come in S24b e S25. Niente quarta partita
 
 **Codice (commit `6d07383819`, «STAI: read squad idle count before resetting it»).** `SquadAdvance` azzera `idleCount` dopo `SquadStepComplete` in `attackhst.lua` e `raidhst.lua`; nel ramo `prevent` (che non legge il conteggio) l'azzeramento resta prima del `return`, così il conteggio non si accumula fra un avanzamento e l'altro. Gli altri azzeramenti (`attackhst.lua` r. 402 e `raidhst.lua` r. 461, in `SquadResetTarget`) restano: servono al cambio di bersaglio, non vanno fra lettura e avanzamento.
 
