@@ -104,7 +104,7 @@ La profondità è circa il 95% delle celle: una mappa 40×40 (20480 elmi, 25.600
 | A1 | 58 / 84 | 90, 2, 13 | 2598 / 6584 / 17 | 19023 | 18,2 MB |
 | A2 | 70 / 95 | 132, 2, 24 | 3435 / 7083 / 13 | 18550 | 18,0 MB |
 | A3 | 73 / 122 | 175, 2, 32 | 3362 / 9057 / 11 | 18403 | 17,8 MB |
-| C | t0 65 / 102, t1 ? / 120 | t0 135, 2, 28; t1 153, 2, 30 | 4099 / 13400 / 42 | 27994 | 27,3 MB |
+| C | t0 65 / 102, t1 68 / 120 | t0 135, 2, 28; t1 153, 2, 30 | 4099 / 13400 / 42 | 27994 | 27,3 MB |
 
 Riferimenti: S26 (A a 256, stesso `HEAD`) fine 188–203 unità, 29–38 mex, memory record 15468–15581; S21 min. 13 147–194, fine 161–217; S1 fine 141–186, 23–35 mex; S25 C 155 e 145. A 128 il minuto 13 è sotto S21 in tutte e tre le A, la fine sotto S26 in tutte e tre. La C è nella norma. Memoria +20% su A, quasi ×2 su Jade.
 
