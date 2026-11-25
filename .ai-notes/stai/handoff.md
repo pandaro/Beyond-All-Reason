@@ -32,6 +32,54 @@
 
 ## Risultati
 
+### S21 (agente locale, 25 novembre 2026) — da verificare dal coordinatore
+
+**In breve**: `cmdUnitId` ora si riempie con un contatore (`n`) in `raidhst.lua` (prevent, GUARD, MOVE) e in `attackhst.lua` (FIGHT/MOVE); il GUARD di `raidhst` usa `if n > 0`. Il test nuovo fallisce sul codice di base (nessun ordine emesso: `#` dà 0) e passa dopo la correzione. Il gioco cambia solo dove c'era un buco: nelle tre partite A non è comparso nessun caso in cui la vecchia `#` desse un numero diverso da `n` (vedi sotto).
+
+**Commit**
+
+- `3707375c74` «STAI: fill RaidHST and AttackHST order lists without holes» (`raidhst.lua`, `attackhst.lua`, `spec/luarules/gadgets/ai/STAI/raidhst_spec.lua`, nuovo).
+- Più il commit di questi risultati.
+
+**Controllo dei membri**: `squad.members` in `raidhst` e `attackhst` è un array (si riempie con `table.insert`; `table.remove` lo tiene senza buchi). I buchi nascono solo nel GUARD di `raidhst`, dove si salta chi già fa GUARD sul bersaglio. Gli altri cicli riempiono tutti i membri, quindi il contatore dà lo stesso risultato: li ho cambiati per sicurezza, come chiesto.
+
+**Non toccato, da decidere**: `bomberhst.lua:158–160` indicizza `cmdUnitId` con `bomber.id` (chiavi non contigue, come `members`): stesso schema. Non l'ho cambiato (fuori dall'elenco del compito). Non cambia il gioco oggi: `bomberhst:163` non è mai chiamato in partita (S16).
+
+**Test** (`raidhst_spec.lua`): tre membri, il primo già in GUARD sul bersaglio; l'ordine GUARD esce con i due altri, in ordine, `{102, 103}`. Sul codice di base l'ordine non esce (`#` dà 0): il test fallisce.
+
+**Partita A: misura della vecchia `#`** (patch temporanea, non committata, solo su `raidhst.lua`, prima partita): 1506 chiamate al GUARD, **0 casi** in cui `#` della vecchia tabella (stesso ordine di inserimento) diverge da `n`. I casi di buco stavano in coda (es. membri 1–2 dentro, 3 saltato), quindi `#` restava giusto; il caso «primo membro saltato» non è comparso. Patch tolta prima delle tre partite finali.
+
+**Tre partite A** (codice `3707375c74`, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, circa 20 s ciascuna):
+
+| | partita 1 | partita 2 | partita 3 | S12a2 (tre partite) | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 5 / 42 / 110 / 194 | 5 / 36 / 96 / 152 | 6 / 39 / 96 / 147 | 6/37/106/176 · 6/33/81/117 · 5/39/94/146 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14): unità, fabbriche, mex | 217, 2, 36 | 166, 2, 29 | 161, 2, 32 | 179/134/163, 2/1/2, 35/25/31 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 236, 2, 41 | 181, 2, 30 | 178, 2, 34 | 188/149/171, 2/1/2, 35/26/35 | — |
+| relay: messaggi / ordini / rifiutati | 4052 / 13452 / 1 | 3285 / 14590 / 11 | 3618 / 15019 / 11 | 3117–4138 / 13879–16511 / 9–21 | 3405–3933 / 10445–15948 / 9–16 |
+| memoria per frame: media per minuto, picco | 0,16–0,77 KB, 73,3 KB | 0,16–0,70 KB, 68,5 KB | 0,17–0,66 KB, 130,3 KB | 0,17–0,94 KB, 31,9–90,2 KB | picchi 68–74 KB |
+| heap | 12,8–15,1 MB | 12,9–14,7 MB | 12,8–14,9 MB | 12,9–15,5 | 13,1–15,5 |
+| `Shard memory record` | 15467 | 15292 | 15212 | — | — |
+| righe `[AI Loader] error` | 0 | 0 | 2 (1 tipo, vedi sotto) | 0 | 0 |
+
+**Fuori dai riferimenti, da leggere**:
+- **Partita 1 sopra S1**: 194 unità al minuto 13 (S1 117–159) e 236 a fine partita (S1 141–186). Non è verso il peggio; è la prima partita del gruppo, con la più alta crescita di energia a fine partita (4586 al min. 13): da vedere se ricapita.
+- **Partita 3, memoria**: picco 130,3 KB, sopra S1 (68–74) e S12a2 (fino a 90,2). Media per minuto nei limiti.
+- **Partita 3, errore del loader** (1 volta, frame 20630, STAI team 0): `labshst.lua:367`, `attempt to index field '?' (a nil value)`. È in `PostPositionalFilter`: `self.ai.maphst.networks[mtype][network]` è `nil` quando `MobilityNetworkHere` non dà una rete per il punto. Riga non toccata da S21 (la sua unica modifica storica è `e4e18a90d7`, che ha solo avvolto `EchoDebug`). Non l'ho indagata oltre la lettura: va in «Domande».
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2781 successi, 0 fallimenti, 0 errori, 1 in sospeso (`spec/gamedata/def_invariants_spec.lua:321`, già prima).
+- `stylua --check --respect-ignores` sui tre file (`raidhst.lua`, `attackhst.lua`, `raidhst_spec.lua`): pulito.
+- `emmylua_check -c .emmyrc.json .`, base contro finale, sui file toccati: `raidhst.lua` 35 → 35, `attackhst.lua` 35 → 35 (conteggio di righe con il nome del file); nessun errore nuovo.
+- `.ai-notes/tools/run_engine_tests.sh`: `RESULT: ok`; sincrono 3 ok, asincrono 3 ok, controllo negativo rilevato.
+- `.emmyrc.json`: `lx test` lo riscrive; ripristinato con `git checkout`, non nei commit.
+
+**Domande**
+
+1. Il `labshst.lua:367` (indice di `networks[mtype][network]` con `network == nil`): lo tratto in un compito a parte, o lo lasci com'è?
+2. `bomberhst.lua:158–160` ha lo stesso schema (chiavi = id del bombardiere): lo sistemo in un compito a parte? Oggi non cambia nulla in partita.
+
 ### S16 (agente locale, 25 novembre 2026) — verificato dal coordinatore; `#` con buchi confermato in `raidhst.lua` r. 271–280 (difetto vero: ordini GUARD saltati) — punto 10: nessun ordine perso per dimensione, si chiude (con un'osservazione su `#` in `raidhst.lua:280`)
 
 **1. Framework.** Il limite è `MAX_ORDERS_PER_MESSAGE = 20` ordini a messaggio (`ordercodec.lua`), 1 messaggio per frame (max 2 per frame di emissione nel relay).
