@@ -32,6 +32,12 @@ if tracy then
 	end
 end
 
+-- the loader's timers (loader/timers.lua); without the loader, as in the specs, nothing is timed
+local Timers = ShardTimers
+local function NoTimer() end
+local BeginModule = Timers and Timers.BeginModule or NoTimer
+local EndModule = Timers and Timers.EndModule or NoTimer
+
 function ShardAI:Name()
 	return "Shard"
 end
@@ -194,7 +200,9 @@ function ShardAI:Init()
 				self:Warn("Error! Shard tried to init a nil module!")
 			else
 				tracyZoneBeginMem(m:Name())
+				local startTimer, outerModule = BeginModule(m)
 				m:Init()
+				EndModule(startTimer, outerModule, self, m, "Init")
 				tracyZoneEndMem()
 			end
 		end
@@ -281,7 +289,9 @@ function ShardAI:Update()
 			--self.game:StartTimer(m:Name() .. ' hst')
 			--tracyZoneBeginMem('STAI'..m:Name())
 			--local RAM = gcinfo()
+			local startTimer, outerModule = BeginModule(m)
 			m:Update()
+			EndModule(startTimer, outerModule, self, m, "Update")
 			--RAM =  gcinfo() -RAM
 			--if RAM > 0 then
 			--	print (RAM,m:Name())
@@ -301,7 +311,9 @@ function ShardAI:ScheduledUpdate(position)
 	end
 	local m = self.scheduledModules[position]
 	if m ~= nil then
+		local startTimer, outerModule = BeginModule(m)
 		m:Update()
+		EndModule(startTimer, outerModule, self, m, "ScheduledUpdate")
 	end
 end
 
@@ -314,7 +326,9 @@ function ShardAI:GameMessage(text)
 			self:Warn("nil module!")
 		else
 			--self.game:StartTimer(m:Name() .. ' M')
+			local startTimer, outerModule = BeginModule(m)
 			m:GameMessage(text)
+			EndModule(startTimer, outerModule, self, m, "GameMessage")
 			--self.game:StopTimer(m:Name() .. ' M')
 		end
 	end
@@ -338,7 +352,9 @@ function ShardAI:UnitCreated(unit, unitDefId, teamId, builderId)
 		--self.game:StartTimer(m:Name() .. ' C')
 
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitCreated(unit, unitDefId, teamId, builderId)
+		EndModule(startTimer, outerModule, self, m, "UnitCreated")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' C')
 	end
@@ -358,7 +374,9 @@ function ShardAI:UnitBuilt(engineunit, unitDefId, teamId)
 	for i, m in ipairs(self.handlers.UnitBuilt) do
 		--self.game:StartTimer(m:Name() .. ' B')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitBuilt(engineunit, unitDefId, teamId)
+		EndModule(startTimer, outerModule, self, m, "UnitBuilt")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' B')
 	end
@@ -373,7 +391,9 @@ function ShardAI:UnitGiven(engineunit, unitDefId, teamId)
 		return
 	end
 	for i, m in ipairs(self.handlers.UnitGiven) do
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitGiven(engineunit, unitDefId, teamId)
+		EndModule(startTimer, outerModule, self, m, "UnitGiven")
 	end
 end
 
@@ -388,7 +408,9 @@ function ShardAI:UnitDead(engineunit)
 	for i, m in ipairs(self.handlers.UnitDead) do
 		--self.game:StartTimer(m:Name() .. ' D')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitDead(engineunit)
+		EndModule(startTimer, outerModule, self, m, "UnitDead")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' D')
 	end
@@ -408,7 +430,9 @@ function ShardAI:UnitIdle(engineunit)
 	for i, m in ipairs(self.handlers.UnitIdle) do
 		--self.game:StartTimer(m:Name() .. ' I')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitIdle(engineunit)
+		EndModule(startTimer, outerModule, self, m, "UnitIdle")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' I')
 	end
@@ -427,7 +451,9 @@ function ShardAI:UnitDamaged(engineunit, engineattacker, enginedamage)
 	for i, m in ipairs(self.handlers.UnitDamaged) do
 		--self.game:StartTimer(m:Name() .. ' G')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitDamaged(engineunit, engineattacker, enginedamage)
+		EndModule(startTimer, outerModule, self, m, "UnitDamaged")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' G')
 	end
@@ -446,7 +472,9 @@ function ShardAI:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
 	for i, m in ipairs(self.handlers.UnitEnteredLos) do
 		--self.game:StartTimer(m:Name() .. ' G')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitEnteredLos(unitID, unitTeam, allyTeam, unitDefID)
+		EndModule(startTimer, outerModule, self, m, "UnitEnteredLos")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' G')
 	end
@@ -465,7 +493,9 @@ function ShardAI:UnitLeftLos(unitID, unitTeam, allyTeam, unitDefID)
 	for i, m in ipairs(self.handlers.UnitLeftLos) do
 		--self.game:StartTimer(m:Name() .. ' G')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitLeftLos(unitID, unitTeam, allyTeam, unitDefID)
+		EndModule(startTimer, outerModule, self, m, "UnitLeftLos")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' G')
 	end
@@ -484,7 +514,9 @@ function ShardAI:UnitEnteredRadar(unitID, unitTeam, allyTeam, unitDefID)
 	for i, m in ipairs(self.handlers.UnitEnteredRadar) do
 		--self.game:StartTimer(m:Name() .. ' G')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitEnteredRadar(unitID, unitTeam, allyTeam, unitDefID)
+		EndModule(startTimer, outerModule, self, m, "UnitEnteredRadar")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' G')
 	end
@@ -503,7 +535,9 @@ function ShardAI:UnitLeftRadar(unitID, unitTeam, allyTeam, unitDefID)
 	for i, m in ipairs(self.handlers.UnitLeftRadar) do
 		--self.game:StartTimer(m:Name() .. ' G')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitLeftRadar(unitID, unitTeam, allyTeam, unitDefID)
+		EndModule(startTimer, outerModule, self, m, "UnitLeftRadar")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' G')
 	end
@@ -521,7 +555,9 @@ function ShardAI:UnitMoveFailed(engineunit)
 	for i, m in ipairs(self.handlers.UnitMoveFailed) do
 		--self.game:StartTimer(m:Name() .. ' F')
 		--tracyZoneBeginMem(m:Name())
+		local startTimer, outerModule = BeginModule(m)
 		m:UnitMoveFailed(engineunit)
+		EndModule(startTimer, outerModule, self, m, "UnitMoveFailed")
 		--tracyZoneEndMem()
 		--self.game:StopTimer(m:Name() .. ' F')
 	end
@@ -531,7 +567,9 @@ end
 function ShardAI:GameEnd()
 	self.gameend = true
 	for i, m in ipairs(self.handlers.GameEnd) do
+		local startTimer, outerModule = BeginModule(m)
 		m:GameEnd()
+		EndModule(startTimer, outerModule, self, m, "GameEnd")
 	end
 end
 

@@ -34,6 +34,12 @@ if tracy and not tracy then
 	end
 end
 
+-- the loader's timers (loader/timers.lua); without the loader, as in the specs, nothing is timed
+local Timers = ShardTimers
+local function NoTimer() end
+local BeginBehaviour = Timers and Timers.BeginBehaviour or NoTimer
+local EndBehaviour = Timers and Timers.EndBehaviour or NoTimer
+
 -- The election rule STAI was written for: the first behaviour of the list wins unless a later one has a
 -- priority above zero and above the best so far, so a unit always has a behaviour, even when all of them
 -- return zero or less. A nil priority after the first one is an error.
@@ -99,8 +105,11 @@ function Unit:Update()
 	if self.nextBehaviour ~= nil then
 		self.activeBehaviour = self.nextBehaviour
 		self.nextBehaviour = nil
-		self.activeBehaviour:PreActivate()
-		self.activeBehaviour:Activate()
+		local active = self.activeBehaviour
+		local startTimer = BeginBehaviour()
+		active:PreActivate()
+		active:Activate()
+		EndBehaviour(startTimer, self.ai, active, "Activate")
 	end
 
 	-- Pass the update event to the behaviours: those whose Name() the AI class lists in BScheduler only in the
@@ -112,7 +121,9 @@ function Unit:Update()
 		for k, behaviour in pairs(self.behaviours) do
 			--self.game:StartTimer(behaviour:Name() .. ' Unit')
 			--tracyZoneBeginMem('STAI:'..behaviour:Name())
+			local startTimer = BeginBehaviour()
 			behaviour:Update()
+			EndBehaviour(startTimer, self.ai, behaviour, "Update")
 			--tracyZoneEndMem('STAI:'..behaviour:Name())
 			--self.game:StopTimer(behaviour:Name() .. ' Unit')
 		end
@@ -125,7 +136,9 @@ function Unit:Update()
 	for _, behaviour in pairs(self.behaviours) do
 		local name = behaviour:Name()
 		if name == turn or inTurns[name] == nil then
+			local startTimer = BeginBehaviour()
 			behaviour:Update()
+			EndBehaviour(startTimer, self.ai, behaviour, "Update")
 		end
 	end
 	--  		RAM = gcinfo() - RAM
@@ -136,7 +149,9 @@ end
 
 function Unit:GameEnd()
 	for k, v in pairs(self.behaviours) do
+		local startTimer = BeginBehaviour()
 		v:GameEnd()
+		EndBehaviour(startTimer, self.ai, v, "GameEnd")
 	end
 end
 
@@ -145,13 +160,17 @@ function Unit:UnitCreated(unit, unitDefId, teamId, builderId)
 		if unit.engineID == self.engineID then
 			for k, v in pairs(self.behaviours) do
 				--self.game:StartTimer(v:Name() .. 'OCreated')
+				local startTimer = BeginBehaviour()
 				v:OwnerCreated(unit, unitDefId, teamId, builderId)
+				EndBehaviour(startTimer, self.ai, v, "OwnerCreated")
 				-- 				self.game:StopTimer(v:Name() .. 'OCreated')
 			end
 		end
 		for k, v in pairs(self.behaviours) do
 			--self.game:StartTimer(v:Name() .. 'Created')
+			local startTimer = BeginBehaviour()
 			v:UnitCreated(unit, unitDefId, teamId, builderId)
+			EndBehaviour(startTimer, self.ai, v, "UnitCreated")
 			--self.game:StopTimer(v:Name() .. 'Created')
 
 		end
@@ -163,13 +182,17 @@ function Unit:UnitBuilt(unit)
 		self:ElectBehaviour()
 		for k, v in pairs(self.behaviours) do
 			--self.game:StartTimer(v:Name() .. 'Ubuilt')
+			local startTimer = BeginBehaviour()
 			v:OwnerBuilt()
+			EndBehaviour(startTimer, self.ai, v, "OwnerBuilt")
 			-- 			self.game:StopTimer(v:Name() .. 'Ubuilt')
 		end
 	else
 		for k, v in pairs(self.behaviours) do
 			--self.game:StartTimer(v:Name() .. 'Obuilt')
+			local startTimer = BeginBehaviour()
 			v:UnitBuilt(unit)
+			EndBehaviour(startTimer, self.ai, v, "UnitBuilt")
 			-- 			self.game:StopTimer(v:Name() .. 'Obuilt')
 		end
 	end
@@ -181,7 +204,9 @@ function Unit:UnitDead(unit)
 		if self.behaviours then
 			-- game:SendToConsole("unit died, removing behaviours", self.engineID, self:Internal():Name())
 			for k, v in pairs(self.behaviours) do
-				self.behaviours[k]:OwnerDead()
+				local startTimer = BeginBehaviour()
+				v:OwnerDead()
+				EndBehaviour(startTimer, self.ai, v, "OwnerDead")
 				self.behaviours[k] = nil
 			end
 			self.behaviours = nil
@@ -189,7 +214,9 @@ function Unit:UnitDead(unit)
 		self.engineUnit = nil
 	else
 		for k, v in pairs(self.behaviours) do
+			local startTimer = BeginBehaviour()
 			v:UnitDead(unit)
+			EndBehaviour(startTimer, self.ai, v, "UnitDead")
 		end
 	end
 end
@@ -199,13 +226,17 @@ function Unit:UnitDamaged(unit, attacker, damage)
 		-- 		--self.game:StartTimer(v:Name() .. 'G')
 		for k, v in pairs(self.behaviours) do
 
+			local startTimer = BeginBehaviour()
 			v:OwnerDamaged(attacker, damage)
+			EndBehaviour(startTimer, self.ai, v, "OwnerDamaged")
 
 		end
 	else
 		for k, v in pairs(self.behaviours) do
 
+			local startTimer = BeginBehaviour()
 			v:UnitDamaged(unit, attacker, damage)
+			EndBehaviour(startTimer, self.ai, v, "UnitDamaged")
 
 		end
 		-- 		--self.game:StopTimer(v:Name() .. 'G')
@@ -216,13 +247,17 @@ function Unit:UnitIdle(unit)
 	if unit.engineID == self.engineID then
 		for k, v in pairs(self.behaviours) do
 			--self.game:StartTimer(v:Name() .. 'I')
+			local startTimer = BeginBehaviour()
 			v:OwnerIdle()
+			EndBehaviour(startTimer, self.ai, v, "OwnerIdle")
 			--self.game:StopTimer(v:Name() .. 'I')
 		end
 	else
 		for k, v in pairs(self.behaviours) do
 			--self.game:StartTimer(v:Name() .. 'I')
+			local startTimer = BeginBehaviour()
 			v:UnitIdle(unit)
+			EndBehaviour(startTimer, self.ai, v, "UnitIdle")
 			--self.game:StopTimer(v:Name() .. 'I')
 		end
 	end
@@ -231,11 +266,15 @@ end
 function Unit:UnitMoveFailed(unit)
 	if unit.engineID == self.engineID then
 		for k, v in pairs(self.behaviours) do
+			local startTimer = BeginBehaviour()
 			v:OwnerMoveFailed()
+			EndBehaviour(startTimer, self.ai, v, "OwnerMoveFailed")
 		end
 	else
 		for k, v in pairs(self.behaviours) do
+			local startTimer = BeginBehaviour()
 			v:UnitMoveFailed(unit)
+			EndBehaviour(startTimer, self.ai, v, "UnitMoveFailed")
 		end
 	end
 end

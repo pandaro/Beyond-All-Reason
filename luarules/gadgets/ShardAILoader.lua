@@ -89,6 +89,10 @@ else
 	-- UNSYNCED CODE: the AIs, only on the client that hosts them
 
 	local MemStats = VFS.Include(LOADER_PATH .. "memstats.lua")
+	local Timers = VFS.Include(LOADER_PATH .. "timers.lua")
+	-- read by shardai.lua and unit.lua around their calls into modules and behaviours
+	---@diagnostic disable-next-line: global-in-non-module
+	ShardTimers = Timers
 	local UnitRegistry = VFS.Include(LOADER_PATH .. "unitregistry.lua")
 	local Delivery = VFS.Include(LOADER_PATH .. "delivery.lua")
 	local Scheduler = VFS.Include(LOADER_PATH .. "scheduler.lua")
@@ -314,6 +318,7 @@ else
 		end
 		Delivery.EndGameAll()
 		Delivery.WriteErrorSummary()
+		Timers.WriteSummary()
 	end
 
 	function gadget:GameID(gameID)
@@ -324,6 +329,7 @@ else
 		spEcho("Shard AI unsync gadget shutdown")
 		MemStats.WritePeak()
 		Delivery.WriteErrorSummary()
+		Timers.WriteSummary()
 		gadgetHandler:RemoveSyncAction("shard_host")
 		gadgetHandler:RemoveSyncAction("shard_relay_rejected")
 	end
