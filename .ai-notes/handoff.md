@@ -26,7 +26,7 @@
 
 1. **Misura dei tempi** in un file nuovo, `loader/timers.lua`, nel lato unsynced:
    - un interruttore **nel codice**, come al punto 3 (niente springsettings), oggi **acceso**, e la soglia `SPIKE_MS = 10`, tutti e due in costanti in cima al file;
-   - si misura ogni chiamata del framework a un modulo o a un behaviour: `Init`, `Update`, ogni evento e le chiamate a `Unit`. Misura dove le chiamate passano davvero oggi (`delivery.lua`, `scheduler.lua`, `shardai.lua`, `unit.lua`): non fidarti solo dei punti commentati in `shardai.lua`;
+   - le misure stanno **solo** dove i moduli e i behaviour vengono chiamati, cioè nei punti già segnati (commentati) in `shardai.lua` (`ShardAI:Update` e `ShardAI:ScheduledUpdate` per i moduli, i gestori degli eventi) e in `unit.lua` (behaviour). `delivery.lua` e `scheduler.lua` chiamano solo questi metodi: **non** si toccano. `timers.lua` offre due funzioni piccole (inizio e fine) usate in quei punti; niente misure sparse altrove;
    - oltre la soglia, **una riga** con `Spring.Echo` (infolog e terminale), facile da leggere con uno script, per esempio:
      `[Shard timer] frame=1234 ai=STAI team=1 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4`
      (`behaviour=-` per i moduli; per i behaviour anche il nome del modulo che li tiene, se c'è). Se non riesci ad avere tutti i campi, scrivi quali mancano e perché;
