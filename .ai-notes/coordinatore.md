@@ -1,5 +1,7 @@
 # Passaggio di chat del coordinatore
 
+**Dal 25 novembre 2026 si lavora su un solo branch: `shardST1`** (unione di `shard/fase1` e `stai/porting`). Dove queste note dicono `shard/fase1` o `stai/porting`, leggi `shardST1`. I vecchi branch restano com'erano, non si aggiornano più. Push: `git -c push.negotiate=true push origin shardST1`.
+
 Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T16: il framework è fermo; il porting di STAI va avanti sul branch `stai/porting`, con `.ai-notes/stai/`).
 
 Messaggio d'avvio per la chat nuova:
