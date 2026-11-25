@@ -158,7 +158,7 @@ function BootBST:ExitFactory(face)
 		out.z = 1
 	end
 	u:Move(out)
-	self.ai.tool:GiveOrderToUnit(u, CMD.MOVE, { out.x, out.y, out.z }, 0, "1-1")
+	self.ai.tool:GiveOrder(self.id, CMD.MOVE, { out.x, out.y, out.z }, 0, "1-1")
 	self.lastOrderFrame = self.game:Frame()
 	self.lastExitSide = face
 end
