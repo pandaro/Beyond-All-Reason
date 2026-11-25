@@ -18,27 +18,31 @@
 
 ## Compito attuale
 
-### T16: `maxInstances` per partita
+### T17: tempi di moduli e behaviour nell'infolog; `ShardMemStats` acceso da codice
 
-**Impegno: basso.** Oggi `MAX_INSTANCES_PER_AI_TYPE` (T14) conta le AI che **questo client** fa girare: con due host le AI di un tipo possono essere 4. L'utente lo intendeva **per partita**.
+**Impegno: medio.** L'utente vede picchi gravi in partita e vuole sapere chi li fa. Si lavora su `shard/fase1`; il port su `stai/porting` lo decide poi il coordinatore.
 
 **Lavoro**
 
-1. Il conto diventa **per partita e deterministico**: ogni client guarda tutti i team AI della partita (la stessa lista da cui `SetupAI` legge il tipo), li ordina per ID di team, e per ogni tipo partono solo i primi `MAX_INSTANCES_PER_AI_TYPE`. Tutti i client arrivano allo stesso risultato senza scambiarsi niente. Se pensi che serva il synced, scrivi perché prima di farlo.
-2. Al cambio di host il conto non cambia: un team escluso resta escluso, uno ammesso resta ammesso.
-3. La riga di log resta, con il motivo nuovo (per esempio «AI team 4 not started: 2 STAI AIs already in this game, the most one AI type may have»).
-4. Il relay synced rifiuta gli ordini di un team AI escluso, con la stessa funzione (un solo punto che decide chi è ammesso, incluso da tutti e due i lati, come `OrderCodec` per il limite degli ordini).
-5. La costante resta 2 e resta l'unico posto da cambiare.
+1. **Misura dei tempi** in un file nuovo, `loader/timers.lua`, nel lato unsynced:
+   - un interruttore **nel codice**, come al punto 3 (niente springsettings), oggi **acceso**, e la soglia `SPIKE_MS = 10`, tutti e due in costanti in cima al file;
+   - si misura ogni chiamata del framework a un modulo o a un behaviour: `Init`, `Update`, ogni evento e le chiamate a `Unit`. Misura dove le chiamate passano davvero oggi (`delivery.lua`, `scheduler.lua`, `shardai.lua`, `unit.lua`): non fidarti solo dei punti commentati in `shardai.lua`;
+   - oltre la soglia, **una riga** con `Spring.Echo` (infolog e terminale), facile da leggere con uno script, per esempio:
+     `[Shard timer] frame=1234 ai=STAI team=1 scope=team module=TaskQueueBST behaviour=BuildersBST call=Update ms=37.4`
+     (`behaviour=-` per i moduli; per i behaviour anche il nome del modulo che li tiene, se c'è). Se non riesci ad avere tutti i campi, scrivi quali mancano e perché;
+   - a fine partita un riepilogo per nome (chiamate, min, max, media, somma, quante oltre la soglia), una riga per nome;
+   - la risoluzione: in S7 `Spring.DiffTimers` dava millesimi interi; in S19 `Spring.GetTimerMicros` nel contesto dei moduli restituiva un userdata. Trova un modo per avere almeno decimi di ms (per esempio un argomento di `DiffTimers`, o i timer presi nel loader e non dentro l'ambiente dei moduli) e scrivi quale hai usato.
+2. **Il passaggio al widget resta**: non togliere `game:StartTimer`/`game:StopTimer` in `spring_lua/game.lua`, né il codice dei timer in `luaui/Widgets/shard_help_draw.lua`, né le righe commentate in `shardai.lua`/`unit.lua` (servono se un giorno si vuole il grafico).
+3. **`ShardMemStats` da codice** (decisione dell'utente): in `memstats.lua` niente più `Spring.GetConfigInt("ShardMemStats")` né rilettura ogni minuto; una costante in cima al file, oggi **accesa**. Stesso schema dell'interruttore del punto 1. Aggiorna gli strumenti in `.ai-notes/tools/` che usano `SHARD_MEM_STATS` e la guida (`.ai-notes/drafts/README.md`: una sezione «How to debug» con i due interruttori, la soglia e il formato della riga).
+4. **Niente controllo del costo della misura** (decisione dell'utente): basta che funzioni.
 
-6. **Extra, decisione dell'utente**: `MAX_ORDERS_PER_MESSAGE` in `ordercodec.lua` da 10 a **20**. Nient'altro: un gruppo con più di 20 ordini resta rifiutato intero, come oggi. Aggiorna i test di T15 che usano il numero.
+**Test busted**: una chiamata sopra soglia scrive una riga con i campi giusti, una sotto no; il riepilogo conta bene; con l'interruttore spento nessuna misura. Mutazioni.
 
-**Test busted**: due ally team con tre AI dello stesso tipo in tutto → partono le prime due per ID di team, su qualunque host; tipi diversi contano separati; il cambio di host non cambia chi è ammesso; il relay rifiuta un messaggio di un team escluso. Mutazioni.
-
-**Partite**: nessuna, salvo che il codice di gioco cambi più del previsto.
+**Partite**: una partita A (STAI) di 15 minuti: riporta le righe `[Shard timer]` (quante, i nomi più frequenti, i 10 picchi più alti) e il riepilogo. Nessuna riga `[AI Loader] error`.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno per `maxInstances`, uno per i 20 ordini.
+**Commit**, in inglese: uno per i tempi, uno per `ShardMemStats`, uno per guida e strumenti.
 
 ## Risultati
 
