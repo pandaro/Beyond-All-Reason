@@ -9,7 +9,7 @@ function LosHST:internalName()
 end
 
 function LosHST:Scope()
-	return "team"
+	return "ally"
 end
 
 function LosHST:Init()

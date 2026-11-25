@@ -9,7 +9,7 @@ function DamageHST:internalName()
 end
 
 function DamageHST:Scope()
-	return "team"
+	return "ally"
 end
 
 function DamageHST:Init()

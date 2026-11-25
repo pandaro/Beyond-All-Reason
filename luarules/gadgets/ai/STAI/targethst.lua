@@ -11,7 +11,7 @@ function TargetHST:internalName()
 end
 
 function TargetHST:Scope()
-	return "team"
+	return "ally"
 end
 
 function TargetHST:Init()
