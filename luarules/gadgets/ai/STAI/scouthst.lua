@@ -19,7 +19,7 @@ function ScoutHST:Init()
 	self.lastCount = {}
 	self.sameCount = {}
 	self.usingStarts = {}
-	self.SCOUTED = {}
+	self.SCOUTED = self.ai.gridhst:NewLayer() --the cells a scout went through in the last 3600 frames
 	self.perimetralCells = {}
 	self.lastSpotCheck = {}
 	self:PerimetralCells()
@@ -72,7 +72,7 @@ function ScoutHST:ClosestSpot2(scoutbst)
 end
 
 function ScoutHST:TargetAvailable(X, Z, scoutID)
-	if self.SCOUTED[X] and self.SCOUTED[X][Z] then
+	if self.ai.gridhst:GetCell(X, Z, self.SCOUTED) then
 		self:EchoDebug("networkSpots", X, Z, "is in a SCOUTED cell")
 	elseif self.ai.gridhst:GetCell(X, Z, self.ai.loshst.ENEMY) then
 		self:EchoDebug("networkSpots", X, Z, "is in a ENEMY cell")
@@ -86,14 +86,22 @@ function ScoutHST:TargetAvailable(X, Z, scoutID)
 	end
 end
 
+function ScoutHST:Scouted(X, Z) --a scout is in the cell X, Z now
+	if not self.ai.gridhst:IsCellInGrid(X, Z) then
+		return
+	end
+	local i = self.ai.gridhst:GridToIndex(X, Z)
+	self.SCOUTED:Get(i).frame = game:Frame()
+	self.SCOUTED:Mark(i)
+end
+
 function ScoutHST:Update()
 	local frame = game:Frame()
-	for X, cells in pairs(self.SCOUTED) do
-		for Z, cellFrame in pairs(cells) do
-			if frame > cellFrame + 3600 then
-				self.SCOUTED[X][Z] = nil
-				-- 				cell = nil
-			end
+	local LIST = self.SCOUTED.LIST
+	for n = #LIST, 1, -1 do --backward: Unmark takes the cell out of LIST
+		local i = LIST[n]
+		if frame > self.SCOUTED.CELLS[i].frame + 3600 then
+			self.SCOUTED:Unmark(i)
 		end
 	end
 end

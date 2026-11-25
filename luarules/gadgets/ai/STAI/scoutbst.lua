@@ -35,8 +35,7 @@ function ScoutBST:Update()
 
 	self.position.x, self.position.y, self.position.z = self.unit:Internal():GetRawPos()
 	local X, Z = self.ai.gridhst:PosToGrid(self.position)
-	self.ai.scouthst.SCOUTED[X] = self.ai.scouthst.SCOUTED[X] or {}
-	self.ai.scouthst.SCOUTED[X][Z] = game:Frame()
+	self.ai.scouthst:Scouted(X, Z)
 	self:EchoDebug("scout", self.id, "scoutCell", X, Z, game:Frame())
 	local _, _, _, _, buildProgress, relativeHealth = self.unit:Internal():GetHealtsParams()
 	if relativeHealth < 0.90 and buildProgress == 1 and not self.attacking then
