@@ -219,6 +219,7 @@ function LosHST.resetCell(CELL) --clear an ENEMY cell, its tables are kept. GAS 
 	end
 	CELL.metalMedia = 0
 	CELL.unitsCount = 0
+	CELL.base = nil --the name of the last factory seen in this round
 
 	--unarm GAS immobiles
 	CELL.unarmGI = 0

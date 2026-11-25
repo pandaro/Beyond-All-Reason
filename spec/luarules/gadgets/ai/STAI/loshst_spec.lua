@@ -44,6 +44,7 @@ local function newLosHST(onRadar, units)
 			unitTable = {
 				building = { name = "building", metalCost = 100, speed = 0 },
 				mobile = { name = "mobile", metalCost = 50, speed = 60 },
+				factory = { name = "factory", metalCost = 500, speed = 0, isFactory = true },
 			},
 		},
 		gridhst = {
@@ -228,5 +229,23 @@ describe("STAI LosHST", function()
 			assert.equal(60, CELL["unarm" .. letter .. "I"])
 			assert.equal(30, CELL["unarm" .. letter .. "M"])
 		end
+	end)
+
+	it("forgets the factory of a cell when the cell is cleared and used again", function()
+		local CELL = fillCell({ newTypedUnit(1, "factory", 0) }, 0, "setCellLos")
+		assert.equal("factory", CELL.base)
+
+		local losHST = newLosHST({}, {})
+		losHST.getEnemyCell = function()
+			return CELL
+		end
+		losHST.setPosLayer2 = function()
+			return 0
+		end
+		losHST.resetCell(CELL) --what ENEMY:Clear does to every cell of its list
+		losHST:setCellLos(newTypedUnit(2, "building", 0), 1, 1)
+
+		assert.equal(100, CELL.BUILDINGS)
+		assert.is_nil(CELL.base)
 	end)
 end)
