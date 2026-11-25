@@ -104,7 +104,7 @@ function Tool:RandomAway(pos, dist, opposite, angle)
 	if angle == nil then
 		angle = random() * twicePi
 	end
-	local mapSize = self.ai.map:MapDimensions()
+	local mapSize = self.ai.maphst.mapSize
 	local maxElmosX = mapSize.x * 8
 	local maxElmosZ = mapSize.z * 8
 	local away = api.Position()
