@@ -1,28 +1,29 @@
 -- Memory of the Lua state the AIs run in, on the hosting client: the memory allocated in each GameFrame,
--- written once a minute while the option ShardMemStats is on, and the peak heap written at the end. Unsynced.
+-- written once a minute while SHARD_MEM_STATS is on, and the peak heap written at the end. Unsynced.
 --
--- Option ShardMemStats (springsettings.cfg, or /set ShardMemStats 1 in game, read again every minute):
--- once a minute of game "[AI Loader] memory per frame: avg <KB> max <KB> over <N> frames, heap <MB>", the
--- Lua memory the loader and the AIs allocate in GameFrame. A step of the incremental garbage collector in
--- the middle of a frame lowers that frame's figure, even below zero. Off, it costs one check per frame.
+-- SHARD_MEM_STATS, the switch: once a minute of game
+-- "[AI Loader] memory per frame: avg <KB> max <KB> over <N> frames, heap <MB>", the Lua memory the loader and
+-- the AIs allocate in GameFrame. A step of the incremental garbage collector in the middle of a frame lowers
+-- that frame's figure, even below zero. Off, it costs one check per frame.
 --
 -- The safety net of the old loader, always on: every 121 frames, a full collection when the Lua memory is above
 -- a limit that starts at 200 MB and grows by 50 MB for every AI.
 
+local SHARD_MEM_STATS = true
+
 local spEcho = Spring.Echo
-local spGetConfigInt = Spring.GetConfigInt
 local collectGarbage = collectgarbage
 local gcInfo = gcinfo
 
 local REPORT_FRAMES = 1800 -- one line a minute
 local PEAK_FRAMES = 300 -- how often the peak heap is read
 
-local measuring = spGetConfigInt("ShardMemStats", 0) == 1
+local measuring = SHARD_MEM_STATS
 local frameStart = false ---@type number|false memory at the start of the frame being measured
 local sum = 0 ---@type number
 local largest = 0 ---@type number
 local frames = 0
-local peak = 0 -- the peak heap at the end of the game, also when ShardMemStats is off
+local peak = 0 -- the peak heap at the end of the game, also when SHARD_MEM_STATS is off
 
 -- in KB, as in the old loader
 local basememlimit = 200000
@@ -51,7 +52,6 @@ local function WriteMinute()
 		)
 	end
 	sum, largest, frames = 0, 0, 0
-	measuring = spGetConfigInt("ShardMemStats", 0) == 1
 end
 
 --- Called at the start of GameFrame, after the AIs started
@@ -110,6 +110,11 @@ local function SafetyNet(n)
 	end
 end
 
+--- For the specs: SHARD_MEM_STATS stays the switch of the game
+local function SetMeasuring(on)
+	measuring = on
+end
+
 local function WritePeak()
 	spEcho("Shard memory record:", peak)
 end
@@ -120,4 +125,5 @@ return {
 	AIAdded = AIAdded,
 	SafetyNet = SafetyNet,
 	WritePeak = WritePeak,
+	SetMeasuring = SetMeasuring,
 }
