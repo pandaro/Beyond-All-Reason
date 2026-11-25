@@ -32,6 +32,47 @@
 
 ## Risultati
 
+### S16 (agente locale, 25 novembre 2026) — punto 10: nessun ordine perso per dimensione, si chiude (con un'osservazione su `#` in `raidhst.lua:280`)
+
+**1. Framework.** Il limite è `MAX_ORDERS_PER_MESSAGE = 20` ordini a messaggio (`ordercodec.lua`), 1 messaggio per frame (max 2 per frame di emissione nel relay).
+- `1-2` / `2-2` (molte unità, un ordine ciascuna) non hanno gruppo: ogni ordine è un gruppo a sé, `Flush` ne mette 20 per messaggio e il resto va ai frame dopo. Oltre 20 unità non si perde nulla: costa solo latenza (circa 1 frame ogni 20 unità; 100 unità = 5 frame).
+- Si perde solo un **gruppo** con più di 20 ordini, cioè `2-1` (molti comandi a una unità): `Flush` lo manda da solo e il relay lo rifiuta intero con `Reject("count")` (riga «N messages rejected (count)»; non entra nel contatore «orders rejected»).
+- «Orders rejected» (contatore del relay e `outbox.rejected`) conta solo: ordini per un'unità non valida o non della squadra (morta fra emissione e arrivo), e ordini dopo un ordine tagliato. Non dipende dalla dimensione.
+
+**2. Punti di STAI con più unità (`1-2`) o più comandi (`2-1`).** Gli altri `GiveOrder` sono `1-1`.
+
+| Punto | Metodo | Max osservato |
+|---|---|---|
+| `attackhst.lua:239` (prevent, FIGHT) | 1-2 | 14 |
+| `attackhst.lua:256` (FIGHT) | 1-2 | 9 |
+| `attackhst.lua:258` (MOVE) | 1-2 | 15 |
+| `raidhst.lua:266` (FIGHT) | 1-2 | 7 |
+| `raidhst.lua:280` (GUARD) | 1-2 | 7 |
+| `raidhst.lua:293` (MOVE) | 1-2 | 1 |
+| `bomberhst.lua:163` (ATTACK) | 1-2 | mai chiamato in C |
+| `labsbst.lua:160` (coda di produzione) | 2-1 | 10 (`wave`: costanti fino a 10, una funzione `engineerNeeded`) |
+
+**3. Misura** (patch non committata su `game:GiveOrder`, tolta; partita C, 15 min, Comet Catcher, STAI vs STAI; rapporto fino al frame 25609 di 27000):
+
+| Punto | Chiamate | Con più di 20 unità | Totale unità |
+|---|---|---|---|
+| attackhst:239 | 497 | 0 | 2159 |
+| attackhst:256 | 77 | 0 | 255 |
+| attackhst:258 | 330 | 0 | 2376 |
+| raidhst:266 | 54 | 0 | 139 |
+| raidhst:280 | 2427 | 0 | 7084 |
+| raidhst:293 | 3 | 0 | 3 |
+| labsbst:160 | 36 | 0 (max 10 comandi) | 96 |
+| bomberhst:163 | 0 | 0 | 0 |
+
+Relay a fine partita: 4364 messaggi, 26954 ordini dati, **21 ordini rifiutati** (unità non più valide, nessuna riga «messages rejected»: zero rifiuti per `count`, `seq`, `frame`, `rate`).
+
+**4. Proposta.** Nessun ordine perso in questa partita: il punto 10 si può chiudere. Il rischio teorico resta un `2-1` con più di 20 comandi (oggi `wave` ≤ 10, ma `engineerNeeded` è una funzione senza tetto) e squadre da molte decine di unità, che nell'osservato arrivano a 15. Se in futuro serve, la correzione più economica è nel framework: `game:GiveOrder '2-1'` spezza un gruppo oltre 20 in gruppi da 20 (pro: nessun cambio in STAI; contro: i gruppi non sono più atomici per la stessa unità, con `shift` va bene perché l'ordine è preservato). In alternativa un `math.min(limit, 20)` in `labsbst.lua:160`.
+
+**Osservazione, non misurata come perdita:** in `raidhst.lua:280` (e simili) `squad.cmdUnitId[i]` è riempito solo per i membri cambiati, con buchi, e `game:GiveOrder '1-2'` usa `#id`: in Lua 5.1 `#` su una tabella con buchi può dare un bordo qualunque e far saltare unità. Nella misura la media è 2,9 unità a chiamata (7084/2427), quindi non l'ho potuto separare; vale la pena un compito a parte (loop con `pairs` o contatore).
+
+Nessun commit di codice; `git status` pulito a parte `.ai-notes/`.
+
 ### S15 (agente locale, 25 novembre 2026) — verificato dal coordinatore (caveat sulla prima AI fermata: accettato, raro e solo debug). Il `nil` lo romperebbe: verificato leggendo il widget, non in partita
 
 **In breve**: `map.lua` non passa più `self.ai.game:GetTeamID()` ai disegni, ma `drawTeam(self.ai)`: l'id del team se l'AI è un team AI, altrimenti l'id della prima team AI dell'ambito (`ai.AIs[1].id`), altrimenti `nil`. Nove funzioni attive cambiate (`DrawRectangle`, `EraseRectangle`, `DrawCircle`, `EraseCircle`, `DrawLine`, `EraseLine`, `DrawPoint`, `ErasePoint`, `EraseAll`). Partita: nessuna, come da compito.
