@@ -47,6 +47,66 @@ Due compiti. L'utente dice «esegui s14»: fai **solo S14**, poi fermati e di' �
 
 ## Risultati
 
+### S14 (agente locale, 25 novembre 2026) — da verificare dal coordinatore. Un caso da decidere: `buildersbst.lua:112` (vedi sotto)
+
+**In breve**: 84 chiamate `EchoDebug` con argomenti che lavorano (chiamate, `..`, `#`, tabelle, `tostring`) avvolte in `if self.DebugEnabled then … end`, in 16 file, una volta per blocco. Gli argomenti semplici (variabili, campi, costanti, letterali) sono rimasti com'erano. La stampa non cambia. Partita A: uscita 0, nessuna riga `[AI Loader] error`. Busted, StyLua, EmmyLua e test in motore: come sotto.
+
+**Commit** (tre, uno per gruppo; in inglese)
+
+- `e4e18a90d7` «STAI: guard costly EchoDebug arguments in the modules» — `attackhst`, `bomberhst`, `buildingshst`, `cleanhst`, `gridhst`, `labshst`, `maphst`, `raidhst`.
+- `0600d4a4d1` «STAI: guard costly EchoDebug arguments in the behaviours» — `bootbst`, `buildersbst`, `cleanerbst`, `labsbst`, `mexupbst`, `nukebst`, `scoutbst`.
+- `5e0df48657` «STAI: guard costly EchoDebug arguments in tool» — `tool.lua`.
+- Più il commit di questi risultati.
+
+**Elenco** (chiamate avvolte per file; un blocco per chiamata: nessuna chiamata costosa era vicina a un'altra, quindi nessun gruppo)
+
+| file | chiamate | file | chiamate |
+| --- | --- | --- | --- |
+| `attackhst.lua` | 6 | `labsbst.lua` | 1 |
+| `bomberhst.lua` | 2 | `labshst.lua` | 11 |
+| `bootbst.lua` | 4 | `maphst.lua` | 6 |
+| `buildersbst.lua` | 14 | `mexupbst.lua` | 6 |
+| `buildingshst.lua` | 13 | `nukebst.lua` | 1 |
+| `cleanerbst.lua` | 2 | `raidhst.lua` | 6 |
+| `cleanhst.lua` | 1 | `scoutbst.lua` | 5 |
+| `gridhst.lua` | 3 | `tool.lua` | 3 |
+
+Totale: 84 avvolte su 361 chiamate attive (le altre 277 restano com'erano). Le chiamate commentate (`--self:EchoDebug(…)`) non sono toccate.
+
+**Casi dubbi**
+
+- Lasciati, perché sono argomenti semplici (regola del compito): variabili, campi (`self.id`, `squad.squadID`, `self.role`), letterali e costanti. Avvolte: le chiamate (anche `unit:ID()`) e le concatenazioni `..`.
+- `bomberhst.lua:122` e `149`: gli argomenti chiamano `SquadTargetExist` e `IsBombing`. Sono letture senza effetti sul gioco (il loro unico effetto è `EchoDebug`), quindi avvolte come le altre.
+- **`buildersbst.lua:112`** (`game:GetUnitByID(self.assistant):GetPosition()` e `:Name()` dentro l'argomento): se l'assistente è morto, `GetUnitByID` dà `nil` e la chiamata va in errore. Nel codice di prima l'errore era sempre valutato, ora succede solo con `DebugEnabled`. Quindi nel gioco normale l'errore sparisce, e questo è un cambio di comportamento (una volta non è più un errore, ma nessuno l'ha verificato). Da decidere: lasciare così (il caso è solo in debug) o scrivere un controllo esplicito dentro il blocco o fuori.
+- `taskshst.lua` non è stato toccato (non ha chiamate costose; già non era pulito in StyLua prima di questo lavoro).
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2777 successi, 0 fallimenti, 0 errori, 1 in sospeso (`spec/gamedata/def_invariants_spec.lua:321`, già prima).
+- `stylua --check --respect-ignores` sui 16 file: pulito dopo `stylua` (la correzione ha toccato due righe di `bomberhst.lua` e `buildersbst.lua`, dove la chiamata è più lunga di 120 colonne).
+- `emmylua_check -c .emmyrc.json` sulla cartella STAI, base (`HEAD` prima del lavoro) contro finale: errori 367 → 367 (`undefined-global`, tutti già presenti); avvisi `unnecessary-if` 24 → 26: due nuovi, in `mexupbst.lua` (r. 16) e `buildersbst.lua`, dove EmmyLua deduce `self.DebugEnabled` da `= false` e dà la condizione come sempre falsa o sempre vera. Sono 2 su circa 437 righe cambiate: sotto il budget di 15 nuovi ogni 1000 righe. Nessun errore nuovo.
+- `.emmyrc.json`: `lx test` lo riscrive; l'ho ripristinato con `git checkout` (non è nei commit).
+- `.ai-notes/tools/run_engine_tests.sh`: `RESULT: ok`; sincrono 3 ok, asincrono 3 ok, controllo negativo rilevato.
+
+**Partita A** (`a_stai_vs_simpleai.txt`, 15 minuti, `SHARD_MEM_STATS=1`, codice `e4e18a90d7`…`5e0df48657`, uscita 0, circa 20 s, una partita)
+
+| | STAI (team 0) | SimpleAI (team 1) |
+| --- | --- | --- |
+| unità min. 1 / 5 / 10 / 13 | 6 / 37 / 95 / 143 | — |
+| fine partita (min. 14): unità, fabbriche, mex | 172, 2, 30 | 65, 1, 10 |
+| `SUMMARY` (fine) | 192, 2, 34 | 76, 1, 9 |
+| relay: messaggi / ordini / rifiutati | 4705 / 18639 / 13 | — |
+| memoria per frame: media per minuto, picco | 0,58–0,94 KB, 69 KB | — |
+| heap | 14,4–15,7 MB | — |
+| righe `[AI Loader] error` | 0 | — |
+
+Il minuto 13 (143 unità) sta nell'intervallo di S1 (117–159). Una partita sola: riferimento di massima. Nel log ci sono errori del motore (`gui_pip` su `CreateShader`, shader di `AoE Napalm` e `Reclaim Field`, `groundFX`, `AdvSky`): sono di rendering e widget in headless, non vengono da STAI.
+
+**Domande**
+
+1. `buildersbst.lua:112`: quale delle tre soluzioni vuoi (vedi sopra)?
+2. Le due nuove `unnecessary-if` le lascio così o le tolgo con una dichiarazione esplicita del tipo del campo? (Non le ho toccate.)
+
 ### S12b (agente locale, 25 novembre 2026) — verificato dal coordinatore. Commento «a design choice» va bene
 
 **In breve**: `DamageHST` registra i danni di tutta l'alleanza (test con mutazioni); i tre moduli sono in ambito `"ally"` cambiando solo `Scope()`: nei tre file non c'era niente di squadra da togliere, e i lettori di squadra li raggiungono come prima. Partita B: **una** istanza per alleanza di ciascuno, nessun errore del loader, nessuna delle due STAI gioca molto peggio. Tre partite A: nessun numero sotto i riferimenti. Il framework non serve toccarlo.
