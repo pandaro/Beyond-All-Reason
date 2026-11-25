@@ -31,8 +31,8 @@ end
 
 function RaidHST:Watchdog(squad)
 	local f = game:Frame()
-	squad.watchdogCell = squad.watchdogCell or self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
-	local watchdogCell = self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
+	squad.watchdogCell = squad.watchdogCell or self.ai.gridhst:PosToCell(squad.position)
+	local watchdogCell = self.ai.gridhst:PosToCell(squad.position)
 	if not watchdogCell then
 		self:EchoDebug("no watchdog cell")
 		return
@@ -376,7 +376,7 @@ function RaidHST:SquadsTargetPrevent(squad)
 			if not self:SquadsTargetHandled(nil, id) then
 				self:EchoDebug("prevent not handled", id)
 				local builderPos = builder:GetPosition()
-				local cell = self.ai.gridhst:GetCell(builderPos, self.ai.maphst.GRID)
+				local cell = self.ai.gridhst:PosToCell(builderPos)
 				local dist = self.ai.tool:distance(cell.POS, squad.position)
 				if dist < frontDist then
 					preventCell = { X = cell.X, Z = cell.Z }

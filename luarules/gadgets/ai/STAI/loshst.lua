@@ -279,7 +279,7 @@ function LosHST:setupCell(grid, X, Z) --GAS are 3 layer. Unit of measure is usua
 	local CELL = self:GetCellFromPool(X, Z, grid)
 	CELL.X = X
 	CELL.Z = Z
-	CELL.POS = self.ai.maphst.GRID[X][Z].POS --self.ai.gridhst:GridToPos(X,Z)
+	CELL.POS = self.ai.gridhst.CELLS[self.ai.gridhst:GridToIndex(X, Z)].POS --self.ai.gridhst:GridToPos(X,Z)
 
 	CELL.metal = 0
 	if CELL.units then

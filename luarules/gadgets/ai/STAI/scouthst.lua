@@ -37,11 +37,11 @@ function ScoutHST:ScoutTargetAlreadyHandled(X, Z, refScout)
 end
 
 function ScoutHST:PerimetralCells()
-	for X, cells in pairs(self.ai.maphst.GRID) do
-		for Z, cell in pairs(cells) do
-			if X == 1 or Z == 1 or X == self.ai.gridhst.gridSideX or Z == self.ai.gridhst.gridSideZ then
-				table.insert(self.perimetralCells, cell.POS)
-			end
+	local gridhst = self.ai.gridhst
+	for i = 1, gridhst.gridArea do --numeric loop keeps the cell order
+		local CELL = gridhst.CELLS[i]
+		if CELL.X == 1 or CELL.Z == 1 or CELL.X == gridhst.gridSideX or CELL.Z == gridhst.gridSideZ then
+			table.insert(self.perimetralCells, CELL.POS)
 		end
 	end
 end

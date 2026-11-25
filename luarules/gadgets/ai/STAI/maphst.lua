@@ -19,7 +19,6 @@ function MapHST:Init()
 	self.DebugEnabled = false
 	self:EchoDebug("MapHST START")
 	self:basicMapInfo()
-	self.topology = { air = {} }
 	self:createGrid()
 	self.METALS = map:GetMetalSpots()
 	self.GEOS = map:GetGeoSpots()
@@ -63,38 +62,25 @@ function MapHST:basicMapInfo() --capture and set foundamental map info
 	self:EchoDebug("ElmoX", self.elmoMapSizeX, "ElmoZ", self.elmoMapSizeZ, "ElmoArea", self.elmoArea)
 end
 
-function MapHST:createGrid()
-	self.GRID = {}
-	for X = 1, self.ai.gridhst.gridSideX do
-		if not self.GRID[X] then
-			self.GRID[X] = {}
-		end
-		for Z = 1, self.ai.gridhst.gridSideZ do
-			self.GRID[X][Z] = self:NewCell(X, Z)
-		end
+function MapHST:createGrid() --the map data of every cell, a layer with the index of the GridHST cells
+	self.GRID = self.ai.gridhst:NewLayer() --never cleared: the map data stays for the whole game
+	for i = 1, self.ai.gridhst.gridArea do --numeric loop keeps the cell order: X outside, Z inside
+		self:NewCell(i)
 	end
 end
 
-function MapHST:NewCell(gx, gz)
-	local cellPos = self.ai.gridhst.CELLS[self.ai.gridhst:GridToIndex(gx, gz)].POS
-	local cell = {}
-	cell.POS = cellPos --the cell position
-	cell.X = gx --the cell coordinate X on the grid
-	cell.Z = gz --the cell coordinate Z on the grid
-	cell.moveLayers = self:moveLayerTest(cellPos) --hold the  layers and networks in this cell
-	cell.metalSpots = {} --hold the metalSpots of this cell
-	cell.geoSpots = {} --hold the geoSpots of this cell
-	cell.allSpots = {} --hold all the interesting spots
-	return cell
+function MapHST:NewCell(i)
+	local CELL = self.GRID:Get(i)
+	CELL.moveLayers = self:moveLayerTest(self.ai.gridhst.CELLS[i].POS) --hold the  layers and networks in this cell
+	CELL.metalSpots = {} --hold the metalSpots of this cell
+	CELL.geoSpots = {} --hold the geoSpots of this cell
+	CELL.allSpots = {} --hold all the interesting spots
 end
 
 function MapHST:moveLayerTest(pos) --check where units can stay or not
 	local layers = {}
 	layers.air = 1
 	for layer, unitName in pairs(self.ai.armyhst.mobUnitExampleName) do
-		if not self.topology[layer] then
-			self.topology[layer] = {}
-		end
 		if
 			Spring.TestMoveOrder(
 				self.ai.armyhst.unitTable[unitName].defId,
@@ -119,22 +105,21 @@ end
 
 function MapHST:gridAnalisy() --do the first analisy of the grid
 	local net = {}
-	for X, Zetas in pairs(self.GRID) do
-		for Z, CELL in pairs(Zetas) do
-			for layer, anteNetwork in pairs(CELL.moveLayers) do
-				if anteNetwork == 0 then
-					if not net[layer] then
-						net[layer] = 0
-						self.networks[layer] = {}
-					end
-					net[layer] = net[layer] + 1
-					self.networks[layer][net[layer]] = {}
-					self.networks[layer][net[layer]].area = 0
-					self.networks[layer][net[layer]].metals = {}
-					self.networks[layer][net[layer]].geos = {}
-					self.networks[layer][net[layer]].allSpots = {}
-					self:TopologyFooded(X, Z, layer, net)
+	for i = 1, self.ai.gridhst.gridArea do --numeric loop keeps the cell order: the network numbers depend on it
+		local CELL = self.GRID.CELLS[i]
+		for layer, anteNetwork in pairs(CELL.moveLayers) do
+			if anteNetwork == 0 then
+				if not net[layer] then
+					net[layer] = 0
+					self.networks[layer] = {}
 				end
+				net[layer] = net[layer] + 1
+				self.networks[layer][net[layer]] = {}
+				self.networks[layer][net[layer]].area = 0
+				self.networks[layer][net[layer]].metals = {}
+				self.networks[layer][net[layer]].geos = {}
+				self.networks[layer][net[layer]].allSpots = {}
+				self:TopologyFooded(self.ai.gridhst.CELLS[i].X, self.ai.gridhst.CELLS[i].Z, layer, net)
 			end
 		end
 	end
@@ -224,10 +209,9 @@ function MapHST:TopologyFooded(x, z, layer, net) --rolling on the cell to extrap
 	if x > self.ai.gridhst.gridSideX or x < 1 or z > self.ai.gridhst.gridSideZ or z < 1 then
 		return
 	end
-	if self.GRID[x][z].moveLayers[layer] == 0 then
-		self.GRID[x][z].moveLayers[layer] = net[layer]
-		self.topology[layer][x] = self.topology[layer][x] or {}
-		self.topology[layer][x][z] = true
+	local CELL = self.GRID.CELLS[self.ai.gridhst:GridToIndex(x, z)]
+	if CELL.moveLayers[layer] == 0 then
+		CELL.moveLayers[layer] = net[layer]
 		self.networks[layer][net[layer]].area = self.networks[layer][net[layer]].area + 1
 		for X = -1, 1, 1 do
 			for Z = -1, 1, 1 do
@@ -308,11 +292,12 @@ end
 
 function MapHST:metalScan() --insert MEX in to the correct CELL and layer's network
 	for i, spot in pairs(self.METALS) do
-		local CELL = self.ai.gridhst:GetCell(spot, self.GRID)
-		if not CELL then
+		local index = self.ai.gridhst:PosToIndex(spot)
+		if not index then
 			self:EchoDebug("no cell for this metal spot", spot)
 			return
 		end
+		local CELL = self.GRID.CELLS[index]
 		table.insert(CELL.metalSpots, spot)
 		for layer, nets in pairs(self.networks) do
 			if CELL.moveLayers[layer] then
@@ -324,11 +309,12 @@ end
 
 function MapHST:geoScan() --insert GEOS in to the correct CELL and layer's network
 	for i, spot in pairs(self.GEOS) do
-		local CELL = self.ai.gridhst:GetCell(spot, self.GRID)
-		if not CELL then
+		local index = self.ai.gridhst:PosToIndex(spot)
+		if not index then
 			self:EchoDebug("no cell for this geo spot", spot)
 			return
 		end
+		local CELL = self.GRID.CELLS[index]
 		table.insert(CELL.geoSpots, spot)
 		for layer, nets in pairs(self.networks) do
 			if CELL.moveLayers[layer] then
@@ -383,9 +369,9 @@ function MapHST:MobilityNetworkHere(mtype, position)
 	if not mtype or not position then
 		return nil
 	end
-	local cell = self.ai.gridhst:GetCell(position, self.GRID)
-	if cell then
-		return cell.moveLayers[mtype]
+	local index = self.ai.gridhst:PosToIndex(position)
+	if index then
+		return self.GRID.CELLS[index].moveLayers[mtype]
 	end
 end
 
@@ -467,21 +453,22 @@ function MapHST:DrawDebug()
 	for i, p in pairs(self.GEOS) do
 		map:DrawPoint(p, colours[6], i, ch)
 	end
-	for X, Zetas in pairs(self.GRID) do
-		for Z, CELL in pairs(Zetas) do
-			map:DrawPoint(CELL.POS, nil, X .. ":" .. Z .. " = " .. self.ai.gridhst:GridToIndex(X, Z), 9)
-			local pos1, pos2 = {}, {}
-			pos1.x, pos1.z = CELL.POS.x - self.ai.gridhst.gridSizeHalf, CELL.POS.z - self.ai.gridhst.gridSizeHalf
-			pos2.x, pos2.z = CELL.POS.x + self.ai.gridhst.gridSizeHalf, CELL.POS.z + self.ai.gridhst.gridSizeHalf
-			pos1.y = 0
-			pos2.y = 0
-			map:DrawRectangle(pos1, pos2, colours[6], nil, false, ch)
-			ch = 0
-			for layer, unitName in pairs(CELL.moveLayers) do
-				ch = ch + 1
-				if CELL.moveLayers[layer] then
-					map:DrawRectangle(pos1, pos2, colours[ch], CELL.moveLayers[layer], true, ch)
-				end
+	for i = 1, self.ai.gridhst.gridArea do
+		local GEOMETRY = self.ai.gridhst.CELLS[i] --X, Z and POS of the cell
+		local CELL = self.GRID.CELLS[i]
+		local POS = GEOMETRY.POS
+		map:DrawPoint(POS, nil, GEOMETRY.X .. ":" .. GEOMETRY.Z .. " = " .. i, 9)
+		local pos1, pos2 = {}, {}
+		pos1.x, pos1.z = POS.x - self.ai.gridhst.gridSizeHalf, POS.z - self.ai.gridhst.gridSizeHalf
+		pos2.x, pos2.z = POS.x + self.ai.gridhst.gridSizeHalf, POS.z + self.ai.gridhst.gridSizeHalf
+		pos1.y = 0
+		pos2.y = 0
+		map:DrawRectangle(pos1, pos2, colours[6], nil, false, ch)
+		ch = 0
+		for layer, unitName in pairs(CELL.moveLayers) do
+			ch = ch + 1
+			if CELL.moveLayers[layer] then
+				map:DrawRectangle(pos1, pos2, colours[ch], CELL.moveLayers[layer], true, ch)
 			end
 		end
 	end

@@ -853,7 +853,7 @@ function BuildingsHST:UnitMexMoveTest(testUnit) --check how many time a unit(i c
 			if self.TRAMPLED[X][Z] < average * 1.5 then
 				self.TRAMPLED[X][Z] = nil
 			else
-				table.insert(self.trampledCells, self.ai.maphst.GRID[X][Z].POS)
+				table.insert(self.trampledCells, self.ai.gridhst.CELLS[self.ai.gridhst:GridToIndex(X, Z)].POS)
 			end
 
 		end

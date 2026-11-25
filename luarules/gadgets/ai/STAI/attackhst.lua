@@ -32,8 +32,8 @@ end
 
 function AttackHST:Watchdog(squad)
 	local f = game:Frame()
-	squad.watchdogCell = squad.watchdogCell or self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
-	local watchdogCell = self.ai.gridhst:GetCell(squad.position, self.ai.maphst.GRID)
+	squad.watchdogCell = squad.watchdogCell or self.ai.gridhst:PosToCell(squad.position)
+	local watchdogCell = self.ai.gridhst:PosToCell(squad.position)
 	if not watchdogCell then
 		self:EchoDebug("no watchdog cell")
 		return
