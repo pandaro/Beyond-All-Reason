@@ -19,27 +19,36 @@
 
 ## Compito attuale
 
-### S13: elezione dei behaviour (punto 7)
+Due compiti. L'utente dice «esegui s22»: fai **solo S22**, fermati, «fatto». Poi «esegui s23»: **solo S23**. Risultati separati.
 
-**Impegno: high. Modello: Opus 5.5.** Decisione dell'utente (25 novembre 2026): **se la regola nuova è migliore si usa quella**, provata con partite. **Stile**: `nuovo-stai.md` §7. Framework solo da leggere (se serve cambiarlo, fermati).
+### S22: regola nuova d'elezione e due difetti piccoli
 
-Le due regole (`shard_runtime/unit.lua`): **legacy** (r. 40–61, `STAI.legacyElection = true` in `STAI/ai.lua` r. 4): il primo behaviour della lista vince anche con priorità 0 o `nil`; poi vince solo chi ha priorità > 0 e maggiore. **Nuova** (r. 297–318): vince solo chi ha priorità > 0; se tutti 0, **nessun** behaviour attivo; a parità vince il primo.
+**Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente il 25 novembre 2026. **Stile**: `nuovo-stai.md` §7.
 
-**1. Lettura** (nei risultati, tabella breve): per ogni behaviour di STAI, `Priority()` (valori possibili, `nil` compreso: `CleanerBST:Priority` è vuota) e cosa fanno `Activate`/`Deactivate`. Da dove viene la lista dei behaviour per tipo di unità e in che ordine (`BootBST` spesso primo con priorità 0). Elenca i casi in cui la legacy elegge un behaviour con priorità 0 o `nil`, e cosa succede con la nuova (unità senza behaviour attivo: chi le dà ordini?). Controlla anche: con la legacy, un `nil` non primo fa `nil > 0` → errore? Succede?
+1. **Regola nuova** (decisione dell'utente dopo S13): `STAI/ai.lua` r. 4 `STAI.legacyElection = false` con il commento proposto in S13 (`--only a priority above zero wins: a unit whose behaviours are all at zero has none active`). `CleanerBST:Priority` (`cleanerbst.lua` r. 54, vuota): `return 0`. Un commit.
+2. **`labshst.lua:367`** (`PostPositionalFilter`): se `MobilityNetworkHere` dà `nil` (o `networks[mtype][network]` è `nil`), quel punto **non va bene** per la fabbrica: stesso ramo di «area too small» (leggi la funzione e usa il suo modo di scartare). Test busted. Un commit.
+3. **`bomberhst.lua` r. 158–160**: `cmdUnitId` con contatore `n` come in S21. Un commit (test se semplice, sul modello di `raidhst_spec.lua`).
+- **Una** partita A e **una** partita C (righe solite; nessuna riga `[AI Loader] error`).
+- Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
 
-**2. Misura nella stessa partita** (patch non committata, partita C 15 minuti, legacy attiva): a ogni elezione calcola anche il risultato della regola nuova; conta le elezioni diverse per coppia (behaviour legacy → behaviour nuovo o «nessuno») e per tipo di unità.
+### S23: `BootBST` non riconosce mai la fabbrica
 
-**3. Correzioni in STAI perché la nuova regola funzioni** (solo se il passo 1–2 le mostra necessarie): per esempio priorità esplicite dove oggi si conta sulla legacy (`CleanerBST:Priority` che restituisce un numero). Un commit per correzione, con test. Scrivi ognuna nei risultati. Se serve qualcosa di grosso o una scelta di progetto, **fermati** e descrivi le opzioni.
+**Impegno: medium. Modello: Sonnet 5.5.** Approvato dall'utente. **`AttackerBST` non si tocca** (decisione dell'utente: si capirà dopo). **Il gioco cambia**: tre partite A. **Stile**: §7.
 
-**4. Passaggio**: `STAI.legacyElection = false`. **Tre partite A** e **una partita C** con il codice finale; confronto con S21, S12b, S1. Se le partite vanno peggio (sotto i riferimenti in più di una partita), **non** tenere il passaggio: lascia `true` nel commit finale e scrivi i numeri (decide l'utente). Nessuna riga `[AI Loader] error` nuova.
-
-**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer` prima di `git add -A`.
-
-**Commit**, in inglese: uno per correzione (passo 3); uno per il passaggio (passo 4); uno per i risultati.
+- `bootbst.lua`:
+  - r. 11 `DebugEnabled = false` → `self.DebugEnabled = false` (oggi scrive un globale);
+  - r. 14 `self.mobile = ... speed == 0` → `speed > 0` (oggi è al contrario; `ignoreFactories` r. 18 ne dipende);
+  - `FindMyFactory` (r. 108–115): `self.factory = nil` **prima** del ciclo, non dopo (oggi cancella sempre quello che trova); controlla che `labshst.labs[id].behaviour` e `.exitRect` esistano davvero (`labsbst.lua` r. 35, 67–72).
+- Con questo `BootBST:Priority` dà 120 alle unità ancora nella fabbrica, `Activate` chiama `ExitFactory`: leggi `ExitFactory` e scrivi cosa fa ora che gira davvero (ordini, quante volte, per quali unità).
+- `ReclaimBST`: `Priority` legge `self.act`, mai assegnato (lavora già da `Update`, attivo o no). Togli il ramo morto: `Priority` restituisce 0, con un commento a fine riga che dice che lavora da `Update`. Nell'indice.
+- Test busted: `FindMyFactory` dentro e fuori dall'`exitRect`; `mobile` per un'unità mobile e un edificio.
+- Misura con patch non committata, in una partita C: quante volte `BootBST` si attiva, quanti `ExitFactory`, quante unità restano nella fabbrica più di 300 frame (prima e dopo se riesci).
+- **Tre partite A** (confronto con S13 e S1). Se vanno peggio in più di una, scrivilo; non tentare altre correzioni.
+- Controlli come S22. Commit, in inglese: uno per `BootBST` con test, uno per `ReclaimBST`, uno per i risultati.
 
 ## Risultati
 
-### S13 (agente locale, 25 novembre 2026)
+### S13 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Decisione dell'utente: **regola nuova sì** (in S22); `AttackerBST` resta com'è per ora
 
 **In breve**: con STAI le due regole differiscono solo quando la legacy elegge `BootBST` (priorità sempre 0) o `CleanerBST` (`nil`); con la nuova quelle unità restano senza behaviour attivo. Nessuno dei due fa qualcosa quando è attivo, quindi il gioco non dovrebbe cambiare. **Correzioni in STAI: nessuna** (passo 3 saltato). Ma due delle tre partite A con `legacyElection = false` sono sotto S1 in qualche numero: per la regola del compito **non ho tenuto il passaggio**, `ai.lua` resta `true`. Sei partite di controllo con la legacy (codice di base) danno lo stesso quadro (2 su 6 sotto S1): tabella al punto 4. Decide l'utente.
 
