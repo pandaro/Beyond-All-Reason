@@ -56,6 +56,89 @@
 
 ## Risultati
 
+### S9 (agente locale, 25 novembre 2026)
+
+**In breve**: `GridLayer:Unmark(i)` c'è, con test e mutazioni; `DAMAGED` è uno strato di `DamageHST`, `SCOUTED` uno strato di `ScoutHST` scritto solo dal padrone (`ScoutHST:Scouted(X, Z)`); via `areaGridCells` e `getGridCellsFields`. **Prova nella stessa partita: 0 differenze** in tutta la partita C, per tutti e due gli strati, cella per cella, con lo stesso numero di celle e le stesse somme di `defenderThreat` a ogni `Update`. **`POS` di `DAMAGED` resta da `GridToPos`**: con il `POS` della cella di `GridHST` la prova ha trovato una cella con `y` diverso (terreno deformato dopo `Init`). La partita A non sta sotto i riferimenti.
+
+**Commit**
+
+- `d23cc49eff` «STAI GridHST: take one cell out of a layer, keeping the order of the list»: `GridLayer:Unmark` e i test.
+- `f03fb8edf0` «STAI DamageHST: keep the damaged cells in a DAMAGED layer of GridHST»: `DamageHST`, i lettori (`targethst.lua`, `scouthst.lua` r. 79), via le due sorelle di `GridHST` e il loro test.
+- `1432104f6c` «STAI ScoutHST: keep the scouted cells in a SCOUTED layer of GridHST»: `ScoutHST`, `ScoutBST`.
+- Un commit per l'indice e questi risultati.
+
+**1. `GridLayer:Unmark(i)`** (`gridhst.lua`)
+
+- Su una cella non segnata esce subito. Se no: ricerca di `i` in `LIST` con un ciclo numerico e `table.remove` (commento «LIST is short»), `marked[i] = nil`, `resetCell` sulla cella se c'è la funzione e la cella; la tabella resta in `CELLS`.
+- Chi scorre la lista e intanto chiama `Unmark`: **ciclo numerico all'indietro** (`for n = #LIST, 1, -1 do --backward: Unmark takes the cell out of LIST`), in `DamageHST:UpdateBadPositions` e in `ScoutHST:Update`. `table.remove` sposta solo le celle dopo `n`, già viste. Mi è sembrato più leggibile di raccogliere e poi togliere.
+- Test (`gridhst_spec.lua`): «takes one cell out of the list keeping the order of the others, and resets it» (ordine, stessa tabella `LIST`, `GetMarked` nil, `resetCell` chiamata una volta sulla cella giusta, le altre intatte); «does nothing on a cell that is not in the list» (cella con dati ma non segnata, e cella mai fatta); «marks a cell again after it was taken out, at the end of the list» (stessa tabella); «takes cells out while a backward loop runs over the list» (vede tutte le celle una volta, restano le dispari in ordine).
+- Mutazioni, ognuna fa fallire almeno un test: `gridhst.lua` della base (4 in errore); `table.remove` sostituito con «l'ultima al posto della tolta» (2); senza `table.remove` (3); `marked` non tolto (2); senza `resetCell` (1); senza l'uscita sulle celle non segnate (1).
+
+**2. `DAMAGED`** (`damagehst.lua`)
+
+- `Init`: `self.DAMAGED = self.ai.gridhst:NewLayer(self.resetCell)`. `DamageHST.resetCell(CELL)` azzera `frame`, `attackerThreat`, `defenderThreat`, `duration` (funzione con il punto, come `LosHST.resetCell`).
+- `AddBadPosition`: `PosToGrid`, `IsCellInGrid` (fuori: `Warn` «damage out of the grid» e uscita), indice, `Get`. Cella non segnata: si scrivono i campi del vecchio `newRecord` (`X`, `Z`, `POS`, `nodeCostIndex = i`, `frame`, minacce, `duration`); segnata: `frame` e somme come prima. Poi `Mark`. Via `groundAirSubmerged` (globale mai definito); il parametro `mtype` resta (non usato, come prima).
+- **`POS`**: il compito chiedeva `POS` da `gridhst.CELLS[i].POS`, scritto una volta. Nella prima prova (sotto) l'unica differenza è stata `POS.y`: cella 15, 10 del team 1, 237,12 (altezza a `Init`) contro 237,44 (`GridToPos` al primo colpo), 204 confronti su 1501 `Update`. Il terreno cambia in partita (crateri), quindi **ho lasciato `GridToPos`**, chiamato quando la cella entra nella lista, come faceva `newRecord`; commento a fine riga («not the POS of the GridHST cell: the ground can change after Init»). Lo legge solo `VisualDBG` (disegno). Con questo `X`, `Z`, `nodeCostIndex` li scrivo anch'essi all'entrata (sono sempre gli stessi numeri), così l'entrata è il vecchio `newRecord` campo per campo e non serve una `getDamagedCell`.
+- `UpdateBadPositions`: ciclo all'indietro sulla lista, `Unmark(i)` dove prima `DAMAGED[X][Z] = nil`; `EchoDebug(cell.defenderThreat)`.
+- Lettori: `targethst.lua` r. 170 `getGridCellsFields` → `getCellsFields` (da sapere: `GetPathModifierFunc` non la chiama nessuno, grep in tutto `luarules/`); `scouthst.lua` r. 79 → `GetCell(X, Z, self.ai.damagehst.DAMAGED)`; `VisualDBG` → ciclo numerico sulla lista (corpo uguale).
+- `GridHST`: via `areaGridCells`, `getGridCellsFields` e il loro test.
+
+**3. `SCOUTED`** (`scouthst.lua`, `scoutbst.lua`)
+
+- `Init`: `self.SCOUTED = self.ai.gridhst:NewLayer()`; la cella tiene `frame`.
+- `ScoutHST:Scouted(X, Z)` (scelto `X, Z`: `ScoutBST` li calcola già e li usa nel suo `EchoDebug`): `IsCellInGrid` (fuori: uscita, senza avviso), indice, `Get(i).frame = game:Frame()`, `Mark`. `ScoutBST:Update` chiama solo quello.
+- `ScoutHST:Update`: ciclo all'indietro, `Unmark` delle celle con `frame > CELLS[i].frame + 3600`. `TargetAvailable` r. 75 → `GetCell(X, Z, self.SCOUTED)`.
+
+**Differenza possibile, mai vista**: una posizione con `x` o `z` uguale a 0 dà `X` o `Z` 0. Prima `DAMAGED` e `SCOUTED` scrivevano lo stesso una cella fuori griglia (e `GridToPos` avvisava «is not in map»); ora `AddBadPosition` e `Scouted` escono. Nella partita C: 0 casi su 3267 colpi e 4047 passaggi di esploratori.
+
+**4. Prova nella stessa partita** (`[S9-PROOF]`, non committata; `c_stai_vs_stai.txt`, 15 minuti)
+
+- `DamageHST`: `AddBadPosition` e `UpdateBadPositions` della base copiate (`shadowAdd`, `shadowUpdate`) su `shadowDAMAGED[X][Z]`, chiamate sugli stessi eventi; dopo ogni `Update` confronto: `marked` contato = `#LIST`; ogni cella della lista nella griglia vecchia con `frame`, `attackerThreat`, `defenderThreat`, `duration`, `nodeCostIndex`, `X`, `Z`, `POS.x`, `POS.y`, `POS.z` uguali; ogni cella della griglia vecchia segnata nello strato; stesso numero di celle; stessa somma di `defenderThreat` (strato in ordine di lista, griglia vecchia con `pairs`).
+- `ScoutHST`: in `Scouted` anche `shadowSCOUTED[X][Z] = frame` (la riga della base); in `Update` la scadenza della base, poi lo stesso confronto (presenza nei due versi, `frame`, numero di celle). In più, a ogni `TargetAvailable`, le risposte vecchia e nuova per `SCOUTED` e per `DAMAGED`.
+
+| codice | team | `Update` | celle confrontate | colpi (`AddBadPosition`) | uscite (`Unmark`) | celle insieme, max | somma di `defenderThreat` su tutti gli `Update` (strato = vecchia) | differenze |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `DAMAGED`, `POS` da `GridHST` (prima prova) | 0 / 1 | 1501 / 1501 | 27406 / 21402 | 1207 / 2329 | 21 / 6 | 57 / 60 | 19.630.884 / 34.802.016 | 0 / 0, più `POS.y` 0 / 204 |
+| `DAMAGED`, codice finale | 0 / 1 | 1501 / 1501 | 26136 / 18442 | 1866 / 1401 | 17 / 9 | 50 / 46 | 22.815.968 / 19.390.070 | **0 / 0** (`POS.y` compreso) |
+
+| codice finale | team | `Update` | celle confrontate | `Scouted` | uscite | celle insieme, max | risposte di `TargetAvailable` confrontate | differenze |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `SCOUTED` | 0 / 1 | 1501 / 1501 | 68751 / 75340 | 1688 / 2359 | 269 / 306 | 149 / 161 | 1824 / 2499 | **0 / 0** |
+
+- La prova vede gli errori: con `defenderThreat < 2` al posto di `< 1` nel codice nuovo, 464 / 247 differenze (la prima al frame 15901: «cell only in shadow, 18, 8», celle 15 contro 16, somma 9128 contro 9129); con `+ 3000` al posto di `+ 3600` nella scadenza di `SCOUTED`, 12733 / 14483 differenze e 46 / 9 risposte di `TargetAvailable` diverse.
+- Partita C del codice finale: relay 4370 messaggi, 28408 ordini, 48 rifiutati (S8b: 5204 / 29055 / 40); nessuna riga `[AI Loader] error`.
+- Quindi gli strati contengono esattamente le griglie di prima; il gioco cambia solo per l'ordine (lista al posto di `pairs`), e qui l'ordine non conta: i lettori fanno somme di interi o domande sì/no.
+
+**Partita A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice finale senza il `---@type` sotto, che non cambia il gioco; uscita 0, 20 s)
+
+| | S9 | S8b (tre partite) | S1 (intervallo) |
+| --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 38 / 84 / 142 | 5/38/108/152 · 5/38/86/149 · 6/37/101/171 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14) | 161 unità, 2 fabbriche, 32 mex | 168/166/198, 2, 33/29/39 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 169, 2, 34 | 190/197/212, 2, 34/34/43 | — |
+| relay: messaggi / ordini / rifiutati | 2912 / 11906 / 7 | 3301–3891 / 13383–19508 / 8–16 | 3405–3933 / 10445–15948 / 9–16 |
+| messaggi rifiutati | nessuno | nessuno | nessuno |
+| memoria per frame, medie per minuto | 0,19–0,63 (media 0,38) | 0,37–0,40 di media | 0,37–0,45 |
+| memoria per frame, picco | 73,0 KB (min. 13) | 64,2–127,8 | 67,9–73,5 |
+| heap | 13,0–14,9 MB | 12,9–15,1 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 |
+
+- **Non sta sotto i riferimenti**: 161 unità e 32 mex al minuto 14, dentro S1; al minuto 13 142, dentro S1. Messaggi del relay (2912) e rifiutati (7) sotto S1 e S8b: una partita sola con il seme diverso, non lo attribuisco al cambio (la prova dice che gli strati sono uguali alle griglie).
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown). Nessuno cita Shard, STAI o i moduli toccati.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2760 successi, 0 falliti, 1 pending (2757 + 4 di `Unmark` − 1 di `getGridCellsFields`). `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 (dalla radice) su tutti i file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `5f103a2c51`: errori 20 → **19** (tolto `undefined global groundAirSubmerged` in `damagehst.lua`). Per file (base → finale): `damagehst.lua` 1 errore / 7 avvisi / 8 hint → 0 / 7 / 6; `gridhst.lua` 0/0/9 → 0/0/9; `scouthst.lua` 0/0/5 → 0/0/5; `scoutbst.lua` 0/9/7 → 0/9/7; `targethst.lua` 0/63/15 → 0/63/15; `gridhst_spec.lua` senza diagnostiche. Da sapere: come in S8a per `LosHST`, il ciclo nuovo di `VisualDBG` faceva comparire 4 avvisi `cellElmosHalf value may be nil` (il ciclo su `[X][Z]` faceva saltare l'analisi); risolti con `---@type number` sulla riga di `cellElmosHalf`, dentro il commit di `DAMAGED` prima del push.
+- `.emmyrc.json` ripristinato; `git status` pulito a parte i file di `.ai-notes/`.
+- `codice-tolto.md`: sezione S9 (`groundAirSubmerged`, `newRecord`, le due sorelle di `GridHST` e il loro test, la riga commentata `-- cell = nil` di `ScoutHST:Update`).
+
+**Difetti visti, non toccati**
+
+- `TargetHST:GetPathModifierFunc` (e `pathModifierFuncs`) non la chiama nessuno: codice morto, oppure aspetta il servizio percorsi (rinviato).
+- `DamageHST:AddBadPosition` riceve `mtype` e `duration` ma nessuno legge `duration` né distingue per `mtype`: la scadenza è sempre il calo del 10 % ogni 300 frame.
+
 ### S8b (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **In breve**: `PerceptionHandler` del runtime è in `modules.lua` (una istanza per alleanza, riceve ogni evento prima di `LosHST`: 0 eccezioni su 457 eventi per team); un'unità mobile che esce dalla los restando nel radar diventa un'**ombra** (`ghostEnemy`) e si segna in `ENEMY` come unità di tipo noto. Nelle partite: 71–233 ombre per partita, al massimo 1–12 insieme, **nessuna ombra appesa**, nessun avviso «più di un insieme». Le tre partite A **non stanno sotto** i riferimenti.

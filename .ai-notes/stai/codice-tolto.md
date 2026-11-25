@@ -131,3 +131,18 @@ Altro:
 | righe commentate `uPos` e `target` («NEVER USED») | `loshst.lua` | posizione e punto davanti all'unità in `setCellLos`, `setCellRadar` |
 | ramo `OWN` di `AttackHST:SquadAttackbackup` | `attackhst.lua` | `FIGHT` verso una posizione difensiva propria |
 | rami `OWN` e `ALLY` di `ScoutHST:TargetAvailable` | `scouthst.lua` | scartavano uno spot in una cella propria o alleata |
+
+## S9 — `f03fb8edf0` «STAI DamageHST: keep the damaged cells in a DAMAGED layer of GridHST»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| campo `groundAirSubmerged` delle celle di `DAMAGED` | `damagehst.lua` | in `AddBadPosition` copiava nella cella il globale `groundAirSubmerged`, mai definito (valeva sempre `nil`); nessuno lo leggeva |
+| tabella `newRecord` di `AddBadPosition` | `damagehst.lua` | la cella nuova, costruita a ogni colpo anche quando la cella c'era già; ora i campi si scrivono nella cella dello strato quando entra nella lista |
+| `GridHST:areaGridCells`, `GridHST:getGridCellsFields` | `gridhst.lua` | sorelle di `areaCells` e `getCellsFields` per una griglia `[X][Z]`, scritte in S8a solo per `DAMAGED` (`--TODO remove when DAMAGED is a layer`) |
+| test «sums the fields of the cells of a grid X, Z around a position» | `spec/luarules/gadgets/ai/STAI/gridhst_spec.lua` | il test di `getGridCellsFields` |
+
+## S9 — `1432104f6c` «STAI ScoutHST: keep the scouted cells in a SCOUTED layer of GridHST»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| riga commentata `-- cell = nil` in `ScoutHST:Update` | `scouthst.lua` | resto di una vecchia scadenza delle celle |
