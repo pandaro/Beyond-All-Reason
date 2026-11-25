@@ -47,6 +47,85 @@
 
 ## Risultati
 
+### S7 (agente locale, 25 novembre 2026)
+
+**Cosa ho fatto**
+
+- Commit `d44b34d6f6` «Shard loader: collect the garbage once at the end of StartAIs» (`lifecycle.lua` e il suo test):
+  - in `StartAIs`, dopo l'ultimo `DropFailed(failed)` e prima di `return fresh`: `if next(fresh) ~= nil then collectgarbage("collect") -- clean up after the start-up analyses of the AIs end`. **La guardia `next(fresh) ~= nil` non era nel compito**: senza, in una partita normale le `collect` sarebbero due (sotto). Una riga in più nel commento sopra `StartAIs` dice perché.
+  - `CatchUpAfterReload`: `return` dopo `CatchUp(StartAIs())`. A partita avviata la `collect` di `StartAIs` gira sempre (dopo un reload tutti gli oggetti sono nuovi, quindi `fresh` non è vuota) e quella vecchia era doppia; al frame 0 `StartAIs` non viene chiamata e la `collect` vecchia («clean start, as in the old loader») resta.
+- Commit `39f1b95fa7` «STAI MapHST: drop the collectgarbage at the end of Init»: solo la riga 38 di `maphst.lua`. Aggiunta a `codice-tolto.md` (S7).
+
+**Quante volte gira `StartAIs`** (traceback temporaneo, partita C)
+
+| chiamata | da dove | quando | `fresh` | `collect` |
+| --- | --- | --- | --- | --- |
+| 1 | `UnitCreated` → `StartAIsOnce` (le unità di partenza nascono nel `GameStart` di `game_initial_spawn`, prima di quello del loader) | frame 0 | 5 (globale, 2 alleanze, 2 team) | sì |
+| 2 | `GameStart` del loader, che chiama `StartAIs` senza `Once` | frame 0, subito dopo | 0 | no (con la guardia) |
+
+- Quindi in una partita normale `StartAIs` gira **due volte**, la `collect` **una**. In alternativa alla guardia si può far chiamare `StartAIsOnce` a `GameStart` (`ShardAILoader.lua` r. 152); non l'ho fatto perché tocca un altro file del framework e il compito non lo chiede. Decidi tu.
+- Altre chiamate: `CatchUpAfterReload` (solo con `/luarules reload` a partita avviata: una `collect`, quella di `StartAIs`; al frame 0 non chiama `StartAIs` e fa la sua `collect`, 1 ms) e `HostChanged`, quando un team passa a questo client a partita avviata: `AddAI` + `StartAIs` con l'alleanza (se nuova) e il team nuovi, quindi **una `collect` in più a metà partita**, una volta per cambio di host. `AddAI` da sola (in `AddHostedAIs`, all'`Initialize`) non chiama `StartAIs`.
+
+**Prova che il gioco non cambia** (patch `[S3-PROOF]` di S6, `c_stai_vs_stai.txt`): righe identiche fra partenza `2379418f9c` e codice nuovo (`diff` vuoto):
+
+```
+[S3-PROOF] grid, global, 32, 24, 768, 295296, 295296
+[S3-PROOF] map, global, 80, 0, 32,  air=1 amp=1 bot=1 hov=1 veh=3
+[S3-PROOF] tool, global, 80, 400, 5120.0000000000 10240.0000000000 130983.9921875000 103122.6718750000, 80, 2048
+[S3-PROOF] trampled, 1, 79, 406400.0000000000 296576.0000000000 2.118384599685669
+[S3-PROOF] trampled, 0, 68, 208640.0000000000 141568.0000000000 2.246112346649170
+```
+
+**Misure** (`SHARD_MEM_STATS=1`, partita C di 5 minuti prima e dopo; timer temporanei, non committati). `Spring.DiffTimers` qui dà solo millesimi interi (1, 12, 13 ms): risoluzione 1 ms.
+
+| | prima (`2379418f9c`) | dopo |
+| --- | --- | --- |
+| `collect` dell'`Initialize` (frame 0) | 1 ms, 9552 → 7057 KB | 1 ms, 9553 → 7058 KB |
+| `collect` di avvio | `MapHST:Init`: 12 ms, 30285 → 12621 KB | fine di `StartAIs`: 13 ms, 31637 → 13602 KB |
+| frame | 0 (dentro la prima `StartAIs`) | 0 (fine della prima `StartAIs`) |
+| heap alla fine della prima `StartAIs` | 13980 KB (dopo la `collect` di `MapHST` gli `Init` di alleanze e team aggiungono ~1,4 MB) | 13602 KB |
+| heap alla seconda `StartAIs` (dopo gli eventi delle unità di partenza) | 15081 KB | 14703 KB |
+| memoria per frame, min. 1–5: media / picco KB | 0,31/25,9 · 0,28/15,1 · 0,35/36,9 · 0,42/37,9 · 0,42/28,7 | 0,34/25,9 · 0,28/11,7 · 0,32/34,9 · 0,41/27,9 · 0,41/17,1 |
+| heap min. 1–5 | 13,7 · 13,7 · 13,7 · 14,1 · 14,3 MB | 13,7 · 13,7 · 13,9 · 13,9 · 14,1 MB |
+
+- La `collect` costa uguale (12–13 ms: c'è più roba, perché ora raccoglie anche gli `Init` di alleanze e team) e lascia l'heap ~0,4 MB più basso a fine avvio. Dal minuto 1 i numeri sono gli stessi.
+
+**Partite C** (`c_stai_vs_stai.txt`, 15 minuti, codice finale, `SHARD_MEM_STATS=1`, uscita 0, 21 s e 22 s). Ne ho fatta una seconda perché nella prima il team 1 restava sotto le partite C di prima (16 mex al minuto 14).
+
+| | partita 1, team 0 | partita 1, team 1 | partita 2, team 0 | partita 2, team 1 |
+| --- | --- | --- | --- | --- |
+| unità min. 1 / 5 / 10 / 13 | 7 / 37 / 99 / 153 | 6 / 34 / 87 / 126 | 7 / 36 / 87 / 107 | 6 / 36 / 105 / 157 |
+| mex min. 5 / 10 / 13 | 6 / 20 / 26 | 5 / 14 / 18 | 5 / 15 / 18 | 6 / 17 / 25 |
+| min. 14 | 155 unità, 2 fabbriche, 30 mex | 129, 2, 16 | 107, 2, 17 | 156, 2, 26 |
+| `SUMMARY` | 158, 2, 29 | 135, 2, 18 | 113, 2, 15 | 175, 2, 29 |
+
+| | partita 1 | partita 2 |
+| --- | --- | --- |
+| relay: messaggi / ordini / rifiutati | 4686 / 26134 / 31 | 4826 / 23553 / 16 |
+| messaggi rifiutati | nessuno | nessuno |
+| memoria per frame, medie per minuto | 0,28–0,98 KB | 0,28–0,87 KB |
+| memoria per frame, picco | 81,1 KB (min. 11) | 156,5 KB (min. 12) |
+| heap | 13,7–17,2 MB | 13,7–16,6 MB |
+| `Shard memory record` | 17634 | — |
+| righe `[AI Loader] error` | 0 | 0 |
+
+- In C le due STAI si combattono: nella partita 1 resta indietro il team 1, nella 2 il team 0; la squadra in vantaggio sta nei valori delle partite C di prima (S4a, S4b, S5). Lo attribuisco alla variabilità (l'avvio è identico, righe di prova sopra).
+- Le partite C di prima non avevano `SHARD_MEM_STATS`, quindi per memoria e heap a 15 minuti non c'è un riferimento C: medie e heap sono più alti delle partite A di S6 (0,35–0,39 KB, 13,1–16,0 MB), con due STAI invece di una.
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown). Nessuno cita Shard, STAI o `MapHST`.
+
+**Test** (`shard_ai_loader_unsynced_spec.lua`)
+
+- Nuovo: «collects once at the start, after every Init, when GameStart follows the start units»: `Initialize`, poi `UnitCreated` di un'unità del team 0, `GameStart`, `GameFrame(1)` → una sola `collectgarbage`, dopo l'ultimo `Init`.
+- Rinominato «collects the garbage once, after the catch-up of a reload» → «collects the garbage once on a reload, after the Init of every object» (la `collect` ora viene prima del catch-up; le asserzioni non cambiano).
+- Mutazioni, ognuna fa fallire un test (2746 successi, 1 fallito): `lifecycle.lua` della base (test nuovo: 0 `collect`); `collect` senza guardia (test nuovo: 2); `collect` del reload anche a partita avviata (test del reload: 2). Col codice giusto 2747, 0 falliti.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2747 successi, 0 falliti, 1 pending. `run_engine_tests.sh`: `RESULT: ok`.
+- StyLua 2.5.2 sui file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `2379418f9c`: 20 errori, negli stessi file. Per file: `maphst.lua` 11 avvisi e 15 hint prima e dopo, `lifecycle.lua` nessuna diagnostica, `shard_ai_loader_unsynced_spec.lua` 10 hint prima e dopo. Il totale degli avvisi cambia (22873 → 23121) solo in file non toccati (per esempio `common/springFunctions.lua`, `.ai-notes/drafts/ShardAILoader.lua`).
+- `.emmyrc.json` ripristinato; `git status` pulito a parte i file di `.ai-notes/`.
+
 ### S6 (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Cosa ho fatto**

@@ -99,3 +99,9 @@ Altro:
 | `mapBuffer`, `layerNames`, `unitThreatLayers`, `quadX`, `quadZ`, `output` | `tool.lua` | `local` del file mai letti |
 | `Tool:CustomCommand` (commentata) | `tool.lua` | comando personalizzato con `api.vectorFloat` |
 | ciclo commentato su `WhatHurtsUnit` in `AddBadPosition` | `damagehst.lua` | un record per ogni strato che può colpire il tipo di movimento |
+
+## S7 — `39f1b95fa7` «STAI MapHST: drop the collectgarbage at the end of Init»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `collectgarbage("collect")` alla fine di `MapHST:Init` | `maphst.lua` | raccolta completa dopo le analisi della mappa; ora il loader raccoglie una volta alla fine di `StartAIs` (`d44b34d6f6`, `shard_runtime/loader/lifecycle.lua`) |
