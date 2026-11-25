@@ -1,3 +1,5 @@
+local MAX_SITE_POINTS = 300 --the most points FindClosestBuildSite tries in one call
+
 BuildingsHST = class(Module)
 
 function BuildingsHST:Name()
@@ -153,12 +155,9 @@ function BuildingsHST:DontBuildOnMetalOrGeoSpots()
 end
 
 function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDist, builder, recycledPos) -- returns Position
-
-	--local ch = 2
-	--map:EraseAll(ch)
-
 	local math_sin = math.sin
 	local math_cos = math.cos
+	local math_floor = math.floor
 	local math_random = math.random
 
 	maxDist = maxDist or 390
@@ -166,49 +165,36 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 	if minDist < 1 then
 		minDist = 1
 	end
-	if not self:depthFitsNear(unittype:Name(), bx, bz, maxDist) then
-		self:EchoDebug("no ground with the water depth of", unittype:Name(), "near", bx, bz)
+	local unitName = unittype:Name()
+	if not self:depthFitsNear(unitName, bx, bz, maxDist) then
+		self:EchoDebug("no ground with the water depth of", unitName, "near", bx, bz)
 		return
 	end
 
 	local twicePi = math.pi * 2
-	local angleIncMult = twicePi / minDist
-
+	local spacing = self:siteSpacing(unitName)
 	local maxX, maxZ = Game.mapSizeX, Game.mapSizeZ
-	---map:DrawPoint({x=bx,y=by,z=bz}, {1,0,0,1},'origin',  ch)
-	local attempt = 1
 	self:EchoDebug("maxDist", maxDist)
 	local step = (maxDist - minDist) / 100
 	local maxtest = step > 10 and step or 10
 	local checkpos = recycledPos or {}
-	--self:EchoDebug('FindClosestBuildSite',unittype,bx,bz,minDist,maxDist,maxtest)
+	local points = 0
 	for radius = minDist, maxDist, maxtest do
-		self:EchoDebug("radius = minDist, maxDist, maxtest", radius, maxDist, maxtest)
-		local angleInc = radius * twicePi * angleIncMult
+		local ringPoints = math_floor(twicePi * radius / spacing) --the points of this ring, spacing apart
+		if ringPoints < 1 then
+			ringPoints = 1
+		end
+		local angleInc = twicePi / ringPoints
 		local initAngle = math_random() * twicePi
-		for angle = initAngle, initAngle + twicePi, angleInc do
-			self:EchoDebug("intAAngle initAngle+twicePi, angleinc", initAngle, initAngle + twicePi, angleInc)
-			attempt = attempt + 1
-
-			local realAngle = angle + 0
-			local dx, dz
-			if realAngle > twicePi then
-				realAngle = realAngle - twicePi
+		for n = 0, ringPoints - 1 do
+			if points >= MAX_SITE_POINTS then
+				self:EchoDebug("no site for", unitName, "in", points, "points, up to radius", radius)
+				return
 			end
-			local s = math_sin(realAngle)
-			local c = math_cos(realAngle)
-			if c > 0 then
-				dx = radius * c
-			else
-				dx = (radius * -c) * -1
-			end
-			if s > 0 then
-				dz = radius * s
-			else
-				dz = (radius * -s) * -1
-			end
-
-			local x, z = bx + dx, bz + dz
+			points = points + 1
+			local angle = initAngle + n * angleInc
+			local x = bx + radius * math_cos(angle)
+			local z = bz + radius * math_sin(angle)
 			if x < 0 then
 				x = 0
 			elseif x > maxX then
@@ -219,12 +205,10 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 			elseif z > maxZ then
 				z = maxZ
 			end
-			self:EchoDebug("attempt", attempt, radius, maxDist, angle, realAngle, maxtest, dx, dz)
 			local y = map:GetGroundHeight(x, z)
 			checkpos.x = x
 			checkpos.y = y
 			checkpos.z = z
-			--map:DrawPoint({x=x, y=y, z=z}, {1,1,1,1},attempt,  ch)
 			local check = self:CheckBuildPos(checkpos, unittype, builder)
 			if check then
 				local buildable, px, py, pz = self:CanBuildHere(unittype, x, y, z)
@@ -235,12 +219,17 @@ function BuildingsHST:FindClosestBuildSite(unittype, bx, by, bz, minDist, maxDis
 					return checkpos
 				else
 					if self.DebugEnabled then
-						self:EchoDebug("not buildable here", unittype:Name(), x, y, z, px, py, pz)
+						self:EchoDebug("not buildable here", unitName, x, y, z, px, py, pz)
 					end
 				end
 			end
 		end
 	end
+end
+
+function BuildingsHST:siteSpacing(unitName) --elmos between two points tried on a ring: the width of the building
+	local utable = self.ai.armyhst.unitTable[unitName]
+	return math.max(utable.xsize, utable.zsize) * 8
 end
 
 function BuildingsHST:depthFits(unitName, y) --unitName can be built at the water depth over the ground height y

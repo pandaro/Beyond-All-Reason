@@ -320,4 +320,34 @@ describe("STAI BuildingsHST placement", function()
 		assert.equal(0, #world.points)
 	end)
 
+	it("tries more than one angle on a ring, about the width of the building apart", function()
+		local buildingsHST, world = newPlacingWorld()
+
+		buildingsHST:FindClosestBuildSite(newUnitType("armwin", 1), 1000, LAND, 1000, 50, 50, world.builder)
+
+		assert.is_true(#world.points >= 5)
+		for i, a in ipairs(world.points) do
+			assert.near(50, math.sqrt((a.x - 1000) ^ 2 + (a.z - 1000) ^ 2), 0.001)
+			for j = i + 1, #world.points do
+				local b = world.points[j]
+				assert.is_true(math.sqrt((a.x - b.x) ^ 2 + (a.z - b.z) ^ 2) >= 40)
+			end
+		end
+	end)
+
+	it("stops before the outer rings when it has tried the most points of a call", function()
+		local buildingsHST, world = newPlacingWorld()
+
+		local position =
+			buildingsHST:FindClosestBuildSite(newUnitType("armwin", 1), 2000, LAND, 2000, 1, 1900, world.builder)
+
+		assert.is_nil(position)
+		assert.is_true(#world.points > 0)
+		local farthest = 0
+		for _, point in ipairs(world.points) do
+			farthest = math.max(farthest, math.sqrt((point.x - 2000) ^ 2 + (point.z - 2000) ^ 2))
+		end
+		assert.is_true(farthest < 1000)
+	end)
+
 end)
