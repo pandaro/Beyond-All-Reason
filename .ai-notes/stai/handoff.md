@@ -54,7 +54,7 @@
 
 ## Risultati
 
-### S8a (agente locale, 25 novembre 2026)
+### S8a (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **In breve**: `ENEMY` è uno strato di `GridHST`; `OWN`, `ALLY`, `ALLIES`, i pool e il resto morto di `LosHST` sono tolti. **La condizione di stop del punto 4 è scattata** (righe separate al frame 4200, prima di un nemico in vista nella partita di partenza), ma la prova fra partite diverse non può funzionare: **due partite con lo stesso codice di partenza si separano anche loro**, perché il seme di `math.random` di ogni AI viene dal `GameID`, diverso a ogni avvio. Al suo posto ho fatto la prova **nella stessa partita** (vecchia griglia ricalcolata accanto allo strato, confronto cella per cella a ogni `Update`): **0 differenze in tutta la partita**. L'utente ha visto i numeri e ha deciso di proseguire. Le tre partite A non stanno sotto i riferimenti.
 
