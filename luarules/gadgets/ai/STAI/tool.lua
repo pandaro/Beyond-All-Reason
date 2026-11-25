@@ -1,4 +1,5 @@
 shard_include("astarclass")
+shard_include("toolbox")
 
 Tool = class(Module)
 
@@ -12,6 +13,12 @@ end
 
 function Tool:Scope()
 	return "team"
+end
+
+for name, func in pairs(Toolbox) do --the Toolbox helpers answer as self.ai.tool:<name> too, with Toolbox as self
+	Tool[name] = function(_, ...)
+		return func(Toolbox, ...)
+	end
 end
 
 sqrt = math.sqrt
@@ -343,26 +350,6 @@ function Tool:RandomAway2(pos, dist, opposite, angle, away)
 	end
 end
 
-function Tool:RawDistance(x1, y1, z1, x2, y2, z2)
-	local x = x1 - x2
-	local y = y1 - y2
-	local z = z1 - z2
-	return sqrt((x * x) + (y * y) + (z * z))
-end
-
-function Tool:DISTANCE(POS1, POS2)
-	local x = POS2.x - POS1.x
-	local y = POS2.y - POS1.y
-	local z = POS2.z - POS1.z
-	return sqrt((x * x) + (y * y) + (z * z))
-end
-
-function Tool:distance(POS1, POS2)
-	local x = POS2.x - POS1.x
-	local z = POS2.z - POS1.z
-	return sqrt((x * x) + (z * z))
-end
-
 function Tool:sumPos(pos1, pos2)
 	local pos = api.Position()
 	pos.x = pos1.x + pos2.x
@@ -387,10 +374,6 @@ end
 function AngleDist(angle1, angle2)
 	return abs((angle1 + pi - angle2) % twicePi - pi)
 	-- game:SendToConsole(math.floor(angleDist * 57.29), math.floor(high * 57.29), math.floor(low * 57.29))
-end
-
-function Tool:AngleAdd(angle1, angle2)
-	return (angle1 + angle2) % twicePi
 end
 
 function Tool:AngleAtoB(x1, z1, x2, z2)
@@ -425,43 +408,6 @@ function Tool:CheckRect(rect)
 	rect.z2 = new.z2
 end
 
-function Tool:PositionWithinRect(position, rect)
-	return position.x > rect.x1 and position.x < rect.x2 and position.z > rect.z1 and position.z < rect.z2
-end
-
-function Tool:RectsOverlap(rectA, rectB)
-	return rectA.x1 < rectB.x2 and rectB.x1 < rectA.x2 and rectA.z1 < rectB.z2 and rectB.z1 < rectA.z2
-end
-
-function Tool:pairsByKeys(t, f)
-	local a = {}
-	for n in pairs(t) do
-		table.insert(a, n)
-	end
-	table.sort(a, f)
-	local i = 0 -- iterator variable
-	local iter = function() -- iterator function
-		i = i + 1
-		if a[i] == nil then
-			return nil
-		else
-			return a[i], t[a[i]]
-		end
-	end
-	return iter
-end
-
-function Tool:tableSorting(t)
-	local Tkey = {}
-	local Tvalue = {}
-	for key, value in self:pairsByKeys(t) do
-		self:EchoDebug(key, value)
-		table.insert(Tkey, key)
-		table.insert(Tvalue, value)
-	end
-	return Tkey, Tvalue
-end
-
 function Tool:sortByValue(t)
 	local sorted = {}
 	for k, v in pairs(t) do
@@ -484,35 +430,10 @@ function Tool:reverseSortByValue(t)
 	return sorted
 end
 
-function Tool:sortByDistance(POS, list)
-	local distanceIndex = {}
-	local dix = {}
-	for index, pos in pairs(list) do
-		distanceIndex[(self:distance(pos, POS))] = index
-		dix[index] = (self:distance(pos, POS))
-
-	end
-	table.sort(dix)
-	for i, v in pairs(dix) do
-		self:EchoDebug(i, v)
-		dix[i] = list[distanceIndex[v]]
-	end
-	return dix
-end
-
 function Tool:listHasKey(value, list)
 	for k, v in pairs(list) do
 		if k == value then
 			return v
-		end
-	end
-	return false
-end
-
-function Tool:listHasValue(list, value)
-	for k, v in pairs(list) do
-		if v == value then
-			return k
 		end
 	end
 	return false
@@ -523,24 +444,6 @@ function Tool:dictHasKey(value, list)
 		return true
 	end
 	return false
-end
-
-function Tool:gcd(a, b)
-	return b == 0 and a or self:gcd(b, a % b)
-end
-
-function Tool:tableConcat(tables)
-	if type(tables) ~= "table" then
-		self:Warn("concatenation require a table of tables")
-		return
-	end
-	local T = {}
-	for index, t in pairs(tables) do
-		for k, value in pairs(t) do
-			table.insert(T, -1, value)
-		end
-	end
-	return T
 end
 
 function Tool:getTeamUnitsByClass(classes)

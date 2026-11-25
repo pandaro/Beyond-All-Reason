@@ -1,3 +1,5 @@
+shard_include("toolbox")
+
 MapHST = class(Module)
 
 function MapHST:Name()
@@ -23,7 +25,7 @@ function MapHST:Init()
 	self.METALS = map:GetMetalSpots()
 	self.GEOS = map:GetGeoSpots()
 	self.METALS = self:SimplifyMetalSpots(self.ai.gridhst.gridSize * 2) -- is a random choice, can be 1 or 9999999999
-	self.allSpots = self.ai.tool:tableConcat({ self.METALS, self.GEOS })
+	self.allSpots = Toolbox:tableConcat({ self.METALS, self.GEOS })
 	self.hotSpots = {}
 	self:hotSpotter()
 	self.networks = {} --hold data in a "specific network" area(about GAS (area,mex,geos,trampling)
@@ -46,8 +48,8 @@ function MapHST:basicMapInfo() --capture and set foundamental map info
 		y = map:GetGroundHeight(self.elmoMapSizeX / 2, self.elmoMapSizeZ / 2),
 		z = self.elmoMapSizeZ / 2,
 	}
-	self.elmoMapMaxCenterDistance = self.ai.tool:distance({ x = 0, y = 0, z = 0 }, self.elmoMapCenter)
-	self.elmoMapMaxDistance = self.ai.tool:distance(
+	self.elmoMapMaxCenterDistance = Toolbox:distance({ x = 0, y = 0, z = 0 }, self.elmoMapCenter)
+	self.elmoMapMaxDistance = Toolbox:distance(
 		{ x = 0, y = 0, z = 0 },
 		{ x = self.elmoMapSizeX, y = 0, z = self.elmoMapSizeZ }
 	)
@@ -57,7 +59,7 @@ function MapHST:basicMapInfo() --capture and set foundamental map info
 		"self.elmoMapMaxCenterDistance",
 		self.elmoMapMaxCenterDistance
 	)
-	self:EchoDebug(self.ai.tool:gcd(self.elmoMapSizeX, self.elmoMapSizeZ))
+	self:EchoDebug(Toolbox:gcd(self.elmoMapSizeX, self.elmoMapSizeZ))
 	self.elmoArea = self.elmoMapSizeX * self.elmoMapSizeZ
 	self:EchoDebug("ElmoX", self.elmoMapSizeX, "ElmoZ", self.elmoMapSizeZ, "ElmoArea", self.elmoArea)
 end
@@ -144,7 +146,7 @@ function MapHST:LayerScan() --a most approfondite analisy of the layers
 		main[layer].ratioMetals = 0
 		main[layer].ratioGeos = 0
 		for index, network in pairs(net) do
-			network.allSpots = self.ai.tool:tableConcat({ network.metals, network.geos })
+			network.allSpots = Toolbox:tableConcat({ network.metals, network.geos })
 			network.ratioArea = network.area / self.ai.gridhst.gridArea
 			if #network.allSpots == 0 or #self.allSpots == 0 then
 				network.ratioSpots = 0
@@ -242,7 +244,7 @@ function MapHST:hotSpotter()
 			spots[index1] = false
 			for index2, pos2 in pairs(spots) do
 				if spots[index2] and pos1 ~= pos2 then
-					local dist = self.ai.tool:distance(pos1, pos2)
+					local dist = Toolbox:distance(pos1, pos2)
 					if dist < limit and ((pos1.y > 0 and pos2.y > 0) or (pos1.y < 0 and pos2.y < 0)) then
 						table.insert(mirrorspots[index1], pos2)
 						spots[index2] = false
@@ -347,9 +349,7 @@ function MapHST:gridThePath(wp, factor)
 	local prev = #wp
 	for i = #wp, 1, -1 do
 		if i and i ~= prev then
-			if
-				self.ai.tool:RawDistance(wp[prev][1], wp[prev][2], wp[prev][3], wp[i][1], wp[i][2], wp[i][3]) < factor
-			then
+			if Toolbox:RawDistance(wp[prev][1], wp[prev][2], wp[prev][3], wp[i][1], wp[i][2], wp[i][3]) < factor then
 				table.remove(wp, i)
 				prev = prev - 1
 			else
@@ -393,7 +393,7 @@ function MapHST:UnitCanGoHere(unit, position, maxDistance)
 
 	maxDistance = maxDistance or 128
 	local ux, uy, uz = unit:GetRawPos()
-	if self.ai.tool:RawDistance(ux, uy, uz, position.x, position.y, position.z) < 32 then
+	if Toolbox:RawDistance(ux, uy, uz, position.x, position.y, position.z) < 32 then
 		self:EchoDebug(unit:Name(), "ask for a short pathtest: pass")
 		return 32
 	end
