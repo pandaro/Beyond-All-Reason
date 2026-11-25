@@ -39,7 +39,8 @@ local function defaultWorld()
 		units = {},
 		-- three SpecAI teams: above the loader's limit per AI type, which the specs of the limit restore with nil
 		maxInstancesPerAIType = 3,
-		-- the switch of timers.lua: true or false replace it, "code" keeps the file's value
+		-- the switches of memstats.lua and timers.lua: true or false replace them, "code" keeps the file's value
+		memStats = false,
 		timers = false,
 	}
 end
@@ -88,6 +89,9 @@ local function loadLoader(world)
 				context.maxInstancesPerAIType = world.maxInstancesPerAIType
 				return setup(context)
 			end
+		end
+		if path == "luarules/gadgets/ai/shard_runtime/loader/memstats.lua" and world.memStats ~= "code" then
+			result.SetMeasuring(world.memStats == true)
 		end
 		if path == "luarules/gadgets/ai/shard_runtime/loader/timers.lua" and world.timers ~= "code" then
 			result.SetEnabled(world.timers == true)
@@ -1752,7 +1756,7 @@ describe("ShardAILoader unsynced side", function()
 		end)
 	end)
 
-	describe("with ShardMemStats", function()
+	describe("with SHARD_MEM_STATS", function()
 		local function frames(loader, from, to)
 			for n = from, to do
 				loader.world.frame = n
@@ -1772,9 +1776,9 @@ describe("ShardAILoader unsynced side", function()
 			}
 		end
 
-		local function startedWith(config, kb)
+		local function startedWith(on, kb)
 			local world = defaultWorld()
-			world.config = config
+			world.memStats = on
 			world.heap = 1000
 			local loader = started(world, allocating(kb))
 			loader.env.Shard.AIsByTeamID[0].specWorld = world
@@ -1782,7 +1786,7 @@ describe("ShardAILoader unsynced side", function()
 		end
 
 		it("writes the average and the largest allocation of the frames of each minute", function()
-			local loader = startedWith({ ShardMemStats = 1 }, function(frame)
+			local loader = startedWith(true, function(frame)
 				if frame > 1800 then
 					return 10
 				end
@@ -1809,7 +1813,7 @@ describe("ShardAILoader unsynced side", function()
 		end)
 
 		it("measures nothing and writes nothing when it is off", function()
-			local loader, world = startedWith({}, function()
+			local loader, world = startedWith(false, function()
 				return 4
 			end)
 
@@ -1819,16 +1823,14 @@ describe("ShardAILoader unsynced side", function()
 			assert.equal(0, world.countCalls)
 		end)
 
-		it("starts measuring in the minute after it is turned on", function()
-			local loader, world = startedWith({}, function()
+		it("measures with nothing in springsettings: the switch is in the code, and on", function()
+			local loader = startedWith("code", function()
 				return 3
 			end)
 
-			frames(loader, 1, 1000)
-			world.config.ShardMemStats = 1
-			frames(loader, 1001, 3600)
+			frames(loader, 1, 1800)
 
-			assert.equal(1, echoesWith(loader, "memory per frame"))
+			assert.same({}, loader.world.config)
 			assert.equal(1, echoesWith(loader, "avg 3.00 KB max 3.00 KB over 1800 frames"))
 		end)
 	end)
