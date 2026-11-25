@@ -18,27 +18,36 @@
 
 ## Compito attuale
 
-### T18: memoria nella riga `[Shard timer]`
+### T19: `BuildingsHST`, ricerca del posto senza sprechi (STAI)
 
-**Impegno: basso.** Branch di lavoro: **`shardST1`** (unione di `shard/fase1` e `stai/porting`; push `git -c push.negotiate=true push origin shardST1`).
+**Impegno: alto. Modello: Opus.** Branch: **`shardST1`** (push `git -c push.negotiate=true push origin shardST1`). È codice di **STAI**: valgono anche le regole di `.ai-notes/stai/handoff.md` («Protocollo») e lo stile di STAI (`.ai-notes/stai/nuovo-stai.md` §7, da leggere prima). Il framework non si tocca.
 
-**Perché.** Un utente ha mandato questa riga da una partita lunga (74 minuti, heap 80 MB, picco per frame 4,9 MB): `module=UnitHandler behaviour=BuildersBST call=Update ms=1553.5`. Non si capisce se il secondo e mezzo è un calcolo pesante di STAI o il garbage collector che parte dentro quella chiamata.
+**Perché.** In una partita lunga un solo costruttore (`armbeaver` 31572, team 2, frame 49642) ha tenuto `BuildersBST:Update` per **422 ms**: cercava il posto per un `armplat` (edificio d'acqua) intorno a edifici a terra; 51 chiamate a `FindClosestBuildSite`, 169 unità d'appoggio guardate, 908 `TestBuildOrder` tutti falliti; poi ha costruito un `armwin`. Il log è dell'utente (non nel repository).
 
-**Lavoro**
+**Lavoro** (in `luarules/gadgets/ai/STAI/buildingshst.lua`; le firme pubbliche non cambiano, `BuildersBST` e `LabsHST` restano come sono, salvo il punto 1 se serve lì)
 
-1. In `loader/timers.lua`, in `BeginModule`/`BeginBehaviour` si legge la memoria in uso (`collectgarbage("count")`, KB) insieme al tempo, in `EndModule`/`EndBehaviour` di nuovo. Niente tabelle nuove nel percorso: le letture si tengono nelle stesse variabili locali del tempo.
-2. La riga sopra soglia riceve un campo `kb=<fine - inizio>` (con segno, un decimale), subito dopo `ms=`: `... call=Update ms=1553.5 kb=-48210.3`. Un valore molto negativo = è passato il garbage collector durante la chiamata; positivo e grande = la chiamata alloca molto.
-3. Il riepilogo a fine partita non cambia.
-4. Guida («How to debug», `.ai-notes/drafts/README.md`): aggiorna il formato della riga e spiega in due righe come si legge `kb`.
-5. Se la lettura di `collectgarbage("count")` rallenta in modo visibile, dillo e non toglierla.
+1. **Acqua/terra subito.** Un edificio che ha bisogno d'acqua (`unitTable[...].needsWater`) non si prova su terra, e uno di terra non si prova in acqua: il controllo con l'altezza del terreno va **prima** di ogni altro controllo del punto. Se il costruttore chiede un edificio d'acqua e intorno alle unità d'appoggio non c'è acqua, la ricerca deve finire presto (scrivi dove e come lo decidi).
+2. **Angoli per anello.** In `FindClosestBuildSite` oggi `angleInc = radius * twicePi * (twicePi / minDist)` vale decine di radianti: **un solo angolo a caso per anello**. Correggilo in modo che i punti su un anello siano distanziati più o meno della misura dell'edificio (o di un passo fisso in elmi, scrivi quale). Tieni un tetto ai punti provati per chiamata, in una costante in cima al file.
+3. **`searchPosNearCategories`.**
+   - `table.insert(Units, dist, uID)` usa la distanza come indice (due unità alla stessa distanza si sovrascrivono): lista di coppie distanza/unità, ordinata una volta;
+   - `Units` non si svuota fra un nome e l'altro e si riordina a ogni nome: ogni unità d'appoggio si prova **una volta sola** per chiamata;
+   - `table.remove` dentro `pairs` sulla stessa tabella: via.
+   Guarda anche `searchPosInList` per lo stesso tipo di difetti.
+4. **`CheckBuildPos` in ordine di costo**: prima i controlli che non chiamano il motore (dentro la mappa, `dontBuildRects`, piani, acqua/terra), poi `getUnitsInCylinder`, per ultimi `UnitCanGoHere` e `TestBuildOrder`. Nessuna tabella nuova per ogni punto (`rect` riusato). Il risultato di un punto non cambia.
+5. **Stesso gioco.** Il posto scelto può cambiare (più angoli = posti più vicini), ma le regole no: niente edifici su mex/geo, sulle corsie delle fabbriche, sopra i piani, dove il costruttore non arriva.
+6. Codice tolto: in `.ai-notes/stai/codice-tolto.md`, come da regola del porting.
 
-**Test busted**: la riga contiene `kb=` con il segno giusto (memoria che scende e che sale; usa una `collectgarbage` finta); sotto soglia nessuna riga. Mutazione: `kb` con segno invertito, `kb` letto solo all'inizio.
+**Misura** (prima e dopo, con il codice di oggi come base): con `[Shard timer]` acceso.
+- Partita A (15 minuti) e una partita **lunga** (almeno 45 minuti, la più lunga che lo strumento permette; scegli tu mappa e avversari, ma uguali prima e dopo; se possibile una mappa con acqua, dove i costruttori anfibi chiedono edifici d'acqua). Riporta: righe `[Shard timer]` sopra soglia (quante, le 10 più alte), dal riepilogo le somme e i massimi di `BuildersBST`, `UnitHandler`, `BuildingsHST` se compare; unità, fabbriche, mex.
+- Se puoi, conta con uno strumento temporaneo (non committato) le chiamate a `FindClosestBuildSite`, i punti provati e i `TestBuildOrder` per partita, prima e dopo.
 
-**Partita**: una partita A di 15 minuti; riporta le righe `[Shard timer]` che compaiono (se ce ne sono) con il nuovo campo. Nessuna riga `[AI Loader] error`.
+**Test busted** (spec di `BuildingsHST`, nuovo se manca): edificio d'acqua su terra scartato senza `TestBuildOrder`; più di un angolo per anello; un'unità d'appoggio provata una volta; due unità alla stessa distanza tutte e due provate; ordine dei controlli (un punto bloccato da un `dontBuildRect` non chiama `getUnitsInCylinder`). Mutazioni.
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
 
-**Commit**, in inglese: uno per il codice, uno per la guida.
+**Commit**, in inglese, che iniziano con «STAI BuildingsHST: …»: uno per punto (1–4), più quello dei risultati.
+
+**Fermati e scrivi** se uno dei punti cambia il gioco più del previsto (meno unità o mex in modo netto) o se serve toccare `BuildersBST`/`LabsHST` più di poco.
 
 ## Risultati
 
