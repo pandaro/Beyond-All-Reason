@@ -14,7 +14,6 @@ end
 
 function DamageHST:Init()
 	self.DebugEnabled = false
-	self.isDamaged = {}
 	self.DAMAGED = self.ai.gridhst:NewLayer(self.resetCell) --the cells where our units were hit, they last until the threat fades
 end
 
@@ -23,9 +22,7 @@ function DamageHST:UnitDamaged(defender, attacker, damage)
 	if teamID ~= self.ai.id then
 		return
 	end
-	local defenderID = defender:ID()
 	local defenderName = defender:Name()
-	self.isDamaged[defenderID] = defender
 	-- even if the attacker can't be seen, human players know what weapons look like
 	-- in non-lua shard, the attacker is nil if it's an enemy defender, so this becomes useless
 	if attacker ~= nil and attacker:AllyTeam() ~= self.ai.allyId then --   we know what is it and self.ai.loshst:IsKnownEnemy(attacker) ~= 2 then
@@ -104,18 +101,8 @@ function DamageHST:UpdateBadPositions()
 	end
 end
 
-function DamageHST:UpdateDamagedUnits()
-	for unitID, engineUnit in pairs(self.isDamaged) do
-		local health = engineUnit:GetHealth()
-		if not health or (health == engineUnit:GetMaxHealth()) then
-			self.isDamaged[unitID] = nil
-		end
-	end
-end
-
 function DamageHST:Update()
 	self:UpdateBadPositions()
-	self:UpdateDamagedUnits()
 	-- 	local prepathnodecost = Spring.GetPathNodeCosts(game:GetTeamID())
 	-- 	for i,v in pairs(prepathnodecost) do
 	-- 		if v > 0 then
@@ -123,10 +110,6 @@ function DamageHST:Update()
 	-- 		end
 	-- 	end
 	self:VisualDBG()
-end
-
-function DamageHST:UnitDead(engineUnit)
-	self.isDamaged[engineUnit:ID()] = nil
 end
 
 function DamageHST:VisualDBG()
@@ -137,10 +120,6 @@ function DamageHST:VisualDBG()
 	local ch = 1
 	self.map:EraseAll(ch)
 	local colours = self.ai.tool.COLOURS
-	for id, damaged in pairs(self.isDamaged) do
-		damaged:EraseHighlight(nil, nil, ch)
-		damaged:DrawHighlight(colours.green, nil, ch)
-	end
 	local cellElmosHalf = self.ai.gridhst.gridSizeHalf ---@type number
 	local LIST = self.DAMAGED.LIST
 	for n = 1, #LIST do
