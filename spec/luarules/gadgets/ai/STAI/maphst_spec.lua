@@ -27,6 +27,26 @@ local function newMapHST(drawDebug)
 	return mapHST, erased
 end
 
+-- Two cells, index 1 and 2, the index of a spot is its x; a spot with x below 1 is out of the map. Both cells are
+-- in the ground network 1, only the first in the air network 1.
+local function setTwoCells(mapHST)
+	mapHST.ai.gridhst = {
+		PosToIndex = function(_, spot)
+			if spot.x >= 1 then
+				return spot.x
+			end
+		end,
+	}
+	mapHST.GRID = { CELLS = {} }
+	for i = 1, 2 do
+		mapHST.GRID.CELLS[i] = { metalSpots = {}, geoSpots = {}, moveLayers = { ground = 1, air = i == 1 and 1 } }
+	end
+	mapHST.networks = {
+		ground = { { metals = {}, geos = {} } },
+		air = { { metals = {}, geos = {} } },
+	}
+end
+
 describe("STAI MapHST", function()
 	it("erases no debug channel when the debug drawing is off", function()
 		local mapHST, erased = newMapHST(false)
@@ -34,5 +54,33 @@ describe("STAI MapHST", function()
 		mapHST:DrawDebug()
 
 		assert.same({}, erased)
+	end)
+
+	it("skips only the metal spot out of the map, and puts the ones after it in their cells and networks", function()
+		local mapHST = newMapHST(false)
+		setTwoCells(mapHST)
+		local first, out, last = { x = 1 }, { x = -5 }, { x = 2 }
+		mapHST.METALS = { first, out, last }
+
+		mapHST:metalScan()
+
+		assert.same({ first }, mapHST.GRID.CELLS[1].metalSpots)
+		assert.same({ last }, mapHST.GRID.CELLS[2].metalSpots)
+		assert.same({ first, last }, mapHST.networks.ground[1].metals)
+		assert.same({ first }, mapHST.networks.air[1].metals)
+	end)
+
+	it("skips only the geo spot out of the map, and puts the ones after it in their cells and networks", function()
+		local mapHST = newMapHST(false)
+		setTwoCells(mapHST)
+		local first, out, last = { x = 1 }, { x = -5 }, { x = 2 }
+		mapHST.GEOS = { first, out, last }
+
+		mapHST:geoScan()
+
+		assert.same({ first }, mapHST.GRID.CELLS[1].geoSpots)
+		assert.same({ last }, mapHST.GRID.CELLS[2].geoSpots)
+		assert.same({ first, last }, mapHST.networks.ground[1].geos)
+		assert.same({ first }, mapHST.networks.air[1].geos)
 	end)
 end)

@@ -295,14 +295,14 @@ function MapHST:metalScan() --insert MEX in to the correct CELL and layer's netw
 	for i, spot in pairs(self.METALS) do
 		local index = self.ai.gridhst:PosToIndex(spot)
 		if not index then
-			self:EchoDebug("no cell for this metal spot", spot)
-			return
-		end
-		local CELL = self.GRID.CELLS[index]
-		table.insert(CELL.metalSpots, spot)
-		for layer, nets in pairs(self.networks) do
-			if CELL.moveLayers[layer] then
-				table.insert(self.networks[layer][CELL.moveLayers[layer]].metals, spot)
+			self:EchoDebug("no cell for this metal spot", spot) --skip only this spot
+		else
+			local CELL = self.GRID.CELLS[index]
+			table.insert(CELL.metalSpots, spot)
+			for layer, nets in pairs(self.networks) do
+				if CELL.moveLayers[layer] then
+					table.insert(self.networks[layer][CELL.moveLayers[layer]].metals, spot)
+				end
 			end
 		end
 	end
@@ -312,14 +312,14 @@ function MapHST:geoScan() --insert GEOS in to the correct CELL and layer's netwo
 	for i, spot in pairs(self.GEOS) do
 		local index = self.ai.gridhst:PosToIndex(spot)
 		if not index then
-			self:EchoDebug("no cell for this geo spot", spot)
-			return
-		end
-		local CELL = self.GRID.CELLS[index]
-		table.insert(CELL.geoSpots, spot)
-		for layer, nets in pairs(self.networks) do
-			if CELL.moveLayers[layer] then
-				table.insert(self.networks[layer][CELL.moveLayers[layer]].geos, spot)
+			self:EchoDebug("no cell for this geo spot", spot) --skip only this spot
+		else
+			local CELL = self.GRID.CELLS[index]
+			table.insert(CELL.geoSpots, spot)
+			for layer, nets in pairs(self.networks) do
+				if CELL.moveLayers[layer] then
+					table.insert(self.networks[layer][CELL.moveLayers[layer]].geos, spot)
+				end
 			end
 		end
 	end
