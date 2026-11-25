@@ -62,6 +62,20 @@ describe("STAI Toolbox", function()
 		assert.is_true(rawequal(far, sorted[3]))
 	end)
 
+	it("keeps both positions at the same distance", function()
+		local Toolbox = newToolbox()
+		local east = { x = 10, y = 0, z = 0 }
+		local north = { x = 0, y = 0, z = 10 }
+		local near = { x = 5, y = 0, z = 0 }
+		local sorted = Toolbox:sortByDistance({ x = 0, y = 0, z = 0 }, { east, north, near })
+		assert.equal(3, #sorted)
+		assert.is_true(rawequal(near, sorted[1]))
+		local second, third = sorted[2], sorted[3]
+		assert.is_true(
+			rawequal(east, second) and rawequal(north, third) or rawequal(north, second) and rawequal(east, third)
+		)
+	end)
+
 	it("concatenates every value in the array part, in the order of the given tables", function()
 		local T = assert(Toolbox:tableConcat({ { "a", "b" }, {}, { "c", "d", "e" } }))
 		assert.equal(5, #T)

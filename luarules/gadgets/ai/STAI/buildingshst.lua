@@ -338,42 +338,51 @@ function BuildingsHST:searchPosNearCategories(utype, builder, minDist, maxDist, 
 	self:EchoDebug(categories, "search pos near categories")
 	local army = self.ai.armyhst
 	local builderName = builder:Name()
+	local unitName = utype:Name()
 	local p = {}
 	maxDist = maxDist or 390
 	if type(maxDist) == "string" then
 		maxDist = army.unitTable[builderName][maxDist]
 	end
-	local Units = {}
+	local supports = self:supportUnits(builder, categories)
+	for index = 1, #supports do
+		local unit = self.game:GetUnitByID(supports[index])
+		local bx, by, bz = unit:GetRawPos()
+		if
+			self:depthFitsNear(unitName, bx, bz, maxDist)
+			and (not neighbours or not self:unitsNearCheck(bx, by, bz, maxDist, number, neighbours))
+		then
+			local position = self:FindClosestBuildSite(utype, bx, by, bz, minDist, maxDist, builder, p)
+			if position then
+				return position
+			end
+		end
+	end
+end
 
+function BuildingsHST:supportUnits(builder, categories) --the own units of categories, once each, nearest first
+	local army = self.ai.armyhst
+	local builderID = builder:ID()
+	local supports = {}
+	local distances = {}
 	for i, cat in pairs(categories) do
 		for name, _ in pairs(army[cat]) do
-			local defId = army.unitTable[name].defId
-			local units = self.game:GetTeamUnitsByDefs(self.ai.id, defId)
+			local units = self.game:GetTeamUnitsByDefs(self.ai.id, army.unitTable[name].defId)
 			for index, uID in pairs(units) do
-				self:EchoDebug("unit", index, uID)
-				local dist = self.game:GetUnitSeparation(uID, builder:ID())
-				self:EchoDebug("dist = ", dist)
-				table.insert(Units, dist, uID)
-			end
-			local k, sortedUnits = self.ai.tool:tableSorting(Units)
-			for index, uID in pairs(sortedUnits) do
-				local unitID = table.remove(sortedUnits, index) --self.game:GetUnitByID(uID)
-				local unit = self.game:GetUnitByID(unitID)
-				local unitName = unit:Name()
-				local bx, by, bz = unit:GetRawPos()
-				if
-					self:depthFitsNear(utype:Name(), bx, bz, maxDist)
-					and (not neighbours or not self:unitsNearCheck(bx, by, bz, maxDist, number, neighbours))
-				then
-					p = self:FindClosestBuildSite(utype, bx, by, bz, minDist, maxDist, builder, p)
-					if p and p.x then
-						return p
+				if not distances[uID] then
+					local dist = self.game:GetUnitSeparation(uID, builderID)
+					if dist then
+						distances[uID] = dist
+						supports[#supports + 1] = uID
 					end
 				end
 			end
 		end
 	end
-
+	table.sort(supports, function(a, b)
+		return distances[a] < distances[b]
+	end)
+	return supports
 end
 
 function BuildingsHST:searchPosInList(utype, builder, minDist, maxDist, list, neighbours, number)

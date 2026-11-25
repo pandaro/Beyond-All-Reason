@@ -48,46 +48,17 @@ function Toolbox:RectsOverlap(rectA, rectB)
 	return rectA.x1 < rectB.x2 and rectB.x1 < rectA.x2 and rectA.z1 < rectB.z2 and rectB.z1 < rectA.z2
 end
 
-function Toolbox:pairsByKeys(t, f)
-	local a = {}
-	for n in pairs(t) do
-		table.insert(a, n)
-	end
-	table.sort(a, f)
-	local i = 0 -- iterator variable
-	local iter = function() -- iterator function
-		i = i + 1
-		if a[i] == nil then
-			return nil
-		else
-			return a[i], t[a[i]]
-		end
-	end
-	return iter
-end
-
-function Toolbox:tableSorting(t)
-	local Tkey = {}
-	local Tvalue = {}
-	for key, value in self:pairsByKeys(t) do
-		table.insert(Tkey, key)
-		table.insert(Tvalue, value)
-	end
-	return Tkey, Tvalue
-end
-
-function Toolbox:sortByDistance(POS, list)
-	local distanceIndex = {}
-	local dix = {}
+function Toolbox:sortByDistance(POS, list) --the positions of list from the nearest to POS on the ground
+	local sorted = {}
+	local distances = {}
 	for index, pos in pairs(list) do
-		distanceIndex[(self:distance(pos, POS))] = index
-		dix[index] = (self:distance(pos, POS))
+		sorted[#sorted + 1] = pos
+		distances[pos] = self:distance(pos, POS)
 	end
-	table.sort(dix)
-	for i, v in pairs(dix) do
-		dix[i] = list[distanceIndex[v]]
-	end
-	return dix
+	table.sort(sorted, function(a, b)
+		return distances[a] < distances[b]
+	end)
+	return sorted
 end
 
 function Toolbox:listHasValue(list, value)

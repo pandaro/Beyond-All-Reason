@@ -350,4 +350,39 @@ describe("STAI BuildingsHST placement", function()
 		assert.is_true(farthest < 1000)
 	end)
 
+	it("tries every support unit once, from the nearest", function()
+		local buildingsHST, world = newPlacingWorld()
+		world.teamUnits[11] = { 101, 102 }
+		world.teamUnits[12] = { 103 }
+		world.units[101] = newSupportUnit("armsolar", 101, 0)
+		world.units[102] = newSupportUnit("armsolar", 102, 0)
+		world.units[103] = newSupportUnit("armmakr", 103, 0)
+		world.separations[101], world.separations[102], world.separations[103] = 300, 100, 200
+		local tried = {}
+		buildingsHST.FindClosestBuildSite = function(_, _, bx)
+			tried[#tried + 1] = bx
+		end
+
+		local position =
+			buildingsHST:searchPosNearCategories(newUnitType("armwin", 1), world.builder, 50, 390, { "_eco_" })
+
+		assert.is_nil(position)
+		assert.same({ 102, 103, 101 }, tried)
+	end)
+
+	it("tries both support units at the same distance", function()
+		local buildingsHST, world = newPlacingWorld()
+		world.teamUnits[11] = { 101, 102 }
+		world.units[101] = newSupportUnit("armsolar", 101, 0)
+		world.units[102] = newSupportUnit("armsolar", 102, 0)
+		world.separations[101], world.separations[102] = 150, 150
+		local tried = {}
+		buildingsHST.FindClosestBuildSite = function(_, _, bx)
+			tried[bx] = (tried[bx] or 0) + 1
+		end
+
+		buildingsHST:searchPosNearCategories(newUnitType("armwin", 1), world.builder, 50, 390, { "_eco_" })
+
+		assert.same({ [101] = 1, [102] = 1 }, tried)
+	end)
 end)
