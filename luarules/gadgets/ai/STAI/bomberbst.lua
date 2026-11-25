@@ -56,7 +56,7 @@ function BomberBST:Deactivate()
 	self:EchoDebug("deactivate")
 	self.active = false
 	self.unit:Internal():Move(self.ai.tool:RandomAway(self.homepos, math.random(100, 300))) -- you're drunk go home
-	self.ai.tool:GiveOrderToUnit(self.unit:Internal(), CMD.MOVE, self.homepos, 0, "1-1")
+	self.ai.tool:GiveOrder(self.unit:Internal():ID(), CMD.MOVE, self.homepos, 0, "1-1")
 end
 
 --[[function BomberBST:Update()
