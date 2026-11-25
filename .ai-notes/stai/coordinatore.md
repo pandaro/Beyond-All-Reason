@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S11 verificati, **S12a scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S12a (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12a verificati, **S12a2 scritto e da eseguire**. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S12a2 (`git pull`, risultati, diff a campione). Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -79,6 +79,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S9 | strati che durano: `GridLayer:Unmark`, `DAMAGED` (`DamageHST`), `SCOUTED` (`ScoutHST:Scouted`, scrive solo il padrone); via `areaGridCells`/`getGridCellsFields` — verificato (prova nella stessa partita: 0 differenze; `POS` di `DAMAGED` resta da `GridToPos` perché il terreno cambia; una partita A: 161 unità, 32 mex) |
 | S10 | difetti della mappa e della griglia: `unarm?I`, `metalScan`/`geoScan`, `SimplifyMetalSpots` (`elmoMapSizeZ`), `RawPosIsInMap`, via `UWMetalSpotCheckUnit` — verificato (gioco invariato su Comet Catcher; tre partite A 132–175 unità, 19–32 mex: varianza del seme) |
 | S11 | difetti di tattica: `CELL.base` azzerato, `getCenter` senza NaN, `defId` dell'attaccante e `attackerut` nil in `DamageHST`, `local` in `LosHST:Draw`; via `SquadAttackbackup`, la vecchia `SquadAttack`, `NearbyVulnerable`, `GetPathModifierFunc` — verificato (tre partite A 168–203 unità, 27–34 mex) |
+| S12a | preparazione degli ambiti d'alleanza: `CENTER`/`ownImmobile` in `BuildingsHST`, `needAntiAir` in `LosHST`, via `friendlyTeamID` e `isDamaged`, `Toolbox.COLOURS`, `TablePool` per i blob — verificato; la prova ha trovato che `CENTER` era la tabella viva della posizione del comandante (`GetPosition` riscrive sempre la stessa tabella): si completa in S12a2 |
 | S8b | percezione: `PerceptionHandler` in STAI, ombre (`ghostEnemy`) per le mobili uscite dalla los ma nel radar; tre partite A — verificato (71–233 ombre per partita, nessuna appesa; partite A 166–198 unità, 29–39 mex, picchi di memoria 64–128 KB) |
 
 **Piano** (fine della seconda chat, 25 novembre 2026; approvato dall'utente; dettagli in `nuovo-stai.md` §5, «Piano del 25 novembre 2026, dopo S8b»):
@@ -86,11 +87,12 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 1. ~~S9 — strati che durano~~: verificato.
 2. ~~S10 — difetti della mappa e della griglia~~: verificato.
 3. ~~S11 — difetti di tattica e codice morto~~: verificato.
-4. S12a — preparazione degli ambiti d'alleanza: scritto (impegno alto). Verificarlo. Poi S12b (passaggio a `"ally"`, partita B).
+4. ~~S12a~~ verificato; S12a2 (`CENTER`, ciclo numerico dei blob): scritto (impegno medio). Verificarlo. Poi S12b (passaggio a `"ally"`, partita B).
 5. S13 — elezione.
 
 **Cose imparate in questa chat** (per il coordinatore):
 - Il seme di `math.random` cambia a ogni partita e in Lua unsynced non si può fissare con `math.randomseed` (salato con un indirizzo): due partite con lo stesso codice si separano presto. Le prove «gioco invariato» si fanno **nella stessa partita** (la struttura vecchia ricalcolata accanto alla nuova e confrontata cella per cella, come in S8a); per i cambi di gioco tre partite A.
 - L'esecutore a volte fa più del compito (funzioni morte in più, guardie): va bene se lo scrive; chiedere all'utente e registrare l'approvazione.
 - Per risparmiare contesto: `git pull --depth`, leggere solo il blocco dei risultati con `awk '/^### S<n> \(agente/,/^### S<n-1> \(agente/'`, diff a campione con `git diff <base> HEAD -- luarules/`.
+- `ShardUnit:GetPosition` riscrive sempre la stessa tabella dell'unità: chi la tiene (come faceva `CENTER`) vede la posizione viva. Prima di descrivere all'utente un valore, controllare se è una tabella condivisa.
 - I compiti funzionano meglio quando il coordinatore ha già letto il codice e scrive righe e nomi precisi (lettori, scrittori, campi).
