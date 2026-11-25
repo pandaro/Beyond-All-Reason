@@ -121,7 +121,8 @@ local function DropFailed(failed)
 end
 
 -- initialise every object not loaded yet, global -> ally team -> team, so that a module finds the
--- shared modules already initialised; returns the objects it started
+-- shared modules already initialised; returns the objects it started. GameStart calls it again after
+-- the start units have started the AIs, so it collects only when it started something
 local function StartAIs()
 	started = true
 	local fresh = {}
@@ -146,6 +147,9 @@ local function StartAIs()
 		StartObject(thisAI, fresh, failed)
 	end
 	DropFailed(failed)
+	if next(fresh) ~= nil then
+		collectgarbage("collect") -- clean up after the start-up analyses of the AIs
+	end
 	return fresh
 end
 
@@ -243,6 +247,7 @@ end
 local function CatchUpAfterReload()
 	if spGetGameFrame() > 0 then
 		CatchUp(StartAIs())
+		return
 	end
 	-- clean start, as in the old loader
 	collectgarbage("collect")

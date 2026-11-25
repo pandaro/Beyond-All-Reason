@@ -1515,7 +1515,7 @@ describe("ShardAILoader unsynced side", function()
 			assert.same({}, perception1.radar)
 		end)
 
-		it("collects the garbage once, after the catch-up of a reload", function()
+		it("collects the garbage once on a reload, after the Init of every object", function()
 			local world = perceptionWorld()
 			world.frame = 100
 			world.units[200] = { team = 2 }
@@ -1910,6 +1910,34 @@ describe("ShardAILoader unsynced side", function()
 		local function collections(loader)
 			return #heard(loader, "collectgarbage")
 		end
+
+		it("collects once at the start, after every Init, when GameStart follows the start units", function()
+			local world = defaultWorld()
+			world.heap = 1000
+			local loader = loadLoader(world)
+			loader.gadget:Initialize()
+			for i = #loader.log, 1, -1 do
+				loader.log[i] = nil
+			end
+
+			-- the start units come before GameStart, as in a game of BAR
+			world.units[100] = { team = 0 }
+			loader.gadget:UnitCreated(100, 1, 0)
+			loader.gadget:GameStart()
+			loader.gadget:GameFrame(1)
+
+			local lastInit, collect = 0, nil
+			for i, entry in ipairs(loader.log) do
+				if entry[1] == "Init" then
+					lastInit = i
+				elseif entry[1] == "collectgarbage" then
+					collect = i
+				end
+			end
+			assert.equal(1, collections(loader))
+			assert.is_true(lastInit > 0)
+			assert.is_true(collect > lastInit)
+		end)
 
 		it("raises the limit by 50 MB from 200 MB for every AI, as the old loader did", function()
 			local loader = started()
