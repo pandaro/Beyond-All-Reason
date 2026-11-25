@@ -105,3 +105,29 @@ Altro:
 | nome | file | cosa faceva |
 | --- | --- | --- |
 | `collectgarbage("collect")` alla fine di `MapHST:Init` | `maphst.lua` | raccolta completa dopo le analisi della mappa; ora il loader raccoglie una volta alla fine di `StartAIs` (`5d8d4a9b6e`, `shard_runtime/loader/lifecycle.lua`) |
+
+## S8a — `98759bfc3c` «STAI LosHST: keep the enemy cells in an ENEMY layer of GridHST»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `LosHST:GetCellFromPool` | `loshst.lua` | prendeva la cella `X`, `Z` dal pool della griglia (`poolENEMY`, `poolOWN`, `poolALLIES`) |
+| `LosHST:setupCell` (diventa `LosHST.resetCell`) | `loshst.lua` | cella dal pool, `X`, `Z`, `POS` e azzeramento dei campi; l'azzeramento resta in `resetCell`, `X`, `Z`, `POS` si scrivono quando la cella nasce (`getEnemyCell`) |
+| `buildPools("poolENEMY")` in `Init` | `loshst.lua` | il pool delle celle di `ENEMY` (una tabella per cella, 768 su Comet Catcher) |
+| parametro `grid` di `setCellLos`, `setCellRadar` | `loshst.lua` | la griglia da riempire; c'era solo `ENEMY` |
+| commento sul pool («What is a cell pool?») e righe commentate con `GridToPos` | `loshst.lua` | spiegazione del pool; vecchio controllo di bordo |
+
+## S8a — `500ba9cf56` «STAI LosHST: drop the OWN, ALLY and ALLIES grids and the dead code»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `OWN`, `ALLY`, `ALLIES` | `loshst.lua` | griglie `[X][Z]` delle unità proprie e alleate, mai riempite |
+| `LosHST:buildPools`, `poolOWN`, `poolALLIES` | `loshst.lua` | pool di celle per griglia (`X` → `Z` → tabella) |
+| `LosHST:FreeCellsToPool` | `loshst.lua` | rimetteva nel pool le celle di una griglia a ogni `Update` (anche `"ALLY"`, che un pool non l'aveva) |
+| `knownEnemies`, `ownMobile`, `allyImmobile`, `allyMobile` | `loshst.lua` | campi di `Init` scritti (`UnitCreated`, `UnitDead`) e mai letti |
+| `LosHST:UnitDamaged` | `loshst.lua` | vuota, con un blocco commentato (l'attaccante in los); faceva arrivare l'evento a `LosHST` per niente |
+| `LosHST:viewPos`, `LosHST:posInLos` | `loshst.lua` | stato di una posizione (aria, sott'acqua, los, radar) con `Spring.GetPositionLosState` e `Spring.IsPosInAirLos`; mai chiamate |
+| `LosHST:setPosLayer` | `loshst.lua` | strato (aria, sott'acqua, terra) di un tipo di unità in una posizione; mai chiamata, resta `setPosLayer2` |
+| ciclo su `OWN` in `LosHST:Draw` | `loshst.lua` | disegno delle celle proprie |
+| righe commentate `uPos` e `target` («NEVER USED») | `loshst.lua` | posizione e punto davanti all'unità in `setCellLos`, `setCellRadar` |
+| ramo `OWN` di `AttackHST:SquadAttackbackup` | `attackhst.lua` | `FIGHT` verso una posizione difensiva propria |
+| rami `OWN` e `ALLY` di `ScoutHST:TargetAvailable` | `scouthst.lua` | scartavano uno spot in una cella propria o alleata |

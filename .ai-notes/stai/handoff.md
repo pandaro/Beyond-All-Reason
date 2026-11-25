@@ -54,6 +54,119 @@
 
 ## Risultati
 
+### S8a (agente locale, 25 novembre 2026)
+
+**In breve**: `ENEMY` è uno strato di `GridHST`; `OWN`, `ALLY`, `ALLIES`, i pool e il resto morto di `LosHST` sono tolti. **La condizione di stop del punto 4 è scattata** (righe separate al frame 4200, prima di un nemico in vista nella partita di partenza), ma la prova fra partite diverse non può funzionare: **due partite con lo stesso codice di partenza si separano anche loro**, perché il seme di `math.random` di ogni AI viene dal `GameID`, diverso a ogni avvio. Al suo posto ho fatto la prova **nella stessa partita** (vecchia griglia ricalcolata accanto allo strato, confronto cella per cella a ogni `Update`): **0 differenze in tutta la partita**. L'utente ha visto i numeri e ha deciso di proseguire. Le tre partite A non stanno sotto i riferimenti.
+
+**Commit**
+
+- `1b2d66a725` «STAI GridHST: read the marked cells of a layer; cell fields of a grid X, Z»: `GridLayer:GetMarked(i)` (cella se l'indice è nella lista, se no `nil`; `marked` resta interno); `areaGridCells` e `getGridCellsFields`, sorelle per le griglie `[X][Z]` con `--TODO remove when DAMAGED is a layer`; `getCellsFields` e la sorella sommano con `sumCellsFields` (il corpo di prima, uguale). `TargetHST:GetPathModifierFunc` (`DAMAGED`) passa a `getGridCellsFields`. Test.
+- `98759bfc3c` «STAI LosHST: keep the enemy cells in an ENEMY layer of GridHST»: `LosHST`, `GetCell`/`areaCells`/`getCellsFields` sugli strati, i lettori, test.
+- `500ba9cf56` «STAI LosHST: drop the OWN, ALLY and ALLIES grids and the dead code».
+- Un commit per l'indice e questi risultati.
+
+**Scelta per le funzioni di `GridHST`** (punto 1): `GetCell`, `areaCells`, `getCellsFields` **tengono il nome e prendono uno strato**; le sorelle sono quelle **per `[X][Z]`** (`areaGridCells`, `getGridCellsFields`), usate solo da `DAMAGED` (un lettore, `targethst.lua` r. 170). Così ora cambia una riga per `DAMAGED` invece di otto per `ENEMY`, e quando `DAMAGED` diventa uno strato si tolgono le due sorelle senza toccare i lettori. `GetCell` per `[X][Z]` non serve a nessuno, quindi niente sorella. Bordi: `areaCells` e `GetCell` chiamano `IsCellInGrid` prima di `GridToIndex` (commento sul perché); `Blobbing` passa da `GetCell`.
+
+**`LosHST`** (`98759bfc3c`)
+
+- `self.ENEMY = self.ai.gridhst:NewLayer(self.resetCell)`. `LosHST.resetCell(CELL)` è la parte di azzeramento di `setupCell` (stessi campi, stesso ordine; `units` e `buildings` svuotate e riusate, create se mancano). Funzione con il punto al posto di `setupCell`, così sta dove stava e `Init` resta prima.
+- `LosHST:getEnemyCell(X, Z)`: indice, `Get`, `X`/`Z`/`POS` scritti solo se la cella è nuova (`if not CELL.POS`), `Mark`. `setCellLos(unit, X, Z)` e `setCellRadar(unit, X, Z)`: `IsCellInGrid` come prima, poi `getEnemyCell`; senza il parametro `grid` e senza `grid[X][Z] = CELL` finale.
+- `Update`: `self.ENEMY:Clear()` al posto di `FreeCellsToPool("ENEMY")`. Via `GetCellFromPool`, `buildPools("poolENEMY")`, il commento sul pool.
+- `Draw`: ciclo numerico su `LIST`.
+
+**Lettori** (grep `loshst.ENEMY`, `loshst.OWN`, `loshst.ALLY`, `local loshst`: la lista del coordinatore era completa; nient'altro legge `ENEMY`)
+
+| dove (righe della base) | prima | dopo |
+| --- | --- | --- |
+| `targethst.lua` r. 42 (`GetBlobs`) | `pairs` su `ENEMY[X][Z]` | ciclo su `LIST`, `blobref = CELL.X .. ":" .. CELL.Z` |
+| `targethst.lua` r. 56–61 | `ENEMY[v.X][v.Z]` quattro volte | `local CELL = gridhst:GetCell(v.X, v.Z, ENEMY)` |
+| `targethst.lua` r. 71–74 (`Blobbing`) | `grid[x] and grid[x][z] and …` | `GetCell(x, z, layer)` (nil fuori dai bordi; la ricorsione va oltre) |
+| `targethst.lua` r. 112 (`EnemiesCellsAnalisy`) | `pairs` | ciclo su `LIST` |
+| `targethst.lua` r. 170 | `getCellsFields(…, DAMAGED)` | `getGridCellsFields(…, DAMAGED)` |
+| `attackhst.lua` r. 343–347 | `ENEMY[X][Z]` tre volte | `local CELL = GetCell(…)`, poi `CELL` |
+| `attackhst.lua` r. 561–562 | `ENEMY[X] and ENEMY[X][Z]` | `GetCell(…)` |
+| `raidhst.lua` r. 400, 424 | `loshst.ENEMY[X][Z]` | `self.ai.gridhst:GetCell(X, Z, loshst.ENEMY)` |
+| `nukebst.lua` r. 55–56 | `not ENEMY[X] or not ENEMY[X][Z]` | `not GetCell(…)` |
+| `nukebst.lua` r. 72–74, `bomberhst.lua` r. 164 | `pairs` | ciclo su `LIST` |
+| `scouthst.lua` r. 77 | `ENEMY[X] and ENEMY[X][Z]` | `GetCell(X, Z, ENEMY)` |
+| `attackhst` r. 268, `raidhst` r. 291, `buildingshst` r. 765, `targethst` r. 140 e 162, `scoutbst` r. 195, `nukebst` r. 74, `commanderbst` r. 25 | passano `ENEMY` | invariati: `ENEMY` ora è lo strato |
+
+**Codice morto** (`500ba9cf56`; tutto in `codice-tolto.md`)
+
+- `LosHST`: `OWN`, `ALLY`, `ALLIES`, `buildPools`, `poolOWN`, `poolALLIES`, `FreeCellsToPool` (e le sue due chiamate in `Update`), il ciclo di `OWN` in `Draw`; da `Init` `knownEnemies`, `ownMobile`, `allyImmobile`, `allyMobile` (grep in tutto STAI: solo scritture in `Init`, `UnitCreated`, `UnitDead`); `UnitDamaged` con il blocco commentato (il runtime registra un modulo per un evento solo se lo ridefinisce, `WantsEvent` in `shardai.lua`: ora `LosHST` non lo riceve più); il commento della classe («OWN ALLY ENEMY»), ora sbagliato, riscritto.
+- **Oltre l'elenco** (dimmi se va bene): `viewPos`, `posInLos`, `setPosLayer` (mai chiamate: `viewPos` la chiama solo `posInLos`, che non chiama nessuno; resta `setPosLayer2`), le righe commentate `uPos`/`target` («NEVER USED») di `setCellLos`/`setCellRadar`. In `UnitCreated`, tolto il ramo alleato, restava un `getCenter()` doppio (dentro il ramo e alla fine): l'ho lasciato una volta sola; `getCenter` ricalcola `CENTER` da zero, quindi stesso risultato. `friendlyTeamID`, `losEnemy`, `radarEnemy`, gli eventi di los e radar e le note sui bit di los in fondo al file **restano** (S8b).
+- Lettori, riga per riga (righe della base):
+  - `attackhst.lua` r. 544–557, in `SquadAttackbackup`: tutto il blocco `if self.ai.loshst.OWN[…] … end` (due cicli su `squad.members`, il primo vuoto, `GiveOrder` con `FIGHT`, `EchoDebug` «execute defense», `return true`). Il resto della funzione com'è.
+  - `scouthst.lua` r. 81–84, in `TargetAvailable`: i due `elseif` su `OWN` e `ALLY` con i loro `EchoDebug`.
+  - `attackhst.lua` r. 596 e 612 **non li ho toccati**: sono dentro il blocco commentato `--[[ … ]]` che va da r. 584 alla fine del file (una vecchia `SquadAttack`). Da sapere: anche `SquadAttackbackup` non la chiama nessuno (grep). Se vuoi, si tolgono tutte e due in un compito di pulizia di `AttackHST`.
+
+**Prova (punto 4)**
+
+Patch `[S8A-PROOF]` (non committata, `c_stai_vs_stai.txt`, 15 minuti): al primo `Update` di `LosHST` da ogni multiplo di 300, per team, celle vere e somme di `ENEMY`, `ARMED`, `UNARM`, `unitsCount` in ordine di indice, più il numero di unità in `losEnemy`/`radarEnemy`. `LosHST` gira agli stessi frame in tutte le partite (2, 308, 614, 902 …).
+
+| confronto | seme team 0 | prima riga diversa | cosa |
+| --- | --- | --- | --- |
+| partenza `1b2d66a725` (p. 1) | 29484 | — | primo nemico in vista al frame 7500 |
+| codice nuovo `98759bfc3c` contro p. 1 | 15381 | frame 4200 (team 0) | il codice nuovo vede un nemico a 4200, la partenza non ne vede fino a 7500 |
+| partenza (p. 2) contro partenza (p. 1), **stesso codice** | 33689 | frame 6900 | la p. 2 vede il primo nemico a 6900 |
+
+- Quindi il gioco si separa fra partite **anche a codice uguale**, prima di ogni contatto. Causa: `[AI Loader] AI team <n> random seed <seme>`, con il seme dall'hash del `GameID` (`shard_runtime/loader/types.lua`, `TeamSeed`), e STAI usa `math.random` in `buildingshst.lua` (r. 171 angolo iniziale, r. 642, 663), `labsbst.lua` (r. 285, 293), `behaviourfactory.lua` (r. 60), `bomberbst.lua`, `attackhst.lua` (colore). I semi delle tre partite: 29484, 33689, 15381.
+- **Prova nella stessa partita** (`[S8A-SHADOW]`, non committata): dopo ogni `Update` di `LosHST` (codice nuovo) ricalcolo la griglia `[X][Z]` con le funzioni della base (`setupCell`, `setCellLos`, `setCellRadar` copiate, con un pool per `X`, `Z` che si comporta come quello vecchio, quindi anche `base` che resta) sugli stessi `losEnemy`/`radarEnemy`, e confronto **ogni cella**: presenza, ogni campo numerico, `units`, `buildings`, `base`, `X`, `Z`, `POS`; in più `#LIST` = celle segnate.
+
+| codice | team | `Update` controllati | celle confrontate | differenze |
+| --- | --- | --- | --- | --- |
+| `98759bfc3c` (strato e lettori) | 0 / 1 | 1501 / 1501 | 8520 / 7730 | 0 / 0 |
+| `500ba9cf56` prima del ritocco per EmmyLua (sotto) | 0 / 1 | 1501 / 1501 | 10427 / 10960 | 0 / 0 |
+| codice finale | 0 / 1 | 1501 / 1501 | 7109 / 6402 | 0 / 0 |
+
+- La prova vede gli errori: con la mutazione `CELL.unitsCount = CELL.unitsCount or 0` in `resetCell` escono subito le differenze (`mismatch, 0, 4700, 16, 11, field unitsCount 1 2`, …).
+- Quindi lo strato contiene esattamente quello che conteneva la griglia, per tutta la partita. Il gioco cambia solo per l'ordine dei lettori (`LIST` al posto di `pairs`), e da una partita all'altra cambia comunque per il seme.
+- **Proposta**: per confrontare partite fra versioni di codice serve un seme fisso (per esempio una variabile d'ambiente o un'opzione del loader che sostituisce l'hash del `GameID`). È un cambio al framework: non l'ho fatto.
+
+**Tre partite A** (`a_stai_vs_simpleai.txt`, `SHARD_MEM_STATS=1`, 15 minuti, codice finale, uscita 0 tutte e tre)
+
+| | partita 1 | partita 2 | partita 3 | S6 | S1 (intervallo) |
+| --- | --- | --- | --- | --- | --- |
+| unità STAI min. 1 / 5 / 10 / 13 | 6 / 34 / 91 / 160 | 6 / 36 / 89 / 148 | 5 / 37 / 96 / 174 | 6/33/79/138 · 5/36/101/154 · 6/33/88/133 | 6 / 25–41 / 54–101 / 117–159 |
+| fine partita (min. 14) | 182 unità, 2 fabbriche, 34 mex | 178, 2, 34 | 202, 2, 38 | 157/178/155, 1–2, 26/33/30 | 141–186, 2, 23–35 |
+| `SUMMARY` (fine) | 202, 2, 37 | 194, 2, 41 | 219, 2, 41 | 175/200/181 | — |
+| relay: messaggi | 3825 | 4389 | 3316 | 3095 / 3572 / 3247 | 3405–3933 |
+| relay: ordini dati | 13138 | 18564 | 16422 | 12678 / 15278 / 14002 | 10445–15948 |
+| relay: ordini rifiutati | 17 | 11 | 19 | 7 / 4 / 8 | 9–16 |
+| messaggi rifiutati | nessuno | nessuno | nessuno | nessuno | nessuno |
+| memoria per frame, medie per minuto | 0,19–0,58 (media 0,38) | 0,19–0,66 (0,36) | 0,18–0,66 (0,37) | 0,35 / 0,37 / 0,39 | 0,37–0,45 |
+| memoria per frame, picco | 111,9 KB (min. 11) | 104,2 KB (min. 12) | **217,9 KB** (min. 12) | 159,0 / 124,6 / 90,1 | 67,9–73,5 |
+| heap | 12,9–14,5 MB | 13,0–15,5 MB | 12,9–14,6 MB | 13,1–16,0 | 13,1–15,5 |
+| righe `[AI Loader] error` | 0 | 0 | 0 | 0 | 0 |
+| tempo reale | 18 s | 20 s | 19 s | 18–21 s | 19–21 s |
+
+- **Nessuna partita sta sotto i riferimenti**: unità a fine partita 182/178/202 e mex 34/34/38, alla pari o sopra S6 e il massimo di S1 (la partita 3 sopra: 202 unità, 38 mex). Al minuto 13 le partite 1 e 3 sono sopra l'intervallo di S1 (160, 174). Con il seme che cambia a ogni partita non lo attribuisco al cambio.
+- Ordini: la partita 2 (18564) sopra S1; rifiutati 11–19, la partita 3 (19) poco sopra S1. Messaggi della partita 3 (3316) sotto S1, come la partita 1 di S6. Nessun messaggio rifiutato.
+- **Picco di memoria per frame 217,9 KB** nella partita 3: il più alto finora (S6 159,0). Le medie sono le stesse di S1 e S6; l'heap parte un po' più basso (12,9 MB contro 13,1; probabilmente perché non ci sono più i tre pool da 768 tabelle per team) e non supera S6. Il punto 17 di `nuovo-stai.md` resta «da osservare».
+- Errori nel log: solo quelli di sempre (`AdvSky`, `ceg_test_projectile`, atlas groundFX, `gui_pip` `CreateShader`, shader AoE Napalm/Reclaim Field, `gui_sensor_ranges_jammer_preview` in Shutdown). Nessuno cita Shard, STAI o i moduli toccati.
+
+**Test** (`gridhst_spec.lua`)
+
+- «gives the data of a cell only while the cell is in the list» (`GetMarked`): `nil` prima di `Mark`, la cella dopo, `nil` su un'altra, `nil` dopo `Clear` con la tabella ancora in `CELLS`.
+- «sums the fields of the cells of a grid X, Z around a position» (`getGridCellsFields`).
+- «reads only the true cells of a layer, and nothing past the edges»: griglia 6 × 4; celle segnate in 2, 1 e 3, 1, che hanno l'indice di 1, 5 e 2, 5 (oltre il bordo `Z = 4`); `areaCells(1, 4, 1)` dà solo le due celle vere dentro la griglia, nell'ordine; `GetCell` con `X, Z` e con una posizione; `nil` su 1, 5, su 0, 2 e su una cella con dati ma non segnata; `getCellsFields` somma solo quelle.
+- Mutazioni, ognuna fa fallire un test: `GetMarked` che ignora la lista; `gridhst.lua` della base (commit 1: due test in errore; commit 2: il test dei bordi); `areaCells` senza `IsCellInGrid`; `GetCell` senza `IsCellInGrid`.
+
+**Controlli**
+
+- `lx --lua-version 5.1 test`: 2751 successi, 0 falliti, 1 pending (2748 + 3). `run_engine_tests.sh` (codice finale): `RESULT: ok`.
+- StyLua 2.5.2 (dalla radice) su tutti i file toccati: ok.
+- EmmyLua 0.24.0, confronto con un worktree della base `a21bf909da`: 20 errori, negli stessi file. Per file (avvisi/hint, base → finale): `loshst.lua` 21/25 → 10/15, `gridhst.lua` 0/9 → 0/9, `targethst.lua` 63/18 → 63/15, `attackhst.lua` 7/27 → 7/24, `raidhst.lua` 5/24 → 5/24, `nukebst.lua` 5/5 → 5/3, `scouthst.lua` 0/5 → 0/5, `bomberhst.lua` 5/12 → 5/10; `gridhst_spec.lua` senza diagnostiche.
+- Da sapere su EmmyLua: togliendo il ciclo su `self.OWN` da `Draw` comparivano 15 avvisi `cellElmosHalf value may be nil` nel ciclo di `ENEMY` (prima il ciclo su un campo inesistente faceva saltare l'analisi di tutta la funzione); risolti con `---@type number` sulla riga di `cellElmosHalf`. In `getEnemyCell` `X`, `Z` vengono dai parametri (sono gli stessi numeri di `CELLS[i].X`, `.Z`), così niente avvisi «Undefined field». Tutti e due i ritocchi sono dentro i commit 2 e 3 (prima del push); la prova nella stessa partita e i test sono rifatti sul codice finale, le tre partite A no (il ritocco non cambia niente in gioco).
+- `.emmyrc.json` ripristinato; `git status` pulito a parte i file di `.ai-notes/`.
+
+**Difetti visti, non toccati** (il gioco non cambia, quindi li lascio a te)
+
+- `CELL.base` (fabbrica nemica nella cella) non si azzera mai: non lo faceva `setupCell` e il pool teneva una tabella per cella, quindi una cella che ha visto una fabbrica resta «base» per sempre quando torna vera. Con lo strato è uguale (la prova lo confronta). Si sistema aggiungendo `CELL.base = nil` a `resetCell`, ma cambia `TargetHST.enemyBasePosition`.
+- `TargetHST:NearbyVulnerable` legge `subValues.armed`/`subValues.unarm`, ma le chiavi sono `"ARMED"`/`"UNARM"`: la condizione non è mai vera.
+- `LosHST:getCenter` divide per `count` anche quando è 0 (nessun edificio proprio): `CENTER` diventa `NaN`.
+- `posG`, `posS`, `posB`, `posA` in `LosHST:Draw` sono globali.
+
 ### S7 (agente locale, 25 novembre 2026) — verificato dal coordinatore. La guardia `next(fresh) ~= nil` va bene (il coordinatore consiglia di lasciare `GameStart` com'è)
 
 **Cosa ho fatto**
