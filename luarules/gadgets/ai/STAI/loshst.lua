@@ -475,10 +475,10 @@ function LosHST:Draw()
 		else
 			map:DrawRectangle(pos1, pos2, colours.unbalance, cell.ENEMY_BALANCE, false, ch)
 		end
-		posG = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
-		posS = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
-		posB = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
-		posA = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
+		local posG = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
+		local posS = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z - cellElmosHalf / 2 }
+		local posB = { x = p.x - cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
+		local posA = { x = p.x + cellElmosHalf / 2, y = p.y, z = p.z + cellElmosHalf / 2 }
 
 		if cell.G > 0 then
 			map:DrawCircle(posG, cellElmosHalf / 2, colours.g, cell.G, true, ch)
