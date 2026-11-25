@@ -38,6 +38,40 @@ S24b (`AttackerBST` solo sensore) viene dopo, separato.
 
 ## Risultati
 
+### S24a (agente locale, 25 novembre 2026) — `'1-2'` è un solo record, eseguito con `GiveOrderToUnitArray`
+
+**In breve**: fatto. Formato versione 2, tutto in `ordercodec.lua`. Test: 2808 successi, 0 fallimenti; `run_engine_tests.sh` `RESULT: ok`; StyLua pulito; EmmyLua senza avvisi nuovi nei file toccati (`.emmyrc.json` ripristinato). Partite A e C: 0 righe `[AI Loader] error`, gioco nei riferimenti.
+
+**Formato** (commento di testa di `ordercodec.lua`)
+- `VERSION = 2`. Un **record** è un ordine o un gruppo; l'intestazione conta i record. Il gruppo è un ordine con `unitID = GROUP_UNIT = 65535` (mai un'unità), poi `U16 k`, poi `k` `unitID U16`: `10 + 4n + 2k` byte. Gli ordini singoli sono come prima.
+- Costanti: `GROUP_UNIT`, `MAX_UNITS_PER_GROUP = 255`. `MAX_ORDERS_PER_MESSAGE` (20) ora conta **record**: un gruppo vale 1.
+- Funzioni: `PackGroup(cmd, options, params, paramCount, unitIDs, unitCount)`, `UnpackGroupUnits(message, positionDopoIParametri)`; `UnpackOrder` invariata (restituisce `GROUP_UNIT` per un gruppo). Il vecchio `unitID` 65535 non si può più mandare come ordine singolo: `Queue` lo scarta (il motore ne ha al massimo 32000).
+
+**Outbox**: `ShardOutbox:QueueGroup(unitIDs, cmd, params, options)`. Un `unitID` non valido è scartato da solo, con un avviso per chiamata (ritorna `false`); un comando non valido scarta tutta la chiamata. Oltre 255 unità fanno più record, nello stesso gruppo (restano insieme in un messaggio). **Una sola unità valida diventa un ordine singolo** (più corto, percorso già noto). Zero unità: nulla in coda, `true`. `game:GiveOrder '1-2'` la usa.
+
+**Relay**: per un gruppo controlla ogni unità (valida e della squadra), compatta l'array, chiama `Spring.GiveOrderToUnitArray` una volta, ordini dati = unità comandate, un contatore `groups` (riga nuova a `Shutdown`: `Shard relay: N groups given`, separata da quella esistente per non rompere chi la legge). Rifiutati: le unità scartate; gruppo con più di 255 unità rifiutato intero (conta le sue unità) e si legge oltre; gruppo troncato = come un ordine troncato (rifiuta questo e i record dopo). Prima di un gruppo, gli ordini in sospeso della unità corrente vengono dati: l'ordine fra record resta quello del messaggio.
+
+**Test**
+- `ordercodec_spec.lua`: codec (gruppo da 0, 1, 255 unità fra ordini; troncato in cinque modi), outbox (`QueueGroup`, 1 unità = ordine, 0 unità, spezzato a 255/256, un gruppo vale 1 su 20, `dropFirst` conserva le liste, nessuna coda residua di un gruppo precedente, unità non valida, `BeginGroup` con gruppi e rollback), `'1-2'` (un record; più di 20 unità in un messaggio; unità non valida).
+- `shard_ai_loader_spec.lua` (relay): unità estranee/non valide scartate con `shard_relay_rejected`, una sola chiamata, array senza `n`; 1 unità; senza unità valide nessuna chiamata; ordine fra ordini e gruppi; 256 unità rifiutate e lettura oltre; 255 accettate; gruppo troncato; 20 gruppi in un messaggio e contatori. Versione sbagliata: ora 3.
+- `luaui/Tests/shard/test_ordercodec.lua` (in motore, entrambi i lati): gruppo da 0, 1, 2, 255 unità. Conferma che `VFS.UnpackU16(msg, pos, 1)` restituisce una **tabella** (il codice non gestisce il caso numero).
+- Mutazioni (16, tutte colte): controllo della squadra nel gruppo, tetto 255 nel relay, scarico degli ordini prima del gruppo, pulizia della coda dell'array, contatori, scambio delle liste in `dropFirst`, copia dei conteggi, dimensione del blocco, declassamento a ordine, pulizia della coda della lista, limiti in `UnpackGroupUnits`, tipo di record in `Flush`, `'1-2'` per unità.
+
+**Partite** (`run_engine_game.sh`, 15 minuti, `SHARD_MEM_STATS=1`, uscita 0, 19 e 21 s)
+
+| | fine (SUMMARY): unità, fabbriche, mex | min. 14: unità | relay: messaggi / ordini / rifiutati | gruppi | memoria per frame (media per minuto; picco) | `Shard memory record` |
+| --- | --- | --- | --- | --- | --- | --- |
+| A (S26: 200/203/188 unità; 4837/4330/2645 messaggi; 14562/17437/12911 ordini; 4/4/19 rifiutati) | 172, 2, 27 | 152 | 4206 / 14436 / 5 | 2891 | 0,17–0,71 KB; 45,5 KB | 15011 (S26: 15468–15581) |
+| C (S25: 5137 / 23354 / 35; S23: 4741 / 26817 / 33) | 173, 2, 28 · 137, 2, 22 | 154 · 133 | 4905 / 28520 / 37 | 5666 | 0,28–0,95 KB; 96,0 KB | 16837 (S23: 17651) |
+
+- Righe `[AI Loader] error`: 0 in entrambe. Nessuna riga `messages rejected (…)`: nessun messaggio rifiutato. I rifiutati (5, 37) sono unità non valide dentro messaggi accettati, come prima.
+- **Messaggi**: A 4206 contro 2645–4837 di S26, C 4905 contro 4741–5137: dentro la varianza fra partite. Non c'è un calo visibile, e non c'è da aspettarselo: la STAI manda al più un messaggio per frame e il numero di messaggi lo decide il traffico di ordini, non il numero di record. Il guadagno di `'1-2'` sta nei **record** e nelle chiamate al motore: 2891 e 5666 gruppi eseguiti ciascuno con una sola `GiveOrderToUnitArray` (prima una `GiveOrderToUnit` per unità). Non ho il numero di record «prima» per le stesse partite, quindi il rapporto esatto non lo conosco.
+- Il gioco non è cambiato (stessi ordini; unità e mex nei riferimenti di S26 e S23). Una partita per tipo, come da compito.
+
+**Da decidere**
+1. **Costo per messaggio**. Il tetto di 20 record era un tetto sul costo del motore (4,2 µs per ordine, su ogni client). Con i gruppi, un messaggio può portare fino a 20 × 255 = 5100 comandi. Se il costo per unità resta quello, il tetto vero andrebbe sulle **unità** per messaggio (o per frame). Non l'ho aggiunto: il compito diceva 1 record = 1 più un tetto di 255 per record. Dimmi se vuoi anche un tetto di unità per messaggio, nel relay e nell'outbox.
+2. Il marcatore `65535` nel campo `unitID` è il modo più corto (nessun byte in più per gli ordini singoli). Se il coordinatore del framework preferisce un byte di tipo per record, cambia solo `ordercodec.lua` e le tre chiamate (`PackGroup`, `UnpackOrder`, `UnpackGroupUnits`).
+
 ### S19 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Prova fallita, due commit ritirati: `gridSize` resta 256
 
 **In breve**: con `gridSize` 128 le tre partite A sono **tutte peggiori** (fine 90 / 132 / 175 unità, contro 188–203 di S26); la memoria sale e `TopologyFooded` sulla mappa più grande arriva a 15.588 chiamate annidate, il 78% del limite di Lua 5.1. Come da compito ho fatto `git revert` dei due commit: `ba90f2c514` «STAI: grid cell size 128 elmos» (con `gridhst_spec.lua` su una mappa 768×512) e `4664f38be0` «STAI: cell radii for the 128-elmo grid», ritirati da `0f57a6bbc3` e `47fe7ca3b9`. `luarules/` e `spec/` sono identici a `a99cabc2c3`.
