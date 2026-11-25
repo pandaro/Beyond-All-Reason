@@ -42,6 +42,28 @@
 
 ## Risultati
 
+### T18 (agente locale, 25 novembre 2026)
+
+**Commit**: `1b3723e86a` (codice e spec, «Shard timers: …»), `25e2282983` (guida).
+
+**Codice** (`loader/timers.lua`): `BeginModule` restituisce anche `startKb` (`collectgarbage("count")`, letto con il tempo; terzo valore dopo `outerModule`), `BeginBehaviour` restituisce `startTimer, startKb`. `EndModule(startTimer, outerModule, startKb, …)` ed `EndBehaviour(startTimer, startKb, …)` rileggono il conteggio e passano `kb = fine − inizio` a `Record`. Niente tabelle nuove: `startKb` è una variabile locale accanto a `startTimer` nei 16 punti di `shardai.lua` e nei 16 di `unit.lua` (solo le due righe di ogni punto cambiano). Riga: `... call=Update ms=12.3 kb=-48210.3` (`%.1f`, con segno). Spento il timer, niente letture di memoria. Riepilogo invariato. Commento in testa al file aggiornato con il formato e una riga su come si legge `kb`.
+
+**Test busted**: nel mondo dei timer `world.heap` è fisso (la `collectgarbage("count")` finta dello spec), quindi le righe esistenti hanno `kb=0.0`; un test nuovo con il behaviour che fa scendere l'heap di 48210,34 KB (frame 4) e salire di 1536,26 KB (frame 5): quattro righe, behaviour e modulo, `kb=-48210.3` e `kb=1536.3`. Sotto soglia nessuna riga: test esistente, in verde. Mutazioni, ognuna rilevata (1 fallito): segno invertito (`startKb - fine`), `kb` letto solo all'inizio (`startKb - startKb`).
+
+**Partita A** (STAI contro SimpleAI, 15 minuti, `run_engine_game.sh`, uscita 0 in 20 s): STAI 125 unità, 2 fabbriche, 17 mex; SimpleAI 69/1/6. Relay 2999 messaggi, 9951 ordini, 10 rifiutati. Memoria per frame media 0,57 KB, max 33,2 KB, heap 15,3 MB. Nessuna riga `[AI Loader] error`. Righe `[Shard timer]`: **1**
+
+| frame | modulo | call | ms | kb |
+|---|---|---|---|---|
+| 0 | ArmyHST | Init | 20,7 | 20853,7 |
+
+Lettura: l'`Init` di `ArmyHST` alloca circa 20 MB (le tabelle dei tipi di unità), il tempo è suo e non del garbage collector. Una prima partita uguale (infolog nella cartella temporanea, cancellata) ha dato anch'essa 1 riga (`ArmyHST` con `spikes=1` nel riepilogo), STAI 151/2/21.
+
+**Costo della lettura**: nessun rallentamento visibile. Durata della partita 20 s contro 21 s di T17; nel riepilogo `UnitHandler` somma 1161,7 ms (T17: 1583,4), `BuildersBST` 49,4 ms (T17: 84,1) — varianza fra partite, ma nessun segno di crescita.
+
+**Controlli**: `lx --lua-version 5.1 test` 2827 successi, 0 falliti, 1 pending di sempre. StyLua 2.5.2 pulito sui quattro file. EmmyLua 0.24.0: 19 errori prima e dopo; `timers.lua` 0 diagnostiche (i warning totali cambiano da un'esecuzione all'altra, 23508/23300). `run_engine_tests.sh`: `RESULT: ok`. `.emmyrc.json` ripristinato.
+
+**Nota per la guida**: il comando `awk -F'ms='` della guida funziona ancora (`sort -g` legge il numero davanti a ` kb=`). L'esempio della guida usa ancora `module=TaskQueueBST`, che in questo STAI non esiste (già notato in T17): non l'ho cambiato.
+
 ### T17 (agente locale, 25 novembre 2026) — verificato dal coordinatore (`ShardTimers` è un globale del gadget: scostamento accettato, serve a `shardai.lua` e `unit.lua`)
 
 **Commit**: `b204166b0a` (tempi), `f5745cb437` (`ShardMemStats` da codice), `202eddbf18` (guida e strumenti).
