@@ -50,7 +50,8 @@ function TargetHST:GetBlobs(_blobs_, param)
 		self.blobchecked[i] = nil
 	end
 	for ref, blob in pairs(self[_blobs_]) do -- fill the blobs with data
-		for i, v in pairs(blob.cells) do
+		for n = 1, #blob.cells do --numeric loop keeps the order of the cells
+			local v = blob.cells[n]
 			local CELL = self.ai.gridhst:GetCell(v.X, v.Z, ENEMY)
 			for id, name in pairs(CELL.units) do
 				blob.units[id] = name
@@ -185,7 +186,8 @@ function TargetHST:drawDBG()
 	local cellElmosHalf = self.ai.gridhst.gridSizeHalf
 	for i, blob in pairs(self.MOBILE_BLOBS) do
 
-		for ref, cell in pairs(blob.cells) do
+		for n = 1, #blob.cells do --numeric loop keeps the order of the cells
+			local cell = blob.cells[n]
 			local pos1 = {}
 			local pos2 = {}
 			pos1.x, pos1.z = cell.POS.x - cellElmosHalf, cell.POS.z - cellElmosHalf
@@ -197,7 +199,8 @@ function TargetHST:drawDBG()
 	end
 	for i, blob in pairs(self.IMMOBILE_BLOBS) do
 
-		for ref, cell in pairs(blob.cells) do
+		for n = 1, #blob.cells do --numeric loop keeps the order of the cells
+			local cell = blob.cells[n]
 			local pos1 = {}
 			local pos2 = {}
 			pos1.x, pos1.z = cell.POS.x - cellElmosHalf, cell.POS.z - cellElmosHalf
