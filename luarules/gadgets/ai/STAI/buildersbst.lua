@@ -450,6 +450,7 @@ function BuildersBST:ProgressQueue()
 		self.queue = self.ai.taskshst.roles[self.role]
 	end
 	self.idx = self.idx + 1
+	local JOB
 	for index = self.idx, #self.queue do
 		self.idx = index
 		self:EchoDebug(self.role, "queue idx", self.idx, "JOB", JOB)
