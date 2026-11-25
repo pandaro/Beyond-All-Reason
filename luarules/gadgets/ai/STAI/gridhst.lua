@@ -26,6 +26,7 @@ function GridHST:basicGridInfo() --capture the map size and set the grid geometr
 	self.elmoMapSizeZ = mapSize.z * 8
 	self.gridSize = 128 --the only place in STAI that holds the cell size
 	self.gridSizeHalf = self.gridSize / 2
+	self.gridSizeDouble = self.gridSize * 2
 	self.gridSideX = self.elmoMapSizeX / self.gridSize
 	self.gridSideZ = self.elmoMapSizeZ / self.gridSize
 	self.gridArea = self.gridSideX * self.gridSideZ
