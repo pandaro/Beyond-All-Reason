@@ -103,7 +103,7 @@ Grep in tutto `luarules/` e `spec/` prima di togliere.
 
 **Da sapere**
 
-- Punto 3: il `defId` scritto in `losEnemy` oggi non cambia niente di quello che `LosHST` scrive nelle celle (`setCellLos` usa `unit:Name()`), ma ora è giusto per chi lo leggerà come tipo (le ombre di `UnitLeftLos`, per esempio).
+- Punto 3: il `defId` scritto in `losEnemy` oggi non cambia niente di quello che `LosHST` scrive nelle celle (`setCellLos` usa `unit:Name()`), e `UnitLeftLos` usa il `unitDefID` dell'engine, non questo valore: ora è giusto per chi lo leggerà come tipo.
 - Il commit del punto 4 l'ho fatto con `git commit -a` senza passare dalla skill `submodule-pointer`: ho controllato, contiene solo `loshst.lua`.
 
 ### S10 (agente locale, 25 novembre 2026) — verificato dal coordinatore. Il gioco non cambia su Comet Catcher (nessun lettore di `unarm*` fuori da `LosHST`, 0 spot senza cella, `SimplifyMetalSpots` non entra): le partite 1 e 3 sotto S1 sono varianza del seme
