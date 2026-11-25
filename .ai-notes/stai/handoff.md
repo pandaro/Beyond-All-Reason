@@ -61,6 +61,28 @@
 
 ## Risultati
 
+### S27b (agente locale, 25 novembre 2026) — **fermato al passo 1**: A+ non gioca STAI nemmeno con `AILoader.lua` e `luaai.lua`; serve un cambio di codice in A, nessuna partita di misura
+
+**In breve**: con A+ (worktree a `57992771`, poi senza commit `git checkout 3ad8f3fb^ -- luarules/gadgets/AILoader.lua luaai.lua`) il vecchio loader parte e trova STAI, ma il boot di STAI fallisce e l'engine non esce dal frame -1. Per far giocare A+ bisogna cambiare codice di A (due righe): come da compito mi sono fermato. Nessuna statistica, nessun commit fuori da `.ai-notes/`.
+
+**Cosa ho fatto**
+- Due worktree detached (A+ e B a `18211032e0`, cambiano solo le note rispetto a `ab926056`), strumenti copiati in A+ (non tracciati), gioco caricato da una cartella di scrittura temporanea con `games/bar-s27-a.sdd` come link al worktree. `~/.spring` non toccato; `3ad8f3fb` era già nel clone. Nessun altro file tolto da `3ad8f3fb` è stato necessario per arrivare all'errore.
+- Partita di prova A+ (`a_stai_vs_simpleai.txt`, 15 minuti): l'engine si ferma al frame -1 dopo «Spectator ShardRunner finished loading and is now ingame» e non avanza (una prova lasciata 10 minuti, una seconda 80 s, poi uccisa: nessuna riga `[SHARD-GAME]`).
+- Worktree e cartelle temporanee rimossi, `git status` pulito.
+
+**L'errore** (infolog, `Initialize` unsynced del gadget `AILoader`, subito dopo «AI Player 0 is a STAI»):
+`luarules/gadgets/ai/STAI/boot.lua:15: attempt to call global 'STAI' (a nil value)` (`return STAI()` dopo `shard_include("ai")`).
+- Righe del vecchio loader presenti: «[AI Loader] ShardLua bot Activated!», «Looking for AIs», «AI Player 0 is a STAI». Nessuna riga del nuovo runtime.
+- **Causa** (stessa della correzione `4519d047b7`, fase 1): `shard_include` e `shard_generate_include_func` in `shard_runtime/spring_lua/boot.lua` fanno `return VFS.Include(file)` (tail call). Con l'engine 2026.07.04 il file incluso gira allora nell'ambiente globale e non in quello del gadget, quindi `STAI = class(ShardAI)` di `ai/STAI/ai.lua` non è visibile a `boot.lua`. Non ho applicato la correzione per non toccare il codice di A.
+- La partita resta al frame -1 perché il caricamento di LuaRules fallisce a metà (l'engine stampa «LuaRules is not loaded»); in S27 senza loader non succedeva perché non c'era nessun gadget AI.
+
+**Cosa servirebbe per far partire A+** (decisione del coordinatore/utente)
+1. Nel worktree A+, solo le due tail call di `shard_runtime/spring_lua/boot.lua` come in `4519d047b7` (`local result = VFS.Include(file) return result`, due punti), oppure un file `git checkout`-ato da `4519d047b7` per quel solo file. È una modifica minima ma **cambia il codice della fase 0**: il confronto sarebbe fra «STAI fase 0 + fix dell'ambiente» e B, cioè un A+ con il solo adattamento all'engine 2026.07.04.
+2. Poi rifare il passo 1: non so se dopo questa correzione compaiano altri errori (vecchio STAI su engine 2026.07.04: per esempio le API tolte o cambiate dopo giugno 2026). Se compaiono, ognuno è un cambio al codice di A.
+3. In alternativa: usare un engine di giugno 2026 (`recoil_2026.06.11` o `.12` sono in `~/.spring/engine`) per A+, dove il tail call potrebbe comportarsi come ai tempi di `3ad8f3fb^` — ma allora A+ e B girerebbero su engine diversi e il confronto non sarebbe pulito.
+
+Domanda: applico la correzione delle due tail call in A+ e riprovo (con ogni ulteriore cambio scritto qui), oppure si cambia strada?
+
 ### S27 (agente locale, 25 novembre 2026) — verificato dal coordinatore: errore del coordinatore (`57992771` senza loader). Decisione dell'utente (25 novembre 2026): **A+** senza commit, si riparte con S27b — **fermato al passo 1**: A non gioca STAI, nessuna partita di misura
 
 **In breve**: il commit `57992771` non contiene il loader, quindi in A l'engine non carica STAI: la squadra 0 resta con la sola unità iniziale per tutta la partita. Come da compito mi sono fermato, senza correggere il codice di A e senza giocare le 20 partite. Nessuna statistica.
