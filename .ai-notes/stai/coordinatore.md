@@ -1,6 +1,6 @@
 # Passaggio di chat del coordinatore del porting di STAI
 
-Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S25 scritto e da eseguire**. Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S25. Formule fisse: vedi §2.
+Questo file serve ad avviare (e riprendere) il lavoro di porting di STAI in una chat di claude.ai. Va letto per intero prima di fare qualunque cosa. Stato al 25 novembre 2026, fine della seconda chat del coordinatore del porting: S1–S12b verificati, **S25 e S19 scritti e da eseguire** (uno dopo l'altro). Utente (25 novembre 2026): modo sintetico, niente domande, il coordinatore sceglie il prossimo compito. Per riprendere: leggere questo file, `nuovo-stai.md` (§3 punti 15–19, §4 decisioni, §5 piano S9–S13, §7 stile) e di `handoff.md` solo «Compito attuale» e l'ultimo risultato (la storia è lunga: non serve rileggerla). Se l'utente dice «fatto», verificare S25 e S19. Formule fisse: vedi §2.
 
 Messaggio d'avvio per la chat:
 
@@ -116,7 +116,7 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S22 | `labshst.lua:367` rete `nil`; `bomberhst` `cmdUnitId` con buchi | low | Haiku 5.5 |
 | S17 | `shard_null` (punto 12) | alto | Sonnet 5.5 |
 | S18 | `ShardMemStats` autocontenuto (framework, commit «Shard …») | medio | Sonnet 5.5 |
-| S19 | `gridSize` 128 (§5b, ritarare i raggi) | alto | Opus 5.5 |
+| S19 | `gridSize` 128 (§5b, ritarare i raggi): scritto, prova con ritiro se peggio | high | Opus 5.5 |
 | S20 | chiusura: guida per STAI, partite finali, branch pulito | medio | Sonnet 5.5 |
 
 Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku.

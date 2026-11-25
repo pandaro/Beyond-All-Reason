@@ -19,6 +19,8 @@
 
 ## Compito attuale
 
+Due compiti: «esegui s25» → **solo S25**, poi «esegui s19» → **solo S19**. Risultati separati.
+
 ### S25: metodi inesistenti e globali accidentali
 
 **Impegno: low. Modello: Haiku 5.5.** Approvato dall'utente (25 novembre 2026). Meccanico. **Stile**: `nuovo-stai.md` §7.
@@ -29,6 +31,25 @@
 - Test busted solo dove è semplice. **Una** partita A e **una** C; nessuna riga `[AI Loader] error`.
 - Controlli: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test`, `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
 - Commit, in inglese: uno per punto, più i risultati.
+
+### S19: `gridSize` 128 (prova; §5b)
+
+**Impegno: high. Modello: Opus 5.5.** Scelto dal coordinatore su richiesta dell'utente (25 novembre 2026). Si esegue **dopo S25** («esegui s19»). È una **prova**: si tiene solo se il gioco non peggiora. **Stile**: `nuovo-stai.md` §7.
+
+**1. Inventario** (nei risultati, tabella): tutto ciò che dipende dalla misura della cella, con il significato in elmi oggi (256) e la proposta a 128:
+- raggi in celle: `getCellsFields(..., 2, ...)` in `commanderbst.lua` r. 25 e `nukebst.lua` r. 74; `areaCells(X, Z, 1, ...)` in `scoutbst.lua` r. 204; `adjacent` di `TargetHST:IsSafeCell` (chiamanti `buildingshst.lua` r. 845, `mexupbst.lua` r. 112: valore di default); il raggio 1 di `TargetHST:Blobbing` (vicini: va bene com'è, scrivilo); ogni altro `range`/`R`/`adjacent` che trovi;
+- elmi derivati: `SimplifyMetalSpots(gridSize * 2)` (`maphst.lua` r. 29), `gridThePath` default `gridSize` (r. 355), `gridSizeDouble` (`raidhst.lua` r. 256);
+- costanti in elmi scritte a mano (`attackhst.lua` r. 187 `< 256`, r. 259 `< 512`; `raidhst.lua` r. 201 `< 256`): restano in elmi, ma scrivi se sono pensate come «una cella»;
+- tempi o soglie per cella (`SCOUTED` 3600 frame, calo di `DAMAGED`, `ENEMY` per cella in `TargetHST`, `PerimetralCells` di `ScoutHST`, `UnitMexMoveTest`/`trampled` di `BuildingsHST`);
+- ricorsione: `MapHST:TopologyFooded` e `TargetHST:Blobbing` (profondità massima con 128 sulla mappa A e sulla più grande che hai; Lua 5.1 regge circa 20.000 chiamate annidate).
+
+**2. Codice**: `gridhst.lua` r. 27 → 128. I raggi in celle si raddoppiano (stessa area in elmi), salvo i vicini immediati. `SimplifyMetalSpots`: tenere 512 elmi (costante con commento, non `gridSize * 2`). Un commit per il cambio di misura, uno per i raggi ritarati, così si possono ritirare.
+
+**3. Misura**: tempo di `Init` di `MapHST`/`GridHST` (prima e dopo), memoria per frame, heap, `Shard memory record`, profondità massima della ricorsione, nella partita A e in una partita sulla mappa più grande disponibile (scrivila).
+
+**4. Partite**: **tre A** e **una C** con il codice finale (confronto con S23, S21, S1). Se peggio in più di una A, o tempo/memoria molto più alti, **ritira i due commit** (`git revert`) e scrivi i numeri: decide l'utente.
+
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0 (file toccati), `lx --lua-version 5.1 test` (i test che fissano 256 vanno aggiornati: elencali), `run_engine_tests.sh`; `.emmyrc.json` ripristinato; skill `submodule-pointer`.
 
 ## Risultati
 
