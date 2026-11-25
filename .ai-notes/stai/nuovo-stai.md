@@ -69,6 +69,8 @@ Dettagli nella guida (`.ai-notes/drafts/README.md`).
 
 Decisione del 25 novembre 2026 (utente): S8 diviso in **S8a** (strato `ENEMY`, via `OWN`, `ALLY`, `ALLIES` mai riempite e il resto che non serve) e **S8b** (percezione).
 
+Decisione del 25 novembre 2026 (utente, su S18): **nel codice distribuito niente interruttori fuori da STAI** (niente `springsettings`). `ShardMemStats` (`memstats.lua`) resta solo per lo sviluppo e **si toglie in chiusura (S20)**, con una sezione «How to debug» nella guida per chi vuole riattivarlo. Verifica del coordinatore: in BAR gli unici interruttori di debug in `springsettings` sono quelli dei profiler (`dbg_gadget_profiler.lua`, `dbg_widget_profiler.lua`: `profiler_*`); gli altri `GetConfig*` sono impostazioni dell'utente (grafica, suono).
+
 Decisione del 25 novembre 2026 (utente, per S24): **la squadra dà gli ordini** (`AttackHST`, un ordine per squadra con il nuovo ordine «un comando a molte unità» del framework, S24a); **`AttackerBST` è il sensore** dell'unità (eventi alla squadra, priorità 0, nessun ordine; eccezioni individuali in futuro). Il formato del codec lo decide poi l'utente con il coordinatore del framework.
 
 Decisione del 25 novembre 2026 (utente, per S12b): in ambito ally **`DamageHST` registra i danni a tutte le unità dell'alleanza**, anche dei giocatori umani alleati (`defender:AllyTeam() == self.ai.allyId`).

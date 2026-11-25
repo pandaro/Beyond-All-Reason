@@ -116,9 +116,9 @@ I file di `.ai-notes/` si aggiungono con `git add -f`. Tutta `.ai-notes/` va tol
 | S24b | `AttackerBST` solo sensore: eventi alla squadra, priorità 0, via `attacking` | medium | Sonnet 5.5 |
 | S22 | `labshst.lua:367` rete `nil`; `bomberhst` `cmdUnitId` con buchi | low | Haiku 5.5 |
 | S17 | `shard_null` (punto 12) — dopo S24, se restano token (utente) | alto | Sonnet 5.5 |
-| S18 | `ShardMemStats` autocontenuto (framework, commit «Shard …») | medio | Sonnet 5.5 |
+| ~~S18~~ | `ShardMemStats`: **decisione dell'utente (25 novembre 2026)**: resta per lo sviluppo; in S20 si toglie dal codice distribuito e si scrive un «How to debug» nella guida | — | — |
 | ~~S19~~ | `gridSize` 128: provato, peggio, ritirato | high | Opus 5.5 |
-| S20 | chiusura: guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
+| S20 | chiusura (con: via `ShardMemStats` da `memstats.lua` e dagli script, sezione «How to debug» nella guida): guida per STAI, partite finali, branch pulito — **rinviata dall'utente di almeno 7 giorni (non prima del 2 dicembre 2026)** | medio | Sonnet 5.5 |
 
 Utente (25 novembre 2026): pochi crediti, prima i compiti semplici con Haiku. Obiettivo: chiudere il porting dopo S24 (S18, S17 se restano token), poi tenere token per idee e miglioramenti.
 S18: l'unico uso di `springsettings` è `ShardMemStats` in `shard_runtime/loader/memstats.lua` (`Spring.GetConfigInt` r. 20 e 54); gli script di prova scrivono la riga in un `springsettings.cfg` temporaneo.
