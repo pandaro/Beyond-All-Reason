@@ -42,7 +42,9 @@ Tool._TABLES = {}
 Tool.tablerez = 0
 Tool.tablenew = 0
 function Tool:RezTable()
-	self:EchoDebug("#RezTable", #self._TABLES, self.tablerez, self.tablenew)
+	if self.DebugEnabled then
+		self:EchoDebug("#RezTable", #self._TABLES, self.tablerez, self.tablenew)
+	end
 	if self._TABLES[1] then
 		self.tablerez = self.tablerez + 1
 		return table.remove(self._TABLES)
@@ -55,7 +57,9 @@ end
 function Tool:KillTable(t)
 
 	if not t or type(t) ~= "table" then
-		self:EchoDebug("incorrect type in KillTable", t, type(t))
+		if self.DebugEnabled then
+			self:EchoDebug("incorrect type in KillTable", t, type(t))
+		end
 		return
 	end
 	--self:EchoDebug("SIT_TABLE: Before clearing", t)
@@ -72,7 +76,9 @@ function Tool:KillTable(t)
 			--t = nil
 		end
 	end
-	self:EchoDebug("#KillTable", #self._TABLES)
+	if self.DebugEnabled then
+		self:EchoDebug("#KillTable", #self._TABLES)
+	end
 	return nil
 end
 
