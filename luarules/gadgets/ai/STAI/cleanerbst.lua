@@ -51,7 +51,9 @@ function CleanerBST:Deactivate()
 	self:EchoDebug("deactivate command", self.ai.cleanhst.theCleaner[self.id])
 end
 
-function CleanerBST:Priority() end
+function CleanerBST:Priority()
+	return 0
+end
 
 function CleanerBST:Clean(targetId)
 	if self.DebugEnabled then

@@ -1,7 +1,6 @@
 STAI = class(ShardAI)
 
--- keeps the election rule STAI was written for
-STAI.legacyElection = true
+STAI.legacyElection = false --only a priority above zero wins: a unit whose behaviours are all at zero has none active
 
 -- the modules and the behaviours that run in turns, one a frame (shard_runtime/loader/scheduler.lua)
 STAI.MScheduler = {
