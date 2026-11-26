@@ -144,6 +144,25 @@ Claude-Session: <link della sessione>
 4. **Raddrizzare STAI un modulo alla volta**, ogni modulo con il suo behaviour. Primo: `BuildingsHST` + `BuildersBST` da zero; l'utente lo studia dalla settimana del 30 novembre; **non iniziare senza il suo ok esplicito**. Idea da valutare: modulo dei posti per alleanza (mappa delle celle libere) a cui i costruttori chiedono «costruisci questo lì».
 5. **Aperti dal porting, da decidere con l'utente**: tetto di unità per messaggio e marcatore 65535 o byte di tipo in `ordercodec.lua` (bloccano S20); `UnitHandler` sul modello di `UnitHST`; latenza in multiplayer (rinviata finché non c'è SkyLobby).
 
+**Appunti dell'utente per STAI (26 novembre 2026; idee da tenere segnate, non da implementare senza il suo ok)**
+
+*B. Valutazione dei rischi per gruppi di unità.* Premessa: i dati sul pericolo li raccogliamo molto bene (e si può ancora migliorare), ma li usiamo bene, o abbastanza bene?
+1. L'attacco è nudo e crudo: il gruppo parte e si suicida contro un muro di torri e unità. Non va bene.
+2. I raid devono aggirare i pericoli e arrivare dietro.
+3. Lo stesso per i bombardieri: scortati, puntare dietro; a un certo punto serve uno scout aereo massiccio. (Gli aerei si discutono dopo.)
+
+*Idee sparse sul territorio (da non implementare, solo segnate):*
+1. Un meccanismo che dica a STAI qual è l'area di competenza del team, quella dell'alleanza, quella dei team e dell'alleanza nemici, e quale area è **neutrale**, cioè dove l'espansione è possibile.
+2. Più precisione sulle aree pericolose: **solo le torri, non le unità mobili**. Per 3–4 strati (surface, sky, submerged; nomi da vedere) un layer di griglia calcola **in metallo** il danno che si può ricevere in un punto dalle statiche. Una torre laser vista in una cella dà lì il suo valore in metallo; il pericolo si estende a tutte le celle nel raggio della torre, calando con la distanza fino a 0 fuori dal raggio.
+3. Poi il **blobbing**: dalla mappa dei pericoli si accorpano le celle in aree contigue con livelli di pericolo comparabili.
+4. Questo apre a una lettura migliore del territorio.
+5. Per alleanza, non per team.
+6. Anche per l'alleanza amica: dà l'area coperta dalle nostre statiche. Si ottengono aree friendly, enemy e neutral.
+7. Problema: l'area oltre i radar.
+8. Problema: costo di calcolo.
+
+*C. Rez, reclaim, repair.* La chiave è **ripara, rezza, reclama, in quest'ordine**. Un behaviour scritto bene per il rez è una marcia in più.
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
