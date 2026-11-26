@@ -47,7 +47,7 @@
 
 **Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `run_engine_tests.sh`.
 
-**Commit** in inglese: «Shard game: GetTeamStats …», «Shard loader: team stats line once a minute …», più quello dei risultati. Aggiorna anche `.ai-notes/drafts/README.md` (guida in inglese): `game:GetTeamStats` e l'interruttore `SHARD_TEAM_STATS`, due righe.
+**Commit** in inglese: «Shard game: GetTeamStats …», «Shard loader: team stats line once a minute …», più quello dei risultati. La guida (`.ai-notes/drafts/README.md`) la aggiorna il coordinatore: non toccarla.
 
 **Fermati e scrivi** se lo storico dei team nemici non si legge dall'unsynced, o se servisse toccare STAI.
 
