@@ -53,6 +53,88 @@
 
 ## Risultati
 
+### T20 (agente locale, 26 novembre 2026) — fatto
+
+**Commit**: `bdb8e55ddc` (`game:GetTeamStats`), `5522e97658` (loader, gadget, `run_engine_game.sh`). Per misurare ho acceso `SHARD_TEAM_STATS` **solo nella copia di lavoro**, poi rimesso spento: nessun commit con l'interruttore acceso.
+
+**Codice**
+- `spring_lua/game.lua`: `game:GetTeamStats(teamID)` (default `self.ai.id`; `nil` senza campioni, o per global/ally senza `teamID`). Ogni chiamata alloca le tabelle dell'engine (scritto nel commento): non per ogni frame.
+- `shard_null/game.lua`: restituisce `nil`. Scelta: nessuno spec o modulo ha bisogno di un campione finto.
+- `loader/teamstats.lua`: `Setup(teamList)` (tipi calcolati una volta, Gaia esclusa; spento non chiama l'engine), `GameFrame(n)`, `WriteSummary()` (solo la prima volta). Legge `Spring.GetTeamStatsHistory` direttamente, senza passare da `game` di un'AI.
+- `ShardAILoader.lua`: `ReportTeamStats(n)` dopo `EndMemoryFrame`; riepilogo in `GameOver` e in `Shutdown` (solo se `IsHosting()`). Spento: un controllo per frame.
+- Gli stub dell'engine (`TeamStats`) non elencano `unitsKilled`, che nel gioco c'è: una riga `---@diagnostic disable-next-line: undefined-field` con commento.
+
+**Storico dei nemici**: si legge dall'unsynced (client spettatore host): righe per tutti i team, di tutte e due le alleanze.
+
+**Periodo di campionamento**: **450 frame (15 s)**, costante: 60 differenze su 60 uguali a 450, in A e in B; 21, 41, 61 campioni ai minuti 5, 10, 15. L'ultimo campione è **vivo** (si aggiorna fra un confine e l'altro): il riepilogo a 27030/27033 ha valori più alti della riga a 27000 senza che sia passato un confine (27450). `f=` nella riga è il frame della riga, non del campione.
+
+**Riepilogo**: esce **una volta sola**. A e B (`neverend`): da `Shutdown`. Prova in più: B con `Spring.GameOver` forzato al frame 5500 (sonda temporanea): riepilogo al 5500, `Shutdown` al 9030 non lo ripete. Dopo `GameOver` le righe al minuto continuano (6, 7... come `memstats`): se non le vuoi, è una riga.
+
+**Partita A** (STAI contro SimpleAI, 15 minuti; fine: STAI 116 unità, 2 fabbriche, 22 mex; SimpleAI 71/1/12), minuti 5, 10, 15 e riepilogo:
+
+```
+[Shard stats] f=9000 team=0 ally=0 ai=STAI metal=+2562/-3555 energy=+38368/-28110 dmg=0/368 units=39/2/0
+[Shard stats] f=9000 team=1 ally=1 ai=SimpleAI metal=+2465/-4383 energy=+36985/-38545 dmg=368/0 units=22/0/1
+[Shard stats] f=18000 team=0 ally=0 ai=STAI metal=+9706/-8822 energy=+144431/-130567 dmg=18174/25622 units=104/49/7
+[Shard stats] f=18000 team=1 ally=1 ai=SimpleAI metal=+5976/-10006 energy=+148734/-113369 dmg=25359/17975 units=50/7/37
+[Shard stats] f=27000 team=0 ally=0 ai=STAI metal=+21598/-21544 energy=+356560/-327316 dmg=32610/42155 units=197/81/14
+[Shard stats] f=27000 team=1 ally=1 ai=SimpleAI metal=+13442/-18754 energy=+317318/-230152 dmg=41656/32318 units=86/15/61
+[Shard stats] summary
+[Shard stats] f=27033 team=0 ally=0 ai=STAI metal=+21690/-21674 energy=+358564/-329413 dmg=32715/42327 units=198/81/14
+[Shard stats] f=27033 team=1 ally=1 ai=SimpleAI metal=+13497/-18792 energy=+318586/-230931 dmg=41822/32417 units=86/15/62
+```
+
+**Partita B** (2 STAI contro 2 SimpleAI, 15 minuti; fine: team 0 96/2/10, team 2 126/2/23; SimpleAI 49/1/7 e 60/2/8):
+
+```
+[Shard stats] f=9000 team=0 ally=0 ai=STAI metal=+2393/-3309 energy=+29505/-25937 dmg=3853/1044 units=37/4/4
+[Shard stats] f=9000 team=1 ally=1 ai=SimpleAI metal=+2466/-3526 energy=+32545/-22170 dmg=157/249 units=28/1/2
+[Shard stats] f=9000 team=2 ally=0 ai=STAI metal=+2525/-3454 energy=+31300/-27388 dmg=1983/1535 units=39/7/1
+[Shard stats] f=9000 team=3 ally=1 ai=SimpleAI metal=+2705/-4401 energy=+33510/-42564 dmg=2882/6103 units=33/7/8
+[Shard stats] f=18000 team=0 ally=0 ai=STAI metal=+9689/-10682 energy=+124007/-122729 dmg=21034/17352 units=110/42/27
+[Shard stats] f=18000 team=1 ally=1 ai=SimpleAI metal=+5247/-8288 energy=+110597/-72278 dmg=15139/13939 units=67/21/28
+[Shard stats] f=18000 team=2 ally=0 ai=STAI metal=+9006/-9823 energy=+123111/-105432 dmg=11450/10735 units=103/22/13
+[Shard stats] f=18000 team=3 ally=1 ai=SimpleAI metal=+7525/-8990 energy=+116175/-98478 dmg=12976/19306 units=62/25/26
+[Shard stats] f=27000 team=0 ally=0 ai=STAI metal=+19089/-20541 energy=+334261/-317570 dmg=46593/53819 units=205/109/55
+[Shard stats] f=27000 team=1 ally=1 ai=SimpleAI metal=+9113/-14565 energy=+231011/-145287 dmg=41701/39845 units=109/60/67
+[Shard stats] f=27000 team=2 ally=0 ai=STAI metal=+25373/-23043 energy=+343008/-303070 dmg=38710/33851 units=186/60/44
+[Shard stats] f=27000 team=3 ally=1 ai=SimpleAI metal=+14764/-16270 energy=+242202/-218918 dmg=44021/45188 units=111/51/73
+[Shard stats] summary
+[Shard stats] f=27030 team=0 ally=0 ai=STAI metal=+19170/-20624 energy=+336039/-319238 dmg=46593/53819 units=205/109/55
+[Shard stats] f=27030 team=1 ally=1 ai=SimpleAI metal=+9154/-14607 energy=+232009/-145848 dmg=41701/39845 units=109/60/67
+[Shard stats] f=27030 team=2 ally=0 ai=STAI metal=+25484/-23114 energy=+344858/-304348 dmg=38710/33914 units=186/60/44
+[Shard stats] f=27030 team=3 ally=1 ai=SimpleAI metal=+14807/-16335 energy=+243148/-219844 dmg=44084/45188 units=111/51/73
+```
+
+**`unitsProduced` contro `[SHARD-GAME]`** (sonda temporanea nel gadget di controllo, synced, stesso frame): in ogni riga letta `unitsProduced − unitsDied = unità vive`; ricevute, inviate, catturate e perse per cattura sono 0. La differenza sono quindi le unità morte.
+
+| partita, team STAI | min 5: prodotte / vive (morte) | min 10 | min 15 |
+|---|---|---|---|
+| A, team 0 | 39 / 37 (2) | 104 / 55 (49) | 197 / 116 (81) |
+| B, team 0 | 37 / 33 (4) | 110 / 68 (42) | 205 / 96 (109) |
+| B, team 2 | 39 / 32 (7) | 103 / 81 (22) | 186 / 126 (60) |
+
+**Memoria e tempi** (nessuna differenza visibile)
+
+| | A acceso | B acceso | B spento |
+|---|---|---|---|
+| memoria per frame, media al minuto (KB) | 0,13–0,48 | 0,23–0,76 | 0,24–1,04 |
+| massimo (KB) | 22,2 | 63,8 | 75,6 |
+| picco heap (KB) | 15393 | 17370 | 17260 |
+| righe `[Shard timer]` | 1 | 5 | 2 |
+| `UnitHandler` somma / max (ms) | 1100 / 8,0 | 3130 / 13,3 | 3470 / 12,7 |
+| durata della partita headless (s) | 20 | 23 | 24 |
+
+Righe `[Shard timer]`: sempre `ArmyHST` `Init` (circa 20 ms); in B in più `UnitHandler`/`BuildersBST` `Update` (acceso: due coppie, 10,5–13,3 ms; spento: una riga `UnitHandler`, 12,7 ms). Nessuna riga `[AI Loader] error`. Rispetto a T18 (A: media 0,57, max 33,2, heap 15,3 MB, 1 riga) niente di nuovo.
+La misura di `memstats` si chiude **prima** di `ReportTeamStats` (chiamata «dopo il resto»), quindi non conta il report: misurato a parte con 4 team, **6,4 KB e circa 0,02 ms per report**, una volta al minuto.
+
+**Controlli**: StyLua 2.5.2 pulito sui quattro file Lua. EmmyLua 0.24.0: 19 errori, nessuno nuovo; `teamstats.lua` senza diagnostiche, in `spring_lua/game.lua` restano l'errore e il warning di prima. `run_engine_tests.sh`: `RESULT: ok`. Nessuna spec nuova. `lx test`: 2838 successi, 0 falliti, 1 pending **con `admission.lua` committato**; con la modifica locale non committata (`MAX_INSTANCES_PER_AI_TYPE = 4`, lasciata com'è) falliscono 6 test del loader. Utile per il `maxInstances` forzabile in prova (coordinatore §5). `.emmyrc.json` ripristinato.
+
+**Da sapere**
+- `memstats.lua` è committato con `SHARD_MEM_STATS = true` (da T17), `teamstats.lua` è spento come chiede il compito.
+- BAR ha già un gadget `luarules/gadgets/api_teamstats.lua` («Team stats», unsynced, storico per team verso la UI): non l'ho usato né toccato; può interessare per il banco di prova.
+- Non provato in una partita vera con giocatori o BARb: i rami `human` e AI nativa di `ai=` non sono stati esercitati.
+
 ### T19 (agente locale, 26 novembre 2026) — chiuso a metà dall'utente, tenuto nel codice; **fermato** (richiesta dell'utente) sulla misura: dieci partite A dicono «forse meno unità», da decidere
 
 **Commit**: `60856bd1f2` (punto 1), `1256d0682f` (punto 2), `1581d462aa` (punto 3), `ff3869d33f` (punto 4). Spec in ogni commit; `codice-tolto.md` aggiornato in questo commit.
