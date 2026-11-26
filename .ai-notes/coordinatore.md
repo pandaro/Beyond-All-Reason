@@ -1,29 +1,31 @@
 # Passaggio di chat del coordinatore
 
-**Dal 25 novembre 2026 si lavora su un solo branch: `shardST1`** (unione di `shard/fase1` e `stai/porting`). Dove queste note dicono `shard/fase1` o `stai/porting`, leggi `shardST1`. I vecchi branch restano com'erano, non si aggiornano più. Push: `git -c push.negotiate=true push origin shardST1`.
+**Dal 26 novembre 2026: un solo coordinatore, un solo branch, `shardST1`** (unione di `shard/fase1` e `stai/porting`, che restano come archivio e non si aggiornano più). Dove le note vecchie dicono `shard/fase1` o `stai/porting`, leggi `shardST1`. Push: `git -c push.negotiate=true push origin shardST1`.
 
-Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Stato al 24 novembre 2026 (dopo la verifica di T16: il framework è fermo; il porting di STAI va avanti sul branch `stai/porting`, con `.ai-notes/stai/`).
+Questo file serve a riprendere il lavoro in una chat nuova di claude.ai senza perdere niente. Va letto per intero prima di fare qualunque cosa. Le note di `.ai-notes/stai/` sono archivio del porting: si leggono solo se serve un dettaglio di un compito passato (S1–S27), salvo lo stile di STAI e `codice-tolto.md`, che valgono ancora (§3).
 
 Messaggio d'avvio per la chat nuova:
 
-> Sei il coordinatore del progetto Shard per BAR. Leggi `.ai-notes/coordinatore.md` nel branch `shard/fase1` di `pandaro/Beyond-All-Reason` e riprendi da lì.
+> Sei il coordinatore unico del progetto Shard/STAI per BAR. Leggi `.ai-notes/coordinatore.md` nel branch `shardST1` di `pandaro/Beyond-All-Reason` e riprendi da lì (§1 metodo, §2 regole, §6 cose imparate, «In sospeso o rinviato», «Da fare»).
 
 ## 1. Chi siamo e come lavoriamo
 
 - **Utente**: pandaro (bio), autore di STAI, usa Shard da più di dieci anni. Scrive in italiano; si risponde in italiano.
-- **Coordinatore** (tu, chat su claude.ai): legge, verifica, riassume, scrive i compiti, tiene aggiornati il documento di progetto e la guida. Non scrive codice del gioco.
+- **Coordinatore** (tu, chat su claude.ai, Opus 5.5): **uno solo** per framework e STAI (dal 26 novembre 2026 non c'è più la chat separata del porting). Legge, verifica, riassume, scrive i compiti, tiene aggiornati il documento di progetto e la guida. Non scrive codice del gioco; committa solo le note.
 - **Esecutore** (Claude Code nell'editor VSCodium sulla macchina Linux dell'utente, Ubuntu 24.04): esegue i compiti, i test e le partite headless.
-- **Canale**: git. Il compito sta in `.ai-notes/handoff.md` (sezione «Compito attuale»); l'esecutore scrive lì i risultati (sezione «Risultati», intestazione `### T<n> (agente locale, <data>)`).
+- **Canale**: git, branch `shardST1`. Il compito sta in `.ai-notes/handoff.md` (sezione «Compito attuale»); l'esecutore scrive lì i risultati (sezione «Risultati», intestazione `### T<n> (agente locale, <data>)`).
+- **Numerazione unica**: i compiti proseguono da T20 (framework e STAI insieme). S1–S27 sono del porting, in archivio.
 
 **Ciclo di ogni compito**
 
-1. Il coordinatore propone il compito in chat, in breve, con l'**impegno** (basso, medio, alto, extra) e il motivo.
-2. L'utente approva o corregge. **Niente compito scritto, commit, push o cambio di decisioni senza il suo ok.** Il coordinatore può leggere, verificare, riassumere e registrare risultati misurati senza chiedere.
-3. Il coordinatore scrive il compito in `handoff.md` (sostituendo il precedente in «Compito attuale»), committa e fa push.
-4. L'utente scrive `/clear` all'esecutore, imposta l'impegno, e gli dice solo «esegui»: l'esecutore sa cosa leggere.
-5. L'utente dice «fatto»; il coordinatore fa `git pull`, legge i risultati, controlla a campione i diff, e segna l'intestazione come `— verificato dal coordinatore` (commit e push), poi riassume all'utente e propone il passo dopo.
+1. Il coordinatore propone il compito in chat, in breve, con il motivo, l'**impegno** (low, medium, high, extra, max) e il **modello** dell'esecutore (Haiku 5.5, Sonnet 5.5, Opus 5.5).
+2. L'utente approva o corregge. **Niente compito scritto, commit, push o cambio di decisioni senza il suo ok.** Framework e STAI si toccano solo con il suo ok. Il coordinatore può leggere, verificare, riassumere e registrare risultati misurati senza chiedere.
+3. Il coordinatore scrive il compito in `handoff.md` (sostituendo il precedente in «Compito attuale»; impegno e modello nella prima riga), committa e fa push, poi dice con queste parole: **«T<n> pronto, assegna impegno <x>»**.
+4. L'utente scrive `/clear` all'esecutore, imposta modello e impegno, e gli dice solo **«esegui»**: l'esecutore sa cosa leggere.
+5. L'utente dice «fatto»; il coordinatore fa `git pull`, legge i risultati, controlla a campione i diff, segna l'intestazione come `— verificato dal coordinatore` (commit e push), riassume all'utente e dice **«concluso»**.
+6. Con **«go next»** si passa al compito successivo.
 
-**Push**: il token di `gh` sta nel portachiavi di sistema; dentro VSCodium l'esecutore a volte non lo legge e compare una richiesta di password. In quel caso l'utente chiude la finestra e fa push dal terminale (`git push origin shard/fase1`), oppure apre VSCodium dal terminale (`codium .`). Non salvare il token in chiaro.
+**Push**: il token di `gh` sta nel portachiavi di sistema; dentro VSCodium l'esecutore a volte non lo legge e compare una richiesta di password. In quel caso l'utente chiude la finestra e fa push dal terminale (`git push origin shardST1`), oppure apre VSCodium dal terminale (`codium .`). Non salvare il token in chiaro.
 
 ## 2. Regole dell'utente (da rispettare sempre)
 
@@ -46,7 +48,10 @@ Le decisioni tecniche numerate (ambiti, host, relay, ordini, consegna, scheduler
 
 | Cosa | Dove |
 | --- | --- |
-| Repository | fork `pandaro/Beyond-All-Reason`, branch `shard/fase1`. Mai push su master, niente PR, niente force push. |
+| Repository | fork `pandaro/Beyond-All-Reason`, branch di lavoro **`shardST1`**. Mai push su master, niente PR, niente force push. `shard/fase1` e `stai/porting`: archivio. Il branch pulito per BAR si prepara a parte (vedi «Da fare»). |
+| Stile di STAI (vale ancora) | `.ai-notes/stai/nuovo-stai.md` §7: da leggere prima di ogni compito che tocca STAI |
+| Codice tolto da STAI (vale ancora) | `.ai-notes/stai/codice-tolto.md`: ogni compito su STAI che toglie codice lo scrive lì |
+| Archivio del porting | `.ai-notes/stai/coordinatore.md`, `.ai-notes/stai/handoff.md` (S1–S27), il resto di `nuovo-stai.md` |
 | Documento di progetto (proposta) | Claude Docs, progetto `5f85f536-af2f-4d89-8d7a-749ef0ff1806`, scheda `44b061b0-261b`, nodo `49784d75-2d21` (link: https://claude.ai/artifact/Co9UCbusct3QXgD2HdpyZF). Copia esportata in `.ai-notes/proposta-architettura.md` (da riesportare quando cambia). |
 | Compiti e risultati | `.ai-notes/handoff.md` |
 | Guida in inglese (bozza) | `.ai-notes/drafts/README.md`, aggiornata dal coordinatore a ogni compito; alla fine va in `luarules/gadgets/ai/README.md` |
@@ -64,7 +69,7 @@ Co-Authored-By: <modello in uso> <noreply@anthropic.com>
 Claude-Session: <link della sessione>
 ```
 
-(usa le righe di attribuzione che il sistema ti indica nella chat nuova). Push con `git -c push.negotiate=true push origin shard/fase1`.
+(usa le righe di attribuzione che il sistema ti indica nella chat nuova). Push con `git -c push.negotiate=true push origin shardST1`.
 
 ## 4. Il framework oggi
 
@@ -87,7 +92,7 @@ Claude-Session: <link della sessione>
 - Eventi solo ai moduli che li ridefiniscono, ordine global → ally → team.
 - Scheduler di base: con `MScheduler` nella classe, i moduli elencati a turni (un turno per frame); gli altri a ogni frame; senza liste, tutti a ogni frame. STAI tiene il suo `SchedulerHST`.
 - Errori: elenco per messaggio, riepilogo a fine partita. Unità morte tenute 900 frame; ID riciclati e ID mai esistiti gestiti.
-- Misura della memoria per frame: `/set ShardMemStats 1` (in headless `SHARD_MEM_STATS=1`).
+- Misura della memoria per frame: interruttore nel codice (`loader/memstats.lua`); niente più `/set ShardMemStats` né springsettings. Timer `[Shard timer]`: interruttore in `loader/timers.lua`.
 
 **Numeri di riferimento** (STAI contro SimpleAI, 15 minuti, Comet Catcher Remake 1.8): circa 180–200 unità STAI, 30–38 mex, circa 4.000 messaggi e 12.000–17.000 ordini, una decina rifiutati (unità morte nel frattempo); memoria 0,2–0,8 KB per frame in media, heap 13–15 MB.
 
@@ -113,7 +118,7 @@ Claude-Session: <link della sessione>
 
 **Stato (25 novembre 2026)**: porting di STAI chiuso (S1–S26 verificati, branch `stai/porting`). Commit «Shard …» solo su `stai/porting`: `5d8d4a9b6e` collect alla fine di `StartAIs` (S7, chiude la nota del 25 novembre), `c7debb58fb` commento di `outbox.lua` (S6), `71fb3121b2` disegni di `map.lua` sotto la prima AI in ambito ally/global (S15), `fa4789d5` + `dec92f8f` ordercodec v2 con gruppi (S24a). Aperti per l'utente: tetto di unità per messaggio, marcatore 65535 o byte di tipo, `UnitHandler` sul modello di `UnitHST`, `ShardMemStats` solo da codice, come portare i commit su `shard/fase1`. La PR di STAI (S20) non parte prima del 2 dicembre e aspetta i primi due punti.
 
-Prima: il framework era fermo dopo T16. Il porting di STAI va avanti in un'altra chat, sul branch `stai/porting` (`.ai-notes/stai/`, compiti S1, S2, …). Questa chat riprende solo se serve toccare il framework: un cambio chiesto dal porting si fa su `shard/fase1` e poi si porta su `stai/porting`.
+**Stato (26 novembre 2026)**: tutto su `shardST1` (i commit di `stai/porting` compresi). Framework T1–T18 verificati: T17 timer `[Shard timer]` (soglia 10 ms, interruttore nel codice), T18 campo `kb=` nella riga; `ShardMemStats` acceso solo da codice. T19 chiuso a metà e **tenuto nel codice, anche nel branch per BAR** (decisione dell'utente, 26 novembre 2026: STAI cambierà comunque prima della PR). Prossimo compito: T20.
 
 **Prossimi passi del framework** (nessuno urgente)
 
@@ -131,18 +136,26 @@ Prima: il framework era fermo dopo T16. Il porting di STAI va avanti in un'altra
 - Pool di tabelle: nel framework (`tablepool.lua`), facoltativo.
 - Percezione: il framework non filtra; `PerceptionHandler` facoltativo; un'AI che bara è ammessa.
 
+**Da fare (ordine deciso dall'utente, 26 novembre 2026)**
+
+1. ~~Note per il metodo nuovo~~ (fatto il 26 novembre).
+2. **Branch per BAR**: senza `.ai-notes/`, commit riordinati; da decidere una PR (framework + STAI) o due (framework poi STAI). T19 dentro. `shardST1` resta il branch di lavoro. La PR di STAI (S20) non parte prima del 2 dicembre 2026.
+3. **Debug dell'esecutore in diretta**: output nel terminale durante la partita, righe `[Shard timer]` e `[AI Loader]` evidenziate, riepilogo a fine partita; con `run_engine_game.sh` e `.ai-notes/tools/` (oggi lo script filtra solo a partita finita e delle righe `[Shard timer]` stampa solo il numero).
+4. **Raddrizzare STAI un modulo alla volta**, ogni modulo con il suo behaviour. Primo: `BuildingsHST` + `BuildersBST` da zero; l'utente lo studia dalla settimana del 30 novembre; **non iniziare senza il suo ok esplicito**. Idea da valutare: modulo dei posti per alleanza (mappa delle celle libere) a cui i costruttori chiedono «costruisci questo lì».
+5. **Aperti dal porting, da decidere con l'utente**: tetto di unità per messaggio e marcatore 65535 o byte di tipo in `ordercodec.lua` (bloccano S20); `UnitHandler` sul modello di `UnitHST`; latenza in multiplayer (rinviata finché non c'è SkyLobby).
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
 - Richieste di percorso (`Spring.RequestPath`).
 - «Un solo cervello per alleanza».
 - Banco di prova intensivo ed estensivo.
-- **Metodo di lavoro semplificato (decisione dell'utente, 26 novembre 2026)**: si lavora con **un solo agente di coordinamento + l'esecutore**, su **un solo branch (`shardST1`)**. Finisce la divisione «coordinatore del framework» / «coordinatore del porting di STAI»: da domani il coordinatore è uno e legge `.ai-notes/coordinatore.md`; le note di `.ai-notes/stai/` restano come archivio. Poi si raddrizza STAI **un modulo alla volta, ogni modulo insieme al suo behaviour** (si parte da `BuildingsHST` + `BuildersBST`, da rifare da zero; progetto studiato dalla settimana del 30 novembre). Da fare domani: aggiornare §1 (metodo) e §3 (dove sta ogni cosa) di questo file e il protocollo di `handoff.md`, che oggi parla di due branch e due chat.
+- **Metodo di lavoro semplificato (decisione dell'utente, 26 novembre 2026)**: un solo coordinatore + l'esecutore, un solo branch (`shardST1`). Fatto: §1, §3 e protocollo di `handoff.md` aggiornati il 26 novembre. Poi si raddrizza STAI **un modulo alla volta, ogni modulo insieme al suo behaviour**.
 - **PR verso BAR (da preparare, nessun conflitto con il branch unico)**: `shardST1` resta il branch di lavoro con `.ai-notes/`; il branch per BAR si prepara a parte, senza `.ai-notes/`, con i commit riordinati (o copiati da `shardST1`), e la PR di STAI (S20, non prima del 2 dicembre) non dipende più da un branch separato. Da decidere: una PR sola (framework + STAI) o due, nell'ordine framework poi STAI. L'utente vuole cominciare a prepararlo.
 - **Debug dell'esecutore da strutturare (richiesta dell'utente, 26 novembre 2026)**: l'utente guarda spesso le partite e vuole **vedere sempre in diretta l'output nel terminale**, senza aprire e ricaricare l'infolog (oppure con l'infolog che si ricarica da solo). Da progettare insieme a `run_engine_game.sh` e agli strumenti in `.ai-notes/tools/`: uscita in diretta, righe `[Shard timer]` e `[AI Loader]` evidenziate, riepilogo a fine partita. Impegno da valutare.
-- **T19 chiuso a metà (decisione dell'utente, 26 novembre 2026)**: i 4 punti sono su `shardST1` (`60856bd1`, `1256d068`, `1581d462`, `ff3869d3`; risultati in `handoff.md`). I tempi sono risolti (picco di `BuildersBST` da 4870 a 208 ms in 60 minuti), ma su A il team 0 finisce con meno unità (media 153 contro 189). Si sa dove è il problema (il punto 2, più punti per anello = base più fitta, e il ciclo sui `dontBuildRects` per ogni punto) e **non lo si cura**: restano da fare mutazioni, EmmyLua, `run_engine_tests.sh` e le domande aperte dell'agente. L'utente rifarà `BuildingsHST` e `BuildersBST` da zero con un progetto studiato dalla settimana del 30 novembre 2026 (modulo dei posti, passo B); fino ad allora non si investe altro tempo qui.
+- **T19 chiuso a metà (decisione dell'utente, 26 novembre 2026)**: i 4 punti sono su `shardST1` (`60856bd1`, `1256d068`, `1581d462`, `ff3869d3`; risultati in `handoff.md`). I tempi sono risolti (picco di `BuildersBST` da 4870 a 208 ms in 60 minuti), ma su A il team 0 finisce con meno unità (media 153 contro 189). **T19 resta nel codice, anche nel branch per BAR** (ok dell'utente, 26 novembre 2026). Si sa dove è il problema (il punto 2, più punti per anello = base più fitta, e il ciclo sui `dontBuildRects` per ogni punto) e **non lo si cura**: restano da fare mutazioni, EmmyLua, `run_engine_tests.sh` e le domande aperte dell'agente. L'utente rifarà `BuildingsHST` e `BuildersBST` da zero con un progetto studiato dalla settimana del 30 novembre 2026 (modulo dei posti, passo B); fino ad allora non si investe altro tempo qui.
 - **Ricerca del posto di `BuildingsHST:FindClosestBuildSite` (STAI, da rifare; appunto dell'utente, 25 novembre 2026)**: dal log di una partita lunga, al frame 49642 la funzione è partita 51 volte nello stesso frame (una per costruttore), quasi tutte senza successo: circa 1388 tentativi, `BuildersBST` 422 ms. Piano proposto, non ancora scritto come compito: (1) budget di ricerche per frame; (2) memoria dei posti bloccati per un tempo (per esempio 600 frame); (3) celle della griglia di `GridHST` invece dei raggi campionati a caso. Il risultato resta il posto libero più vicino. Da chiedere all'utente: piano intero o solo il budget. Il compito va nel `handoff.md` della chat del porting.
-- **`collect` dopo gli `Init` (nota dell'utente, 25 novembre 2026, da valutare)**: oggi la `collect` d'avvio sta in `Lifecycle.CatchUpAfterReload` (`lifecycle.lua`), chiamata dall'`Initialize` del gadget: in una partita normale gira **prima** che le AI partano (`StartAIsOnce` al primo frame), quindi nessuna `collect` ripulisce ciò che lasciano gli `Init` dei moduli; resta solo la rete di sicurezza ogni 121 frame. Valutare una `collectgarbage("collect")` alla fine di `StartAIs`, dopo tutti gli `Init`.
+- **`collect` dopo gli `Init`**: fatto in S7 (`5d8d4a9b6e`, `collectgarbage("collect")` alla fine di `StartAIs`, in `lifecycle.lua`).
 - **`maxInstances` forzabile in prova (richiesta dell'utente, 25 novembre 2026)**: quando il gioco gira da `.sdd` (versione `$VERSION`, prove locali) deve essere possibile alzare `MAX_INSTANCES_PER_AI_TYPE` (`loader/admission.lua`) per gli stress test con tante AI. Nella release resta il limite fisso.
 
 ## 6. Cose imparate (non ripetere gli errori)

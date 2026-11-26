@@ -2,56 +2,30 @@
 
 ## Protocollo
 
-- Branch condiviso: `shard/fase1` su `pandaro/Beyond-All-Reason`. Il coordinatore scrive qui il compito; l'agente locale lo esegue e scrive qui i risultati.
-- Quando l'utente scrive «vai»:
-  1. `git pull` su `shard/fase1`;
+- Un solo coordinatore (claude.ai) e un solo branch: **`shardST1`** su `pandaro/Beyond-All-Reason` (framework e STAI insieme; `shard/fase1` e `stai/porting` sono archivio). Il coordinatore scrive qui il compito; l'agente locale lo esegue e scrive qui i risultati.
+- Quando l'utente scrive «esegui»:
+  1. `git pull` su `shardST1`;
   2. leggi «Compito attuale» ed eseguilo, rispettando `CLAUDE.local.md` e `.github/agents.md`;
-  3. scrivi i risultati sotto «Risultati» (cosa hai fatto, file toccati, numeri, problemi, domande);
-  4. commit e push su `shard/fase1`, poi fermati e di' all'utente «fatto».
-- «vai» autorizza i commit e il push su `shard/fase1` previsti dal compito. Mai push su `master`, mai PR, mai force push.
+  3. scrivi i risultati sotto «Risultati», in cima, con intestazione `### T<n> (agente locale, <data>)` (cosa hai fatto, file toccati, numeri, problemi, domande);
+  4. commit e push (`git -c push.negotiate=true push origin shardST1`), poi fermati e di' all'utente «fatto».
+- «esegui» autorizza i commit e il push su `shardST1` previsti dal compito. Mai push su `master`, mai PR, mai force push.
+- Il compito indica nella prima riga impegno e modello. Fermati e scrivi se il compito chiede di toccare cose che non nomina.
 - `.ai-notes/` è escluso da git sulla macchina locale: per questi file usa `git add -f` (`.ai-notes/handoff.md`, e altri file di `.ai-notes/` solo se il compito lo dice). Prima di `git add -A` o `git commit -a` segui la skill `submodule-pointer`.
-- `.ai-notes/proposta-architettura.md` è l'export aggiornato della proposta: la aggiorna il coordinatore, non modificarla.
-- Prima di una PR verso BAR, `.ai-notes/` va tolta dal branch.
+- `.ai-notes/proposta-architettura.md`, `.ai-notes/coordinatore.md` e `.ai-notes/stai/nuovo-stai.md` li aggiorna il coordinatore: non modificarli. `.ai-notes/stai/` è archivio del porting, salvo i due punti sotto.
+- **Codice di STAI**: il codice nuovo o spostato segue lo **stile di STAI** (`.ai-notes/stai/nuovo-stai.md` §7), da leggere prima di ogni compito che tocca STAI; il codice tolto si scrive in `.ai-notes/stai/codice-tolto.md`. Commit che iniziano con «STAI <modulo>: …».
+- **Framework** (`shard_runtime/`, `ShardAILoader.lua`, `Shard/`): solo se il compito lo chiede, in commit a parte che iniziano con «Shard …».
+- Prima di una PR verso BAR, `.ai-notes/` va tolta dal branch (lo prepara il coordinatore con l'utente, non l'agente).
 - Tutto ciò che va nel repository è in inglese: messaggi di commit (anche «Handoff: …»), commenti, nomi, messaggi di log, test. Solo `.ai-notes/` resta in italiano.
-- Test con l'engine vero: `.ai-notes/tools/run_engine_tests.sh`; il `PASS` del test runner di BAR non conta.
-- Strumenti fissati: StyLua 2.5.2 ed EmmyLua 0.24.0 (`emmylua_check`) in `~/.local/bin` (release ufficiali su GitHub); `~/.local/bin` può non essere nel `PATH` della shell dell'agente: chiamali con il percorso intero. `lx` è in `/usr/local/bin`.
+- Test con l'engine vero: `.ai-notes/tools/run_engine_tests.sh`; il `PASS` del test runner di BAR non conta. Partite: `.ai-notes/tools/run_engine_game.sh`.
+- Strumenti fissati: StyLua 2.5.2 ed EmmyLua 0.24.0 (`emmylua_check`) in `~/.local/bin`, da chiamare con il percorso intero; `lx` è in `/usr/local/bin`. `lx test` riscrive `.emmyrc.json`: ripristinalo, non committarlo.
 
 ## Compito attuale
 
-### T19: `BuildingsHST`, ricerca del posto senza sprechi (STAI)
-
-**Impegno: alto. Modello: Opus.** Branch: **`shardST1`** (push `git -c push.negotiate=true push origin shardST1`). È codice di **STAI**: valgono anche le regole di `.ai-notes/stai/handoff.md` («Protocollo») e lo stile di STAI (`.ai-notes/stai/nuovo-stai.md` §7, da leggere prima). Il framework non si tocca.
-
-**Perché.** In una partita lunga un solo costruttore (`armbeaver` 31572, team 2, frame 49642) ha tenuto `BuildersBST:Update` per **422 ms**: cercava il posto per un `armplat` (edificio d'acqua) intorno a edifici a terra; 51 chiamate a `FindClosestBuildSite`, 169 unità d'appoggio guardate, 908 `TestBuildOrder` tutti falliti; poi ha costruito un `armwin`. Il log è dell'utente (non nel repository).
-
-**Lavoro** (in `luarules/gadgets/ai/STAI/buildingshst.lua`; le firme pubbliche non cambiano, `BuildersBST` e `LabsHST` restano come sono, salvo il punto 1 se serve lì)
-
-1. **Acqua/terra subito.** Un edificio che ha bisogno d'acqua (`unitTable[...].needsWater`) non si prova su terra, e uno di terra non si prova in acqua: il controllo con l'altezza del terreno va **prima** di ogni altro controllo del punto. Se il costruttore chiede un edificio d'acqua e intorno alle unità d'appoggio non c'è acqua, la ricerca deve finire presto (scrivi dove e come lo decidi).
-2. **Angoli per anello.** In `FindClosestBuildSite` oggi `angleInc = radius * twicePi * (twicePi / minDist)` vale decine di radianti: **un solo angolo a caso per anello**. Correggilo in modo che i punti su un anello siano distanziati più o meno della misura dell'edificio (o di un passo fisso in elmi, scrivi quale). Tieni un tetto ai punti provati per chiamata, in una costante in cima al file.
-3. **`searchPosNearCategories`.**
-   - `table.insert(Units, dist, uID)` usa la distanza come indice (due unità alla stessa distanza si sovrascrivono): lista di coppie distanza/unità, ordinata una volta;
-   - `Units` non si svuota fra un nome e l'altro e si riordina a ogni nome: ogni unità d'appoggio si prova **una volta sola** per chiamata;
-   - `table.remove` dentro `pairs` sulla stessa tabella: via.
-   Guarda anche `searchPosInList` per lo stesso tipo di difetti.
-4. **`CheckBuildPos` in ordine di costo**: prima i controlli che non chiamano il motore (dentro la mappa, `dontBuildRects`, piani, acqua/terra), poi `getUnitsInCylinder`, per ultimi `UnitCanGoHere` e `TestBuildOrder`. Nessuna tabella nuova per ogni punto (`rect` riusato). Il risultato di un punto non cambia.
-5. **Stesso gioco.** Il posto scelto può cambiare (più angoli = posti più vicini), ma le regole no: niente edifici su mex/geo, sulle corsie delle fabbriche, sopra i piani, dove il costruttore non arriva.
-6. Codice tolto: in `.ai-notes/stai/codice-tolto.md`, come da regola del porting.
-
-**Misura** (prima e dopo, con il codice di oggi come base): con `[Shard timer]` acceso.
-- Partita A (15 minuti) e una partita **lunga** (almeno 45 minuti, la più lunga che lo strumento permette; scegli tu mappa e avversari, ma uguali prima e dopo; se possibile una mappa con acqua, dove i costruttori anfibi chiedono edifici d'acqua). Riporta: righe `[Shard timer]` sopra soglia (quante, le 10 più alte), dal riepilogo le somme e i massimi di `BuildersBST`, `UnitHandler`, `BuildingsHST` se compare; unità, fabbriche, mex.
-- Se puoi, conta con uno strumento temporaneo (non committato) le chiamate a `FindClosestBuildSite`, i punti provati e i `TestBuildOrder` per partita, prima e dopo.
-
-**Test busted** (spec di `BuildingsHST`, nuovo se manca): edificio d'acqua su terra scartato senza `TestBuildOrder`; più di un angolo per anello; un'unità d'appoggio provata una volta; due unità alla stessa distanza tutte e due provate; ordine dei controlli (un punto bloccato da un `dontBuildRect` non chiama `getUnitsInCylinder`). Mutazioni.
-
-**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `lx --lua-version 5.1 test`, `run_engine_tests.sh`.
-
-**Commit**, in inglese, che iniziano con «STAI BuildingsHST: …»: uno per punto (1–4), più quello dei risultati.
-
-**Fermati e scrivi** se uno dei punti cambia il gioco più del previsto (meno unità o mex in modo netto) o se serve toccare `BuildersBST`/`LabsHST` più di poco.
+Nessuno. T19 chiuso a metà il 26 novembre 2026 (testo del compito: `git show b09646f3c1:.ai-notes/handoff.md`; risultati sotto). Il prossimo è T20.
 
 ## Risultati
 
-### T19 (agente locale, 26 novembre 2026) — **fermato** (richiesta dell'utente) sulla misura: dieci partite A dicono «forse meno unità», da decidere
+### T19 (agente locale, 26 novembre 2026) — chiuso a metà dall'utente, tenuto nel codice; **fermato** (richiesta dell'utente) sulla misura: dieci partite A dicono «forse meno unità», da decidere
 
 **Commit**: `60856bd1f2` (punto 1), `1256d0682f` (punto 2), `1581d462aa` (punto 3), `ff3869d33f` (punto 4). Spec in ogni commit; `codice-tolto.md` aggiornato in questo commit.
 
