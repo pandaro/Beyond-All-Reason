@@ -21,7 +21,35 @@
 
 ## Compito attuale
 
-Nessuno. T19 chiuso a metà il 26 novembre 2026 (testo del compito: `git show b09646f3c1:.ai-notes/handoff.md`; risultati sotto). Il prossimo è T20.
+### T20: statistiche di tutti i team, una riga al minuto (framework)
+
+**Impegno: medium. Modello: Sonnet 5.5.** Branch `shardST1`. Tocca solo il framework (`shard_runtime/`, `ShardAILoader.lua`); STAI e `Shard/` non si toccano. **Niente spec busted** (decisione dell'utente).
+
+**Perché.** Ci serve sapere se le AI tengono il passo, contro chiunque: giocatori, Barb, SimpleAI, STAI, Shard. È un output per noi, non per le AI (forse lo diventerà). La fonte è lo storico dell'engine: `Spring.GetTeamStatsHistory(teamID, start, end)` (la tabella con `time`, `frame`, `metalUsed`, `metalProduced`, `metalExcess`, `metalReceived`, `metalSent`, gli stessi per l'energia, `damageDealt`, `damageReceived`, `unitsProduced`, `unitsDied`, `unitsReceived`, `unitsSent`, `unitsCaptured`, `unitsOutCaptured`, `unitsKilled`). Senza argomenti dopo `teamID` restituisce il numero di campioni (vedi `luarules/gadgets/game_awards.lua`). Attenzione: **non** è `Spring.GetTeamUnitStats`, che dà solo 6 numeri. Si legge dall'unsynced anche per i team nemici (verificato dall'utente).
+
+**Lavoro**
+
+1. **Framework, sezione game.** In `shard_runtime/spring_lua/game.lua`, `game:GetTeamStats(teamID)`: restituisce l'ultimo campione dello storico di quel team (la tabella dell'engine), o `nil` se non ce n'è; `teamID` facoltativo, di default il team dell'AI. Stessa funzione in `shard_runtime/shard_null/game.lua` (restituisce `nil`, o un campione finto se lì serve a qualcosa: scrivi cosa scegli). Annotazioni EmmyLua.
+2. **Loader.** Nuovo file `shard_runtime/loader/teamstats.lua`, sul modello di `memstats.lua` e `timers.lua`: commento in testa che spiega cosa fa e come si accende; interruttore nel codice, `SHARD_TEAM_STATS`, **spento** di default (regola dell'utente: niente interruttori da fuori, niente springsettings). Una tabella restituita, nessun globale.
+   - Una volta al minuto di gioco (`REPORT_FRAMES = 1800`, costante in cima), **una riga per ogni team della partita** (tutti, tranne Gaia), con l'ultimo campione:
+     `[Shard stats] f=<frame> team=<id> ally=<allyId> ai=<tipo> metal=+<prodotto>/-<usato> energy=+<prodotto>/-<usato> dmg=<fatti>/<subiti> units=<prodotte>/<morte>/<uccise>`
+     Numeri interi (arrotondati). Valori **cumulativi** dall'inizio, come li dà l'engine.
+   - `ai=`: il nome dell'AI Lua (`Spring.GetTeamLuaAI`, per esempio `STAI`, `Shard`, `SimpleAI`), oppure lo short name dell'AI nativa (`Spring.GetAIInfo`, per esempio `BARb`), oppure `human`. Il tipo di ogni team si calcola **una volta** all'avvio, non a ogni riga.
+   - A fine partita (`GameOver`) e, se la partita non è finita, a `Shutdown` (una sola volta in tutto): la stessa riga per ogni team con l'ultimo campione, preceduta da `[Shard stats] summary`.
+   - Le righe le scrive solo il client che ospita le AI (come oggi `memstats.lua`), quindi una volta per partita sul client host.
+3. **Gadget.** In `ShardAILoader.lua` (parte unsynced): include di `teamstats.lua` accanto agli altri, chiamata nel `GameFrame` dopo il resto, nel `GameOver` e nello `Shutdown`. Spento, deve costare un controllo per frame.
+4. **Strumento.** In `.ai-notes/tools/run_engine_game.sh` aggiungi `\[Shard stats\]` al filtro finale, così le righe compaiono nell'output. Nient'altro nello script: il debug in diretta è un compito a parte.
+
+**Misura** (con `SHARD_TEAM_STATS` acceso solo nella copia di prova, poi rimesso spento nel commit; oppure acceso in un commit a parte e spento nel successivo: scrivi cosa fai)
+- Partita A (`a_stai_vs_simpleai.txt`, 15 minuti) e una con più team (`b_2stai_vs_2simpleai.txt`, 15 minuti). Riporta: le righe `[Shard stats]` del minuto 5, 10 e 15 e del riepilogo; il **periodo di campionamento dell'engine** (dalla differenza di `frame`/`time` fra due campioni consecutivi) e se cambia durante la partita; se il riepilogo esce una volta sola.
+- Confronta il conto di `unitsProduced` di STAI con le unità della riga `[SHARD-GAME]` dello stesso minuto: devono essere coerenti (scrivi la differenza e perché).
+- Memoria per frame e `[Shard timer]` come nelle partite precedenti: l'acceso non deve cambiarli in modo visibile.
+
+**Controlli**: StyLua 2.5.2, EmmyLua 0.24.0, `run_engine_tests.sh`.
+
+**Commit** in inglese: «Shard game: GetTeamStats …», «Shard loader: team stats line once a minute …», più quello dei risultati. Aggiorna anche `.ai-notes/drafts/README.md` (guida in inglese): `game:GetTeamStats` e l'interruttore `SHARD_TEAM_STATS`, due righe.
+
+**Fermati e scrivi** se lo storico dei team nemici non si legge dall'unsynced, o se servisse toccare STAI.
 
 ## Risultati
 
