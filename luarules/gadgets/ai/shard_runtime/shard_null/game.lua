@@ -99,6 +99,12 @@ function game:GetResourceByName(name) -- returns a Resource object, takes the na
 	})
 end
 
+---@param teamID integer?
+---@return TeamStats? stats always nil: there is no engine to keep a history
+function game:GetTeamStats(teamID)
+	return nil
+end
+
 function game:GetUnitByID(unit_id) -- returns a Shard unit when given an engine unit ID number
 	return
 end

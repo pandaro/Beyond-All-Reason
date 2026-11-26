@@ -191,6 +191,24 @@ function game:GetResourceByName(name) -- returns a Resource object, takes the na
 	})
 end
 
+--- The last sample of the engine's statistics history of a team, with its totals since the start of the game.
+--- A call allocates the engine's tables: not for every frame.
+---@param teamID integer? the team of this AI when omitted
+---@return TeamStats? stats nil when there is no sample, or for an object with no team and no teamID
+function game:GetTeamStats(teamID)
+	teamID = teamID or self.ai.id
+	if teamID == nil then
+		return nil
+	end
+	-- not Spring.GetTeamUnitStats, which gives only six unit counts
+	local count = Spring.GetTeamStatsHistory(teamID) --[[@as integer?]]
+	if count == nil or count < 1 then
+		return nil
+	end
+	local history = Spring.GetTeamStatsHistory(teamID, count)
+	return history and history[1]
+end
+
 function game:GetUnitByID(unit_id) -- returns a Shard unit when given an engine unit ID number
 	return Shard:shardify_unit(unit_id)
 end
