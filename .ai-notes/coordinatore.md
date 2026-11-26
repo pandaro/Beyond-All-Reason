@@ -175,6 +175,8 @@ Claude-Session: <link della sessione>
 - **Banco di prova headless**: lista delle mappe più usate su BAR, nelle modalità più usate (1v1, 2v2, 3v3, 4v4, FFA, 8v8 ecc.). Setup di 50–100 partite da far girare con un comando temporizzato e raccolta dati; dentro AI sparse, Barb e STAI, a volte alleate a volte avversarie. Si capiscono i problemi dagli snapshot della situazione.
 - Principi: precedenza alle prestazioni di calcolo; ottenere un'AI giocabile prima che una che vince; soluzioni smart (unità all terrain, stealth, invisibili) invece che numero e forza bruta, con moduli e behaviour dedicati a quelle unità; spam moderato di tick e unità leggere.
 
+*Scheduler (appunto dell'utente, 26 novembre 2026)*: nelle partite lo scheduler va a volte sopra i 10 ms, tanto per un distributore di turni. Da capire se il timer misura solo lo scheduler o anche i moduli che chiama.
+
 *Output di partita dall'engine (26 novembre 2026, idea dell'utente da integrare):* `Spring.GetTeamUnitStats(teamID, startIndex, endIndex)` (SyncedRead) dà per ogni minuto di gioco: tempo, frame, metallo e energia usati, prodotti, in eccesso, ricevuti e inviati, danni fatti e subiti, unità prodotte, morte, ricevute, inviate, catturate, perse per cattura e uccise. È un'ottima fonte per il riepilogo di partita del banco di prova, al posto di ricavare tutto dall'infolog. Da decidere: in quale gadget (il gadget di controllo `engine_game_gadget.lua` è il candidato, da verificare che sia synced) e se il riepilogo sostituisce o affianca le righe `[SHARD-GAME]`.
 
 **In sospeso o rinviato**
