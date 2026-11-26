@@ -195,6 +195,12 @@ Idea:
 4. Blobbing: una mappa di zone dove si può fare economia.
 5. Si costruisce in quella zona; quando è esaurita si toglie e si apre la successiva.
 
+*Come ci batte Barb (dell'utente, 26 novembre 2026; da vedere e valutare):*
+- Trova i varchi: prova, e se passa senza danni o con pochi torna da lì finché gli conviene.
+- Ritira le unità danneggiate sopra una certa soglia e le fa riparare.
+- Costruisce unità situazionali in risposta a quello che succede intorno.
+- Fa blob grandi: non sempre è un vantaggio.
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
