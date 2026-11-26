@@ -70,7 +70,7 @@ status=$?
 cleanup
 
 echo "engine exit status: $status after $(($(date +%s) - started)) s; infolog: $WRITE_DIR/infolog.txt"
-grep -E "\[SHARD-GAME\]|\[AI Loader\]|Shard relay|Shard AI (un)?sync gadget|Shard memory record|Shard timer summary|[Ee]rror" \
+grep -E "\[SHARD-GAME\]|\[AI Loader\]|Shard relay|Shard AI (un)?sync gadget|Shard memory record|Shard timer summary|\[Shard stats\]|[Ee]rror" \
 	"$WRITE_DIR/infolog.txt" \
 	| grep -v "setfenv: cannot change this environment" \
 	| sed -E 's/^\[t=[^]]*\]\[f=[^]]*\] //'

@@ -90,6 +90,8 @@ else
 
 	local MemStats = VFS.Include(LOADER_PATH .. "memstats.lua")
 	local Timers = VFS.Include(LOADER_PATH .. "timers.lua")
+	local TeamStats = VFS.Include(LOADER_PATH .. "teamstats.lua")
+	TeamStats.Setup(teamList)
 	-- read by shardai.lua and unit.lua around their calls into modules and behaviours
 	---@diagnostic disable-next-line: global-in-non-module
 	ShardTimers = Timers
@@ -138,6 +140,7 @@ else
 	local BeginMemoryFrame = MemStats.BeginFrame
 	local EndMemoryFrame = MemStats.EndFrame
 	local SafetyNet = MemStats.SafetyNet
+	local ReportTeamStats = TeamStats.GameFrame
 
 	function gadget:Initialize()
 		spEcho("Looking for AIs")
@@ -170,6 +173,7 @@ else
 		FlushOrders(n)
 		ExpireDeadUnits(n)
 		EndMemoryFrame(n)
+		ReportTeamStats(n)
 	end
 
 	function gadget:UnitCreated(unitId, unitDefId, teamId, builderId)
@@ -319,6 +323,7 @@ else
 		Delivery.EndGameAll()
 		Delivery.WriteErrorSummary()
 		Timers.WriteSummary()
+		TeamStats.WriteSummary()
 	end
 
 	function gadget:GameID(gameID)
@@ -330,6 +335,9 @@ else
 		MemStats.WritePeak()
 		Delivery.WriteErrorSummary()
 		Timers.WriteSummary()
+		if IsHosting() then
+			TeamStats.WriteSummary()
+		end
 		gadgetHandler:RemoveSyncAction("shard_host")
 		gadgetHandler:RemoveSyncAction("shard_relay_rejected")
 	end
