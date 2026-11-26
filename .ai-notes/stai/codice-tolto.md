@@ -182,3 +182,26 @@ Altro:
 | nome | file | cosa faceva |
 | --- | --- | --- |
 | blocco commentato in `DamageHST:Update` | `damagehst.lua` | leggeva `Spring.GetPathNodeCosts(game:GetTeamID())` e scriveva i costi positivi; commentato |
+
+## T19 — `1256d0682f` «STAI BuildingsHST: try points about the width of the building apart on every ring, at most 300 a call»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| righe commentate `--local ch = 2`, `--map:EraseAll(ch)`, `---map:DrawPoint(...)` (due) e `--self:EchoDebug('FindClosestBuildSite',…)` | `buildingshst.lua` | disegnavano l'origine e i punti provati da `FindClosestBuildSite`; commentate |
+| `attempt` e tre `self:EchoDebug` di ogni anello e di ogni punto (`"radius = minDist, maxDist, maxtest"`, `"intAAngle …"`, `"attempt"`) | `buildingshst.lua` | contavano e scrivevano i punti provati, col debug acceso |
+| `angleIncMult`, `realAngle` e i rami `if c > 0` / `if s > 0` | `buildingshst.lua` | il passo degli angoli (decine di radianti: un angolo per anello) e il calcolo di `dx`, `dz`, uguale a `radius * cos`, `radius * sin` |
+
+## T19 — `1581d462aa` «STAI BuildingsHST: try every support unit once, sorted once, and keep positions at the same distance»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| `Toolbox:tableSorting` | `toolbox.lua` | chiavi e valori di una tabella in due liste, ordinate per chiave; l'usava solo `searchPosNearCategories` |
+| `Toolbox:pairsByKeys` | `toolbox.lua` | iteratore per chiavi ordinate; l'usava solo `tableSorting` |
+| `self:EchoDebug("unit", …)`, `self:EchoDebug("dist = ", …)` | `buildingshst.lua` | scrivevano ogni unità d'appoggio e la sua distanza, col debug acceso |
+
+## T19 — `ff3869d33f` «STAI BuildingsHST: CheckBuildPos checks from the cheapest, tests the build order before the path, reuses its rectangle»
+
+| nome | file | cosa faceva |
+| --- | --- | --- |
+| parametro commentato `--[[, originalPosition]]` e il `--TODO clean this` di `CheckBuildPos` | `buildingshst.lua` | parametro mai usato |
+| i controlli `if pos ~= nil` e `pos = nil` dentro `CheckBuildPos` | `buildingshst.lua` | sempre veri dopo il primo `if not pos`; `pos = nil` precedeva un `return` |

@@ -51,6 +51,49 @@
 
 ## Risultati
 
+### T19 (agente locale, 26 novembre 2026) — **fermato** (richiesta dell'utente) sulla misura: dieci partite A dicono «forse meno unità», da decidere
+
+**Commit**: `60856bd1f2` (punto 1), `1256d0682f` (punto 2), `1581d462aa` (punto 3), `ff3869d33f` (punto 4). Spec in ogni commit; `codice-tolto.md` aggiornato in questo commit.
+
+**Cosa fa il codice**
+1. **Acqua/terra**: `CheckBuildPos` controlla per primo la profondità del punto con `minWaterDepth`/`maxWaterDepth` della definizione (le stesse soglie del motore; nuovi campi di `unitTable` in `ArmyHST`). Uscita presto: `MapHST` (globale, una volta) campiona ogni 32 elmi l'altezza minima e massima di ogni cella (`CELL.lowestHeight`, `highestHeight`, `MapHST:HeightsNear`); `FindClosestBuildSite`, `searchPosNearCategories` e `searchPosInList` saltano una ricerca se nel raggio (più mezza impronta) nessuna cella ha una profondità adatta. Tocca `MapHST` e `ArmyHST` di poco (non `BuildersBST`/`LabsHST`). `MapHST:Init` 8–19 ms (prima 12).
+2. **Angoli**: punti a `larghezza dell'impronta` (`max(xsize, zsize) * 8` elmi) sull'anello, partenza a caso; passo fra anelli invariato (10 elmi di solito); `MAX_SITE_POINTS = 300` in cima al file.
+3. **Unità d'appoggio**: `supportUnits` le dà una volta sola, ordinate una volta, anche a pari distanza. Stesso difetto in `Toolbox:sortByDistance` (distanza come chiave, usata da `searchPosInList` e `ClosestFreeMex`): corretto. `Toolbox:tableSorting` e `pairsByKeys` tolte (nessun uso).
+4. **Ordine**: profondità, mappa, `dontBuildRects`, piani, filtro terra/acqua, cilindro, `TestBuildOrder`, per ultimo `UnitCanGoHere` (chiede un percorso). Rettangolo riusato, outsets di `CalculateRect` tenuti per nome (prima una tabella nuova a ogni punto).
+
+**Test**: 11 nuovi (8 `BuildingsHST`, 1 `MapHST`, 1 `Toolbox`, più quello dell'ordine prima del percorso), tutti falliti su `476ff33cf9` e passati sui commit. Mutazioni **non fatte** (fermato prima). `lx test`: 2838 successi, 0 falliti. StyLua pulito sui file toccati. EmmyLua e `run_engine_tests.sh` **non eseguiti**.
+
+**Misura, 60 minuti su Red River Estuary v1.1** (2 STAI contro 2 SimpleAI, una partita per lato, `[Shard timer]` acceso):
+
+| | base | nuovo |
+|---|---|---|
+| righe `[Shard timer]` | 3348 | 1490 |
+| `BuildersBST` max / somma | 4870 ms / 223 763 ms | 208 ms / 2765 ms |
+| `UnitHandler` max / somma | 4872 ms / 286 274 ms | 208 ms / 33 036 ms |
+| riga più alta | 4872 ms `UnitHandler` → `BuildersBST` (frame 91516) | 208 ms stessa coppia (frame 27820); poi `AttackHST` 63 ms |
+| STAI team 0 a fine partita | 1137 unità, 5 fabbriche, 130 mex | 206, 5, 13 |
+| contatori team 0 (chiamate / punti / `TestBuildOrder` / percorsi) | 9113 / 323 779 / 45 569 / 90 810 | 1370 / 228 686 / 12 699 / 9807 |
+
+Le due partite non si confrontano sul gioco: nella nuova SimpleAI ha vinto gli scontri (team 3: 758 unità). Il team 2 di STAI muore in tutte e due (8 e 0 unità), come in quasi tutte le partite su questa mappa.
+
+**Dove vanno i punti** (contatore per motivo, 20 minuti, team 0): 8600 punti in 146 chiamate, 6369 scartati dai `dontBuildRects`, 2077 dal cilindro, 137 trovati, 2 chiamate al tetto, nessun percorso fallito. Il team 2 (base fra acqua e terra): 21 600 punti su 23 629 scartati dalla profondità, 72 chiamate su 99 al tetto.
+
+**Effetto sul gioco** (unità del team 0 a fine partita A, 15 minuti; codice base = `476ff33cf9`, nuovo = `ff3869d33f`):
+- base, 10 partite: 257 177 163 181 158 182 175 177 219 200 — media **189** (T18, stesso codice: 125 e 151);
+- nuovo, 11 partite: 169 135 144 149 153 176 141 167 176 172 101 — media **153**;
+- bisezione, 4 partite ognuna: p1 175 121 208 133; p2 94 161 140 130; p3 132 126 165 173.
+
+Red River, 20 minuti, unità/mex del team 0 al minuto 15: base 158/23 152/26 194/31 158/22 106/11 166/28 171/27 (media 158); nuovo 194/28 191/32 **1/0** 174/25 86/14 230/40 138/21 (media 145; senza il crollo 169). Nel crollo il team 0 parte lento (29 unità al minuto 10) e SimpleAI lo distrugge al 13; nessun errore Lua.
+
+**Lettura**: i tempi sono risolti (da secondi a centinaia di ms). Su A la media scende di circa il 20% con varianza larga (base 158–257, nuovo 101–176); su Red River nessuna differenza chiara. La bisezione non indica un punto solo. Il costo che resta: il punto 2 prova circa 5 volte più punti (A: 8666 contro 1702), quasi tutti scartati dal ciclo sui `dontBuildRects` (spot e corsie, un `RectsOverlap` per rettangolo); `BuildersBST` su A somma 143 ms contro 54.
+
+**Domande**
+1. Il calo su A è da prendere sul serio? Se sì, l'indiziato è il punto 2 (posti più vicini al centro = base più fitta); proposta: passo fra anelli pari a mezza impronta (circa 2,5 volte meno punti) e ripetere le 10 partite.
+2. Il ciclo sui `dontBuildRects` per ogni punto: va filtrato per distanza (o per cella)?
+3. Restano da fare: mutazioni, EmmyLua, `run_engine_tests.sh`.
+
+**Partite giocate**: 49 in tutto (A 15 min: 10 base, 11 nuovo, 12 bisezione; Red River: 2 da 60 min, 13 da 20 min). Gli strumenti temporanei (contatori `[T19COUNT]`, script di confronto) sono fuori dal repository.
+
 ### T18 (agente locale, 25 novembre 2026) — verificato dal coordinatore
 
 **Commit**: `1b3723e86a` (codice e spec, «Shard timers: …»), `25e2282983` (guida).
