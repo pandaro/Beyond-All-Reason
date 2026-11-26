@@ -187,6 +187,14 @@ Claude-Session: <link della sessione>
 - `AttackHST` `ScheduledUpdate`: picchi di circa 11 ms ogni 18 frame, poi circa 22 ms dopo che i BARb sono spariti. Candidato per l'appunto sullo scheduler sopra i 10 ms. Causa del raddoppio da capire nel codice.
 - Il ramo `ai=BARb` è confermato; `ai=human` ancora da provare.
 
+*Appunto su BuildingsHST (dell'utente, 26 novembre 2026; da vedere e valutare, non da implementare):* ST ha in generale un'economia migliore di Barb, almeno finché non trova dove mettere le cose. Le tecniche tipo «place near category» servono a tenere l'economia raccolta in aree: se cerca in giro per la mappa mette roba dappertutto, e la roba sparsa è lenta da costruire ed esposta.
+Idea:
+1. Un `BuildingsHST` (o quello di oggi integrato, o un altro nome).
+2. Un layer di griglia: a ogni cella assegna un posto costruibile vero o falso.
+3. Il calcolo si fa costruendoci sopra una o più unità che occupano davvero l'area (un lab T3, oppure quattro edifici).
+4. Blobbing: una mappa di zone dove si può fare economia.
+5. Si costruisce in quella zona; quando è esaurita si toglie e si apre la successiva.
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
