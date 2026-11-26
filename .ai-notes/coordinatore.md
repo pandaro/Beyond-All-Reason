@@ -163,6 +163,18 @@ Claude-Session: <link della sessione>
 
 *C. Rez, reclaim, repair.* La chiave è **ripara, rezza, reclama, in quest'ordine**. Un behaviour scritto bene per il rez è una marcia in più.
 
+*Osservazioni dal replay e idee da raccogliere (26 novembre 2026; da non implementare ora: l'utente guarda replay e raccoglie dati):*
+- Gli assistenti (`assisthandler`) non lavorano, almeno quelli dei veicoli.
+- Molti costruttori di tecnologia 2 fermi.
+- `commanderBST` da ristrutturare un po': nei primi minuti più aggressivo, poi l'aggressività scende via via; tornare indietro in base a se corre rischi.
+- Scouting aereo.
+- Produzione di unità mobili dal lab, basata su tabelle fisse e integrata con quello che succede fuori.
+- Long-range plasma cannon da costruire in posizioni strategiche.
+- Nuke: uno solo, poi gestire il targeting.
+- Confronto con Barb, non con SimpleAI.
+- **Banco di prova headless**: lista delle mappe più usate su BAR, nelle modalità più usate (1v1, 2v2, 3v3, 4v4, FFA, 8v8 ecc.). Setup di 50–100 partite da far girare con un comando temporizzato e raccolta dati; dentro AI sparse, Barb e STAI, a volte alleate a volte avversarie. Si capiscono i problemi dagli snapshot della situazione.
+- Principi: precedenza alle prestazioni di calcolo; ottenere un'AI giocabile prima che una che vince; soluzioni smart (unità all terrain, stealth, invisibili) invece che numero e forza bruta, con moduli e behaviour dedicati a quelle unità; spam moderato di tick e unità leggere.
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
