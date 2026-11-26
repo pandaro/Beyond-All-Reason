@@ -53,7 +53,7 @@
 
 ## Risultati
 
-### T20 (agente locale, 26 novembre 2026) — fatto
+### T20 (agente locale, 26 novembre 2026) — verificato dal coordinatore
 
 **Commit**: `bdb8e55ddc` (`game:GetTeamStats`), `5522e97658` (loader, gadget, `run_engine_game.sh`). Per misurare ho acceso `SHARD_TEAM_STATS` **solo nella copia di lavoro**, poi rimesso spento: nessun commit con l'interruttore acceso.
 

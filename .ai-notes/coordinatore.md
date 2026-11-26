@@ -115,10 +115,12 @@ Claude-Session: <link della sessione>
 | T14 | rete di sicurezza della GC rimessa (in `memstats.lua`, stessi valori, ogni 121 frame); `MAX_INSTANCES_PER_AI_TYPE = 2` (per client; per partita da T16) |
 | T15 | `collect` d'avvio rimessa; `MAX_ORDERS_PER_MESSAGE` unico in `ordercodec.lua`; `shard_runtime/tablepool.lua` |
 | T16 | `maxInstances` per partita (`loader/admission.lua`, primi 2 team per tipo, per ID; il relay rifiuta gli esclusi); 20 ordini per messaggio |
+| T17–T19 | timer `[Shard timer]`, campo `kb=`, ricerca del posto di `BuildingsHST` (T19 chiuso a metà) |
+| T20 | `game:GetTeamStats` e `loader/teamstats.lua` (`SHARD_TEAM_STATS`, spento): una riga `[Shard stats]` al minuto per ogni team, riepilogo una volta; campione dell'engine ogni 450 frame (15 s), l'ultimo è vivo |
 
 **Stato (25 novembre 2026)**: porting di STAI chiuso (S1–S26 verificati, branch `stai/porting`). Commit «Shard …» solo su `stai/porting`: `5d8d4a9b6e` collect alla fine di `StartAIs` (S7, chiude la nota del 25 novembre), `c7debb58fb` commento di `outbox.lua` (S6), `71fb3121b2` disegni di `map.lua` sotto la prima AI in ambito ally/global (S15), `fa4789d5` + `dec92f8f` ordercodec v2 con gruppi (S24a). Aperti per l'utente: tetto di unità per messaggio, marcatore 65535 o byte di tipo, `UnitHandler` sul modello di `UnitHST`, `ShardMemStats` solo da codice, come portare i commit su `shard/fase1`. La PR di STAI (S20) non parte prima del 2 dicembre e aspetta i primi due punti.
 
-**Stato (26 novembre 2026)**: tutto su `shardST1` (i commit di `stai/porting` compresi). Framework T1–T18 verificati: T17 timer `[Shard timer]` (soglia 10 ms, interruttore nel codice), T18 campo `kb=` nella riga; `ShardMemStats` acceso solo da codice. T19 chiuso a metà e **tenuto nel codice, anche nel branch per BAR** (decisione dell'utente, 26 novembre 2026: STAI cambierà comunque prima della PR). Prossimo compito: T20.
+**Stato (26 novembre 2026)**: tutto su `shardST1` (i commit di `stai/porting` compresi). Framework T1–T18 verificati: T17 timer `[Shard timer]` (soglia 10 ms, interruttore nel codice), T18 campo `kb=` nella riga; `ShardMemStats` acceso solo da codice. T19 chiuso a metà e **tenuto nel codice, anche nel branch per BAR** (decisione dell'utente, 26 novembre 2026: STAI cambierà comunque prima della PR). T20 verificato. Prossimo compito: T21.
 
 **Prossimi passi del framework** (nessuno urgente)
 

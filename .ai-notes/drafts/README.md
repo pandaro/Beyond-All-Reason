@@ -367,6 +367,7 @@ Positions are tables `{ x = …, y = …, z = … }`.
 
 - Identity and time: `GetTeamID()`, `GetAllyTeamID()`, `Frame()`, `IsPaused()`, `GameName()`.
 - Units: `GetUnits()`, `GetFriendlies()`, `GetEnemies()`, `GetUnitByID(id)`, `GetTypeByName(name)`, `getUnitsInCylinder(pos, range)`, `GetTeamUnitDefCount(team, unitDefID)`, `GetTeamUnitsByDefs(team, unitDefIDs)`, `GetUnitSeparation(id1, id2, d2d, surface)`, `GetUnitLos(id, bitmask)`.
+- Statistics: `GetTeamStats(teamID)`, the last sample of the engine's statistics history of a team (defaults to this AI's team; `nil` if there is none): metal and energy used, produced, excess, received, sent; damage dealt and received; units produced, died, received, sent, captured, killed. The sample is live and each call allocates the engine's tables: do not call it every frame.
 - Resources: `GetResourceByName("metal")`, `GetResource(index)`, `GetResources()`, `GetResourceCount()`. A resource has `currentLevel`, `storage`, `pull`, `income`, `expense`, `share`, `sent`, `received`.
 - Output: `SendToConsole(...)`, `AddMarker(position, label)`, `DrawDisplay(on)`.
 
@@ -458,6 +459,14 @@ Times in ms; `spikes` counts the calls above `SPIKE_MS`. To find the worst calls
 ```
 
 A step of the garbage collector in the middle of a frame lowers that frame's figure, even below zero. At shutdown, `Shard memory record:` gives the peak heap, in KB, whatever the switch.
+
+**Team stats** (`teamstats.lua`, `SHARD_TEAM_STATS`, off). Once a minute of game, one line per team but Gaia, whoever plays it (a Lua AI, a native AI or a human), from the engine's statistics history. The values are totals since the start:
+
+```
+[Shard stats] f=27000 team=0 ally=0 ai=STAI metal=+21598/-21544 energy=+356560/-327316 dmg=32610/42155 units=197/81/14
+```
+
+`metal` and `energy` are produced/used, `dmg` dealt/received, `units` produced/died/killed. `GameOver` (or `Shutdown`) writes `[Shard stats] summary` and the same lines once. The engine adds a sample every 450 frames (15 s).
 
 ## Testing
 
