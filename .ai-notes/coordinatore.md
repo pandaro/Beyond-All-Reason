@@ -181,6 +181,12 @@ Claude-Session: <link della sessione>
 
 *Output di partita dall'engine (26 novembre 2026, idea dell'utente da integrare):* `Spring.GetTeamUnitStats(teamID, startIndex, endIndex)` (SyncedRead) dà per ogni minuto di gioco: tempo, frame, metallo e energia usati, prodotti, in eccesso, ricevuti e inviati, danni fatti e subiti, unità prodotte, morte, ricevute, inviate, catturate, perse per cattura e uccise. È un'ottima fonte per il riepilogo di partita del banco di prova, al posto di ricavare tutto dall'infolog. Da decidere: in quale gadget (il gadget di controllo `engine_game_gadget.lua` è il candidato, da verificare che sia synced) e se il riepilogo sostituisce o affianca le righe `[SHARD-GAME]`.
 
+*Partita di prova con `SHARD_TEAM_STATS` (26 novembre 2026, FFA 4 alleanze: STAI 0 e 1, BARb 2 e 3, 49 min, god mode dal minuto 42):*
+- Team 1 (STAI) annientato al frame 79335. Al frame 79200: team 0 STAI 171 vive, 174k metallo prodotto, 273 uccisioni; BARb 2 e 3 circa 300 vive, 256–259k metallo, circa 325 uccisioni. Il team 0 produce circa il 33% di metallo in meno; l'energia è alla pari.
+- `BuildersBST`: 328 picchi, max 489 ms, somma 59 s. Il team 1 ha i picchi più alti (3,0–3,4 MB per frame).
+- `AttackHST` `ScheduledUpdate`: picchi di circa 11 ms ogni 18 frame, poi circa 22 ms dopo che i BARb sono spariti. Candidato per l'appunto sullo scheduler sopra i 10 ms. Causa del raddoppio da capire nel codice.
+- Il ramo `ai=BARb` è confermato; `ai=human` ancora da provare.
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
