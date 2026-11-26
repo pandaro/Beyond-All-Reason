@@ -201,6 +201,8 @@ Idea:
 - Costruisce unità situazionali in risposta a quello che succede intorno.
 - Fa blob grandi: non sempre è un vantaggio.
 
+*Snippet dell'utente per provare il terreno (27 novembre 2026; da discutere, non ancora eseguito):* `MapHST:buildT3()` scorre le celle di `gridhst.CELLS`, chiama `Spring.TestBuildOrder` per un `armshltx` (lab T3) in ogni punto e segna con `Spring.MarkerAddPoint` le celle dove si può costruire. Serve a ottenere la mappa delle celle dove fare economia (vedi l'appunto su BuildingsHST). Da discutere: `print` nel ciclo (va tolto), costo di `TestBuildOrder` su tutte le celle, e se il marcatore basta o serve un dato salvato.
+
 **In sospeso o rinviato**
 
 - `UnitTaken` arriva ai moduli come `UnitDead` (un nemico che cambia squadra sparisce da `los`/`radar`).
