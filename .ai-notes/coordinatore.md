@@ -146,62 +146,54 @@ Claude-Session: <link della sessione>
 4. **Raddrizzare STAI un modulo alla volta**, ogni modulo con il suo behaviour. Primo: `BuildingsHST` + `BuildersBST` da zero; l'utente lo studia dalla settimana del 30 novembre; **non iniziare senza il suo ok esplicito**. Idea da valutare: modulo dei posti per alleanza (mappa delle celle libere) a cui i costruttori chiedono «costruisci questo lì».
 5. **Aperti dal porting, da decidere con l'utente**: tetto di unità per messaggio e marcatore 65535 o byte di tipo in `ordercodec.lua` (bloccano S20); `UnitHandler` sul modello di `UnitHST`; latenza in multiplayer (rinviata finché non c'è SkyLobby).
 
-**Appunti dell'utente per STAI (26 novembre 2026; idee da tenere segnate, non da implementare senza il suo ok)**
+**STAI: osservazioni e idee dalle run dell'utente (26–27 novembre 2026)**
 
-*B. Valutazione dei rischi per gruppi di unità.* Premessa: i dati sul pericolo li raccogliamo molto bene (e si può ancora migliorare), ma li usiamo bene, o abbastanza bene?
-1. L'attacco è nudo e crudo: il gruppo parte e si suicida contro un muro di torri e unità. Non va bene.
-2. I raid devono aggirare i pericoli e arrivare dietro.
-3. Lo stesso per i bombardieri: scortati, puntare dietro; a un certo punto serve uno scout aereo massiccio. (Gli aerei si discutono dopo.)
+Raccolte dall'utente guardando replay e partite di prova. Sono **constatazioni** (cosa si vede) e **idee** (cosa si potrebbe fare): nessuna è un compito, nessuna si implementa senza il suo ok. Ordinate per area, nell'ordine in cui si pensa di raddrizzare STAI (un modulo alla volta, ognuno con il suo behaviour). Le righe «Nota del coordinatore» sono collegamenti fra le idee, non decisioni.
 
-*Idee sparse sul territorio (da non implementare, solo segnate):*
-1. Un meccanismo che dica a STAI qual è l'area di competenza del team, quella dell'alleanza, quella dei team e dell'alleanza nemici, e quale area è **neutrale**, cioè dove l'espansione è possibile.
-2. Più precisione sulle aree pericolose: **solo le torri, non le unità mobili**. Per 3–4 strati (surface, sky, submerged; nomi da vedere) un layer di griglia calcola **in metallo** il danno che si può ricevere in un punto dalle statiche. Una torre laser vista in una cella dà lì il suo valore in metallo; il pericolo si estende a tutte le celle nel raggio della torre, calando con la distanza fino a 0 fuori dal raggio.
-3. Poi il **blobbing**: dalla mappa dei pericoli si accorpano le celle in aree contigue con livelli di pericolo comparabili.
-4. Questo apre a una lettura migliore del territorio.
-5. Per alleanza, non per team.
-6. Anche per l'alleanza amica: dà l'area coperta dalle nostre statiche. Si ottengono aree friendly, enemy e neutral.
-7. Problema: l'area oltre i radar.
-8. Problema: costo di calcolo.
+*0. Principi*
+- Precedenza alle prestazioni di calcolo; prima un'AI giocabile, poi un'AI che vince.
+- Soluzioni smart più che numero e forza bruta: unità all terrain, stealth, invisibili, con moduli e behaviour dedicati a quelle unità; spam moderato di tick e unità leggere.
+- Il riferimento è **Barb**, non SimpleAI.
 
-*C. Rez, reclaim, repair.* La chiave è **ripara, rezza, reclama, in quest'ordine**. Un behaviour scritto bene per il rez è una marcia in più.
+*1. Economia e costruzione (`BuildingsHST` + `BuildersBST`, `assisthandler`) — primo modulo da rifare*
+- Constatazione: STAI ha in generale un'economia migliore di Barb **finché trova dove mettere le cose**. Nella partita di prova del 26 novembre (sotto, §6) produce però circa il 33% di metallo in meno dei due Barb, con energia alla pari, e spende tutto quello che produce.
+- Constatazione: le tecniche tipo «place near category» servono a tenere l'economia raccolta in aree. Se la ricerca va in giro per la mappa mette roba dappertutto, e la roba sparsa è lenta da costruire ed esposta.
+- Constatazione: gli assistenti (`assisthandler`) non lavorano, almeno quelli dei veicoli; molti costruttori T2 restano fermi.
+- Idea, **zone di economia**: un `BuildingsHST` nuovo (o quello di oggi integrato, o un altro nome) con un layer di griglia; a ogni cella un posto costruibile sì/no, calcolato provando un'unità che occupa davvero l'area (un lab T3, oppure quattro edifici); poi blobbing in zone contigue dove fare economia; si costruisce in una zona e, quando è esaurita, si chiude e si apre la successiva.
+- Snippet di prova dell'utente (27 novembre, da discutere, non eseguito): `MapHST:buildT3()` scorre `gridhst.CELLS`, chiama `Spring.TestBuildOrder` per `armshltx` in ogni punto e segna le celle buone con `Spring.MarkerAddPoint`. Da decidere: togliere il `print` nel ciclo, costo di `TestBuildOrder` su tutte le celle (una volta sola, non per frame), marcatore o dato salvato.
+- Idea già annotata: modulo dei posti per alleanza a cui i costruttori chiedono «costruisci questo lì» (Da fare, punto 4).
+- Storia: T19 (chiuso a metà, tenuto nel codice; vedi «In sospeso») e il piano del 25 novembre per `FindClosestBuildSite` (budget di ricerche per frame, memoria dei posti bloccati per circa 600 frame, celle di `GridHST` invece dei raggi a caso): restano come spunti per il rifacimento.
+- Nota del coordinatore: l'idea delle zone e la mappa dei pericoli (§3) usano la stessa base, un layer sulla griglia più blobbing. Conviene progettarle insieme.
 
-*Osservazioni dal replay e idee da raccogliere (26 novembre 2026; da non implementare ora: l'utente guarda replay e raccoglie dati):*
-- Gli assistenti (`assisthandler`) non lavorano, almeno quelli dei veicoli.
-- Molti costruttori di tecnologia 2 fermi.
-- `commanderBST` da ristrutturare un po': nei primi minuti più aggressivo, poi l'aggressività scende via via; tornare indietro in base a se corre rischi.
-- Scouting aereo.
-- Produzione di unità mobili dal lab, basata su tabelle fisse e integrata con quello che succede fuori.
-- Long-range plasma cannon da costruire in posizioni strategiche.
-- Nuke: uno solo, poi gestire il targeting.
-- Confronto con Barb, non con SimpleAI.
-- **Banco di prova headless**: lista delle mappe più usate su BAR, nelle modalità più usate (1v1, 2v2, 3v3, 4v4, FFA, 8v8 ecc.). Setup di 50–100 partite da far girare con un comando temporizzato e raccolta dati; dentro AI sparse, Barb e STAI, a volte alleate a volte avversarie. Si capiscono i problemi dagli snapshot della situazione.
-- Principi: precedenza alle prestazioni di calcolo; ottenere un'AI giocabile prima che una che vince; soluzioni smart (unità all terrain, stealth, invisibili) invece che numero e forza bruta, con moduli e behaviour dedicati a quelle unità; spam moderato di tick e unità leggere.
+*2. Riparare, rezzare, reclamare*
+- Idea: l'ordine è **ripara, rezza, reclama**. Un behaviour scritto bene per il rez è una marcia in più.
+- Constatazione su Barb: ritira le unità danneggiate sopra una certa soglia e le fa riparare.
 
-*Scheduler (appunto dell'utente, 26 novembre 2026)*: nelle partite lo scheduler va a volte sopra i 10 ms, tanto per un distributore di turni. Da capire se il timer misura solo lo scheduler o anche i moduli che chiama.
+*3. Territorio e pericolo*
+- Constatazione: i dati sul pericolo li raccogliamo molto bene (e si può migliorare), ma non è chiaro se li usiamo bene.
+- Idea, **aree**: un meccanismo che dica a STAI l'area del team, dell'alleanza, dei team e delle alleanze nemiche, e quale area è **neutrale**, cioè dove ci si può espandere. Per alleanza, non per team.
+- Idea, **mappa dei pericoli delle statiche**: solo torri, non unità mobili; 3–4 strati (surface, sky, submerged; nomi da vedere); in ogni cella il danno possibile **in metallo**, che parte dalla cella della torre e cala con la distanza fino a 0 fuori dal raggio. Poi blobbing in aree con pericolo comparabile. Fatta anche per l'alleanza amica (area coperta dalle nostre statiche), dà aree friendly, enemy e neutral.
+- Problemi aperti: l'area oltre i radar; il costo di calcolo.
 
-*Output di partita dall'engine (26 novembre 2026, idea dell'utente da integrare):* `Spring.GetTeamUnitStats(teamID, startIndex, endIndex)` (SyncedRead) dà per ogni minuto di gioco: tempo, frame, metallo e energia usati, prodotti, in eccesso, ricevuti e inviati, danni fatti e subiti, unità prodotte, morte, ricevute, inviate, catturate, perse per cattura e uccise. È un'ottima fonte per il riepilogo di partita del banco di prova, al posto di ricavare tutto dall'infolog. Da decidere: in quale gadget (il gadget di controllo `engine_game_gadget.lua` è il candidato, da verificare che sia synced) e se il riepilogo sostituisce o affianca le righe `[SHARD-GAME]`.
+*4. Combattimento (`AttackHST`, `RaidHST`, `CommanderBST`)*
+- Constatazione: l'attacco è nudo e crudo, il gruppo parte e si suicida contro un muro di torri e unità.
+- Idea: i raid aggirano i pericoli e arrivano dietro (stessa cosa per i bombardieri, §5).
+- Constatazione su Barb: trova i varchi, prova un passaggio e, se passa senza danni o con pochi, torna da lì finché gli conviene. Fa blob grandi, non sempre un vantaggio.
+- Idea, `CommanderBST` da ristrutturare un po': più aggressivo nei primi minuti, poi sempre meno; torna indietro se corre rischi.
+- Nota del coordinatore: varchi, raid alle spalle e ritirata del comandante dipendono tutti dalla mappa dei pericoli (§3).
 
-*Partita di prova con `SHARD_TEAM_STATS` (26 novembre 2026, FFA 4 alleanze: STAI 0 e 1, BARb 2 e 3, 49 min, god mode dal minuto 42):*
-- Team 1 (STAI) annientato al frame 79335. Al frame 79200: team 0 STAI 171 vive, 174k metallo prodotto, 273 uccisioni; BARb 2 e 3 circa 300 vive, 256–259k metallo, circa 325 uccisioni. Il team 0 produce circa il 33% di metallo in meno; l'energia è alla pari.
-- `BuildersBST`: 328 picchi, max 489 ms, somma 59 s. Il team 1 ha i picchi più alti (3,0–3,4 MB per frame).
-- `AttackHST` `ScheduledUpdate`: picchi di circa 11 ms ogni 18 frame, poi circa 22 ms dopo che i BARb sono spariti. Candidato per l'appunto sullo scheduler sopra i 10 ms. Causa del raddoppio da capire nel codice.
-- Il ramo `ai=BARb` è confermato; `ai=human` ancora da provare.
+*5. Produzione e unità speciali (`LabsHST` e simili)*
+- Idea: produzione di unità mobili dal lab con tabelle fisse, integrata con quello che succede fuori.
+- Constatazione su Barb: costruisce unità situazionali in risposta a quello che succede intorno.
+- Idee: long-range plasma cannon in posizioni strategiche; un solo nuke, poi gestire il targeting.
+- Aria (si discute dopo): scouting aereo, a un certo punto massiccio; bombardieri scortati che puntano dietro.
 
-*Appunto su BuildingsHST (dell'utente, 26 novembre 2026; da vedere e valutare, non da implementare):* ST ha in generale un'economia migliore di Barb, almeno finché non trova dove mettere le cose. Le tecniche tipo «place near category» servono a tenere l'economia raccolta in aree: se cerca in giro per la mappa mette roba dappertutto, e la roba sparsa è lenta da costruire ed esposta.
-Idea:
-1. Un `BuildingsHST` (o quello di oggi integrato, o un altro nome).
-2. Un layer di griglia: a ogni cella assegna un posto costruibile vero o falso.
-3. Il calcolo si fa costruendoci sopra una o più unità che occupano davvero l'area (un lab T3, oppure quattro edifici).
-4. Blobbing: una mappa di zone dove si può fare economia.
-5. Si costruisce in quella zona; quando è esaurita si toglie e si apre la successiva.
-
-*Come ci batte Barb (dell'utente, 26 novembre 2026; da vedere e valutare):*
-- Trova i varchi: prova, e se passa senza danni o con pochi torna da lì finché gli conviene.
-- Ritira le unità danneggiate sopra una certa soglia e le fa riparare.
-- Costruisce unità situazionali in risposta a quello che succede intorno.
-- Fa blob grandi: non sempre è un vantaggio.
-
-*Snippet dell'utente per provare il terreno (27 novembre 2026; da discutere, non ancora eseguito):* `MapHST:buildT3()` scorre le celle di `gridhst.CELLS`, chiama `Spring.TestBuildOrder` per un `armshltx` (lab T3) in ogni punto e segna con `Spring.MarkerAddPoint` le celle dove si può costruire. Serve a ottenere la mappa delle celle dove fare economia (vedi l'appunto su BuildingsHST). Da discutere: `print` nel ciclo (va tolto), costo di `TestBuildOrder` su tutte le celle, e se il marcatore basta o serve un dato salvato.
+*6. Prestazioni e misure*
+- Constatazione: lo scheduler va a volte sopra i 10 ms, tanto per un distributore di turni. Nella partita di prova la riga misurata è `AttackHST` `ScheduledUpdate`: circa 11 ms ogni 18 frame, circa 22 ms dopo che i Barb sono spariti. Da capire se il timer misura lo scheduler o il modulo, e perché raddoppia.
+- Constatazione: `BuildersBST` resta il più costoso (partita di prova: 328 picchi, max 489 ms, somma 59 s; il team 1 fino a 3,0–3,4 MB in un frame). Conferma il rifacimento (§1).
+- Partita di prova del 26 novembre (FFA 4 alleanze, STAI 0 e 1, Barb 2 e 3, 49 minuti, god mode dal minuto 42): team 1 annientato al frame 79335. Al frame 79200: team 0 171 unità vive, 174k metallo, 273 uccisioni; Barb circa 300 vive, 256–259k metallo, circa 325 uccisioni. `ai=BARb` confermato, `ai=human` da provare.
+- Fatto: le statistiche di partita per tutti i team sono T20 (`Spring.GetTeamStatsHistory`, righe `[Shard stats]`).
+- Idea, **banco di prova headless**: le mappe più usate su BAR, nelle modalità più usate (1v1, 2v2, 3v3, 4v4, FFA, 8v8…); 50–100 partite lanciate da un comando temporizzato, con raccolta dati; Barb e STAI mescolati, a volte alleati a volte avversari; i problemi si leggono dagli snapshot della situazione.
 
 **In sospeso o rinviato**
 
@@ -213,8 +205,6 @@ Idea:
 - **PR verso BAR (da preparare, nessun conflitto con il branch unico)**: `shardST1` resta il branch di lavoro con `.ai-notes/`; il branch per BAR si prepara a parte, senza `.ai-notes/`, con i commit riordinati (o copiati da `shardST1`), e la PR di STAI (S20, non prima del 2 dicembre) non dipende più da un branch separato. Da decidere: una PR sola (framework + STAI) o due, nell'ordine framework poi STAI. L'utente vuole cominciare a prepararlo.
 - **Debug dell'esecutore da strutturare (richiesta dell'utente, 26 novembre 2026)**: l'utente guarda spesso le partite e vuole **vedere sempre in diretta l'output nel terminale**, senza aprire e ricaricare l'infolog (oppure con l'infolog che si ricarica da solo). Da progettare insieme a `run_engine_game.sh` e agli strumenti in `.ai-notes/tools/`: uscita in diretta, righe `[Shard timer]` e `[AI Loader]` evidenziate, riepilogo a fine partita. Impegno da valutare.
 - **T19 chiuso a metà (decisione dell'utente, 26 novembre 2026)**: i 4 punti sono su `shardST1` (`60856bd1`, `1256d068`, `1581d462`, `ff3869d3`; risultati in `handoff.md`). I tempi sono risolti (picco di `BuildersBST` da 4870 a 208 ms in 60 minuti), ma su A il team 0 finisce con meno unità (media 153 contro 189). **T19 resta nel codice, anche nel branch per BAR** (ok dell'utente, 26 novembre 2026). Si sa dove è il problema (il punto 2, più punti per anello = base più fitta, e il ciclo sui `dontBuildRects` per ogni punto) e **non lo si cura**: restano da fare mutazioni, EmmyLua, `run_engine_tests.sh` e le domande aperte dell'agente. L'utente rifarà `BuildingsHST` e `BuildersBST` da zero con un progetto studiato dalla settimana del 30 novembre 2026 (modulo dei posti, passo B); fino ad allora non si investe altro tempo qui.
-- **Ricerca del posto di `BuildingsHST:FindClosestBuildSite` (STAI, da rifare; appunto dell'utente, 25 novembre 2026)**: dal log di una partita lunga, al frame 49642 la funzione è partita 51 volte nello stesso frame (una per costruttore), quasi tutte senza successo: circa 1388 tentativi, `BuildersBST` 422 ms. Piano proposto, non ancora scritto come compito: (1) budget di ricerche per frame; (2) memoria dei posti bloccati per un tempo (per esempio 600 frame); (3) celle della griglia di `GridHST` invece dei raggi campionati a caso. Il risultato resta il posto libero più vicino. Da chiedere all'utente: piano intero o solo il budget. Il compito va nel `handoff.md` della chat del porting.
-- **`collect` dopo gli `Init`**: fatto in S7 (`5d8d4a9b6e`, `collectgarbage("collect")` alla fine di `StartAIs`, in `lifecycle.lua`).
 - **`maxInstances` forzabile in prova (richiesta dell'utente, 25 novembre 2026)**: quando il gioco gira da `.sdd` (versione `$VERSION`, prove locali) deve essere possibile alzare `MAX_INSTANCES_PER_AI_TYPE` (`loader/admission.lua`) per gli stress test con tante AI. Nella release resta il limite fisso.
 
 ## 6. Cose imparate (non ripetere gli errori)
